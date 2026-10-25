@@ -9,13 +9,19 @@ export type SearchHit = {
 async function duckDuckGoInstant(query: string): Promise<SearchHit[]> {
   const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`;
   const res = await fetch(url, {
-    headers: { Accept: "application/json" },
+    headers: {
+      Accept: "application/json",
+      "User-Agent": "GenghisAI/1.0 (research assistant)",
+    },
     cache: "no-store",
   });
   if (!res.ok) {
-    throw new Error(`Хайлт амжилтгүй (${res.status})`);
+    throw new Error(`DDG ${res.status}`);
   }
-  const data = (await res.json()) as {
+  const raw = await res.text();
+  if (!raw.trim()) return [];
+
+  let data: {
     AbstractText?: string;
     AbstractURL?: string;
     Heading?: string;
@@ -25,6 +31,11 @@ async function duckDuckGoInstant(query: string): Promise<SearchHit[]> {
     >;
     Results?: Array<{ Text?: string; FirstURL?: string }>;
   };
+  try {
+    data = JSON.parse(raw) as typeof data;
+  } catch {
+    throw new Error("DDG JSON parse failed");
+  }
 
   const hits: SearchHit[] = [];
 
@@ -62,6 +73,45 @@ async function duckDuckGoInstant(query: string): Promise<SearchHit[]> {
   return hits.slice(0, 8);
 }
 
+async function wikipediaSearch(query: string): Promise<SearchHit[]> {
+  const langs = ["mn", "en"] as const;
+  const hits: SearchHit[] = [];
+
+  for (const lang of langs) {
+    const url = `https://${lang}.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(query)}&limit=5&namespace=0&format=json&origin=*`;
+    const res = await fetch(url, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!res.ok) continue;
+    const raw = await res.text();
+    if (!raw.trim()) continue;
+    try {
+      const data = JSON.parse(raw) as [
+        string,
+        string[],
+        string[],
+        string[],
+      ];
+      const titles = data[1] || [];
+      const snippets = data[2] || [];
+      const urls = data[3] || [];
+      for (let i = 0; i < titles.length; i++) {
+        hits.push({
+          title: titles[i],
+          url: urls[i] || "",
+          snippet: snippets[i] || titles[i],
+        });
+      }
+    } catch {
+      // try next lang
+    }
+    if (hits.length) break;
+  }
+
+  return hits.slice(0, 8);
+}
+
 export async function POST(request: Request) {
   let body: { query?: string };
   try {
@@ -76,7 +126,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const hits = await duckDuckGoInstant(query);
+    let hits: SearchHit[] = [];
+    try {
+      hits = await duckDuckGoInstant(query);
+    } catch {
+      hits = [];
+    }
+    if (!hits.length) {
+      hits = await wikipediaSearch(query);
+    }
+
     if (!hits.length) {
       return Response.json({
         ok: true,
