@@ -7,14 +7,20 @@ import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { HomeHero } from "@/components/chat/home-hero";
 import { MessageList } from "@/components/chat/message-list";
 import { createId } from "@/lib/id";
-import type { ChatMessage, ChatSession } from "@/lib/types";
+import { TOOL_LABELS } from "@/lib/tools";
+import type {
+  ChatAttachment,
+  ChatMessage,
+  ChatSession,
+  ToolMode,
+} from "@/lib/types";
 
-const STORAGE_KEY = "genghis-ai-sessions-v2";
+const STORAGE_KEY = "genghis-ai-sessions-v3";
 const BOOTSTRAP_SESSION_ID = "chat_bootstrap";
 
-function titleFromPrompt(prompt: string): string {
+function titleFromPrompt(prompt: string, mode: ToolMode): string {
   const clean = prompt.replace(/\s+/g, " ").trim();
-  if (!clean) return "Шинэ чат";
+  if (!clean) return mode === "chat" ? "Шинэ чат" : TOOL_LABELS[mode];
   return clean.length > 42 ? `${clean.slice(0, 42)}…` : clean;
 }
 
@@ -35,10 +41,14 @@ const BOOTSTRAP_SESSION: ChatSession = {
   updatedAt: 0,
 };
 
+type SubmitMeta = { mode: ToolMode; attachments: ChatAttachment[] };
+
 export function ChatApp() {
   const [sessions, setSessions] = useState<ChatSession[]>([BOOTSTRAP_SESSION]);
   const [activeId, setActiveId] = useState(BOOTSTRAP_SESSION_ID);
   const [input, setInput] = useState("");
+  const [mode, setMode] = useState<ToolMode>("chat");
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,9 +119,17 @@ export function ChatApp() {
   }, []);
 
   const sendMessage = useCallback(
-    async (raw: string) => {
+    async (raw: string, meta?: SubmitMeta) => {
       const content = raw.trim();
-      if (!content || loadingRef.current || !hydrated) return;
+      const activeMode = meta?.mode || mode;
+      const activeAttachments = meta?.attachments ?? attachments;
+      if (
+        (!content && activeAttachments.length === 0) ||
+        loadingRef.current ||
+        !hydrated
+      ) {
+        return;
+      }
 
       const currentId = activeIdRef.current;
       if (!currentId || currentId === BOOTSTRAP_SESSION_ID) return;
@@ -122,17 +140,24 @@ export function ChatApp() {
 
       setError(null);
       setInput("");
+      setAttachments([]);
+      setMode("chat");
 
       const userMessage: ChatMessage = {
         id: createId("msg"),
         role: "user",
-        content,
+        content:
+          content ||
+          (activeAttachments.length ? "Хавсралтыг үзэж өгнө үү." : ""),
+        attachments: activeAttachments.length ? activeAttachments : undefined,
+        tool: activeMode,
       };
       const assistantId = createId("msg");
       const assistantMessage: ChatMessage = {
         id: assistantId,
         role: "assistant",
         content: "",
+        tool: activeMode,
       };
 
       const nextMessages = [
@@ -148,7 +173,7 @@ export function ChatApp() {
                 ...s,
                 title:
                   s.messages.length === 0
-                    ? titleFromPrompt(content)
+                    ? titleFromPrompt(userMessage.content, activeMode)
                     : s.title,
                 messages: nextMessages,
                 updatedAt: Date.now(),
@@ -164,15 +189,96 @@ export function ChatApp() {
       const controller = new AbortController();
       abortRef.current = controller;
 
+      const patchAssistant = (patch: Partial<ChatMessage>) => {
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === currentId
+              ? {
+                  ...s,
+                  messages: s.messages.map((m) =>
+                    m.id === assistantId ? { ...m, ...patch } : m
+                  ),
+                  updatedAt: Date.now(),
+                }
+              : s
+          )
+        );
+      };
+
       try {
-        const payload = nextMessages
+        if (activeMode === "image") {
+          const response = await fetch("/api/image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: userMessage.content }),
+            signal: controller.signal,
+          });
+          const data = (await response.json().catch(() => null)) as {
+            imageUrl?: string;
+            error?: string;
+            model?: string;
+          } | null;
+          if (!response.ok || !data?.imageUrl) {
+            throw new Error(
+              data?.error ||
+                "Зураг үүсгэж чадсангүй. Энэ API түлхүүр/загвар зураг дэмжихгүй байж болно."
+            );
+          }
+          patchAssistant({
+            content: `Зураг амжилттай үүслээ${data.model ? ` (${data.model})` : ""}.`,
+            imageUrl: data.imageUrl,
+          });
+          return;
+        }
+
+        let webContext: string | undefined;
+        if (activeMode === "web" || activeMode === "research") {
+          try {
+            const searchRes = await fetch("/api/search", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ query: userMessage.content }),
+              signal: controller.signal,
+            });
+            const searchData = (await searchRes.json()) as {
+              hits?: Array<{ title: string; url: string; snippet: string }>;
+              notice?: string;
+            };
+            if (searchData.hits?.length) {
+              webContext = searchData.hits
+                .map(
+                  (h, i) =>
+                    `${i + 1}. ${h.title}\n${h.snippet}${h.url ? `\n${h.url}` : ""}`
+                )
+                .join("\n\n");
+            } else if (searchData.notice) {
+              webContext = searchData.notice;
+            }
+          } catch {
+            webContext =
+              "Вэб хайлт түр ажилласангүй. Дотоод мэдлэгээр судалгааны бүтэцтэй хариул.";
+          }
+        }
+
+        const history = nextMessages
           .filter((m) => m.id !== assistantId)
           .map(({ role, content: c }) => ({ role, content: c }));
 
         const response = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: payload }),
+          body: JSON.stringify({
+            messages: history,
+            mode: activeMode,
+            attachments: activeAttachments.map((a) => ({
+              name: a.name,
+              mime: a.mime,
+              kind: a.kind,
+              dataUrl: a.dataUrl,
+              text: a.text,
+            })),
+            webContext,
+          }),
           signal: controller.signal,
         });
 
@@ -195,20 +301,7 @@ export function ChatApp() {
           const { done, value } = await reader.read();
           if (done) break;
           assembled += decoder.decode(value, { stream: true });
-          const snapshot = assembled;
-          setSessions((prev) =>
-            prev.map((s) =>
-              s.id === currentId
-                ? {
-                    ...s,
-                    messages: s.messages.map((m) =>
-                      m.id === assistantId ? { ...m, content: snapshot } : m
-                    ),
-                    updatedAt: Date.now(),
-                  }
-                : s
-            )
-          );
+          patchAssistant({ content: assembled });
         }
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
@@ -217,25 +310,11 @@ export function ChatApp() {
         const message =
           err instanceof Error ? err.message : "Тодорхойгүй алдаа гарлаа.";
         setError(message);
-        setSessions((prev) =>
-          prev.map((s) =>
-            s.id === currentId
-              ? {
-                  ...s,
-                  messages: s.messages.map((m) =>
-                    m.id === assistantId
-                      ? {
-                          ...m,
-                          content:
-                            m.content ||
-                            "Уучлаарай, хариу өгч чадсангүй. Дахин оролдоно уу.",
-                        }
-                      : m
-                  ),
-                }
-              : s
-          )
-        );
+        patchAssistant({
+          content:
+            message ||
+            "Уучлаарай, хариу өгч чадсангүй. Дахин оролдоно уу.",
+        });
       } finally {
         loadingRef.current = false;
         setIsLoading(false);
@@ -243,7 +322,18 @@ export function ChatApp() {
         abortRef.current = null;
       }
     },
-    [hydrated]
+    [attachments, hydrated, mode]
+  );
+
+  const handleTool = useCallback(
+    (next: ToolMode) => {
+      setMode(next);
+      setSidebarOpen(false);
+      if (input.trim()) {
+        void sendMessage(input, { mode: next, attachments });
+      }
+    },
+    [attachments, input, sendMessage]
   );
 
   const handleNew = () => {
@@ -253,6 +343,8 @@ export function ChatApp() {
     setActiveId(session.id);
     setError(null);
     setInput("");
+    setAttachments([]);
+    setMode("chat");
   };
 
   const handleDelete = (id: string) => {
@@ -283,7 +375,7 @@ export function ChatApp() {
         onSelect={setActiveId}
         onNew={handleNew}
         onDelete={handleDelete}
-        onToolPrefill={setInput}
+        onTool={handleTool}
       />
 
       <div className="relative flex min-w-0 flex-1 flex-col">
@@ -300,11 +392,15 @@ export function ChatApp() {
           <HomeHero
             input={input}
             onChange={setInput}
-            onSubmit={(text) => void sendMessage(text)}
+            onSubmit={(text, meta) => void sendMessage(text, meta)}
             onStop={stop}
             isLoading={isLoading}
             disabled={!hydrated}
-            onPrefill={setInput}
+            mode={mode}
+            onModeChange={setMode}
+            attachments={attachments}
+            onAttachmentsChange={setAttachments}
+            onTool={handleTool}
           />
         ) : (
           <>
@@ -340,11 +436,15 @@ export function ChatApp() {
                 <ChatComposer
                   value={input}
                   onChange={setInput}
-                  onSubmit={(text) => void sendMessage(text)}
+                  onSubmit={(text, meta) => void sendMessage(text, meta)}
                   onStop={stop}
                   isLoading={isLoading}
                   disabled={!hydrated}
                   variant="chat"
+                  mode={mode}
+                  onModeChange={setMode}
+                  attachments={attachments}
+                  onAttachmentsChange={setAttachments}
                 />
               </div>
             </div>
