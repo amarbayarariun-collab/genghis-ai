@@ -90,26 +90,27 @@ export function HomeHero({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="absolute inset-0 overflow-hidden" aria-hidden>
-        {/* Primary: rainbow valley (store genghis-hero-rainbow.webp) */}
+        {/* Single live-photo scene — continuous motion, no image swapping */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/brand/hero-rainbow.webp"
+          src="/brand/hero-live.webp"
           alt=""
           decoding="async"
           fetchPriority="high"
-          className="hero-layer hero-layer-a absolute inset-0 h-full w-full max-w-none object-cover object-[50%_42%]"
+          className="hero-live-photo absolute inset-0 h-full w-full max-w-none object-cover object-[48%_40%]"
         />
-        {/* Secondary: glacier — object-position hides left Adobe bar */}
+        {/* Same frame, slight parallax depth (not a second photo) */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/brand/hero-glacier.jpg"
+          src="/brand/hero-live.webp"
           alt=""
           decoding="async"
-          loading="lazy"
-          className="hero-layer hero-layer-b absolute inset-0 h-full w-full max-w-none object-cover object-[68%_38%]"
+          aria-hidden
+          className="hero-live-parallax pointer-events-none absolute inset-0 h-full w-full max-w-none object-cover object-[48%_40%] opacity-35 mix-blend-soft-light"
         />
         <div className="hero-clouds pointer-events-none absolute inset-0" />
         <div className="hero-sky-drift pointer-events-none absolute inset-0" />
+        <div className="hero-light pointer-events-none absolute inset-0" />
         <div className="hero-scrim absolute inset-0" />
       </div>
 

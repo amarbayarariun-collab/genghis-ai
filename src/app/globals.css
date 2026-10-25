@@ -134,46 +134,42 @@
       );
   }
 
-  /* Living landscape — clearly visible but calm motion */
-  .hero-layer {
+  /* Live-photo hero: one scene, continuous camera + atmosphere (no crossfade) */
+  .hero-live-photo {
     transform: translateZ(0);
+    transform-origin: 48% 42%;
+    backface-visibility: hidden;
+    will-change: transform;
+    animation: hero-live-camera 36s ease-in-out infinite;
+  }
+
+  .hero-live-parallax {
+    transform: translateZ(0);
+    transform-origin: 52% 48%;
     backface-visibility: hidden;
     will-change: transform, opacity;
-  }
-
-  .hero-layer-a {
-    transform-origin: 46% 38%;
-    animation:
-      hero-kenburns-a 28s ease-in-out infinite alternate,
-      hero-crossfade-a 16s ease-in-out infinite;
-  }
-
-  .hero-layer-b {
-    transform-origin: 62% 34%;
-    animation:
-      hero-kenburns-b 32s ease-in-out infinite alternate,
-      hero-crossfade-b 16s ease-in-out infinite;
+    animation: hero-live-parallax 28s ease-in-out infinite alternate;
   }
 
   .hero-clouds {
     background:
       radial-gradient(
         130% 70% at 12% 10%,
-        rgb(255 255 255 / 0.32),
+        rgb(255 255 255 / 0.28),
         transparent 58%
       ),
       radial-gradient(
         100% 55% at 82% 16%,
-        rgb(255 255 255 / 0.22),
+        rgb(255 255 255 / 0.2),
         transparent 52%
       ),
       radial-gradient(
         80% 40% at 48% 8%,
-        rgb(200 220 255 / 0.12),
+        rgb(200 220 255 / 0.14),
         transparent 55%
       );
     mix-blend-mode: soft-light;
-    animation: hero-clouds 22s ease-in-out infinite alternate;
+    animation: hero-clouds 24s ease-in-out infinite alternate;
     will-change: opacity, transform;
   }
 
@@ -181,36 +177,48 @@
     background: linear-gradient(
       100deg,
       transparent 0%,
-      rgb(255 255 255 / 0.14) 40%,
+      rgb(255 255 255 / 0.12) 40%,
       transparent 72%
     );
-    animation: hero-sky-drift 26s linear infinite;
+    animation: hero-sky-drift 30s linear infinite;
     will-change: transform, opacity;
+  }
+
+  .hero-light {
+    background:
+      radial-gradient(
+        70% 55% at 62% 35%,
+        rgb(255 255 255 / 0.14),
+        transparent 65%
+      );
+    mix-blend-mode: soft-light;
+    animation: hero-light 18s ease-in-out infinite alternate;
+    will-change: opacity, transform;
   }
 }
 
 @media (max-width: 640px) {
-  /* Slightly lighter GPU load on phones; motion still obvious */
-  .hero-layer-a {
-    animation-duration: 34s, 18s;
+  .hero-live-photo {
+    animation-duration: 44s;
   }
-  .hero-layer-b {
-    animation-duration: 38s, 18s;
+  .hero-live-parallax {
+    animation-duration: 36s;
   }
   .hero-clouds {
-    animation-duration: 28s;
+    animation-duration: 30s;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-layer-a,
-  .hero-layer-b,
+  .hero-live-photo,
+  .hero-live-parallax,
   .hero-clouds,
-  .hero-sky-drift {
+  .hero-sky-drift,
+  .hero-light {
     animation: none !important;
   }
 
-  .hero-layer-b {
+  .hero-live-parallax {
     opacity: 0 !important;
   }
 }
@@ -245,74 +253,68 @@
   }
 }
 
-@keyframes hero-kenburns-a {
+/* Continuous “live photo” camera path — no scene swap */
+@keyframes hero-live-camera {
   0% {
-    transform: scale(1.04) translate3d(0.4%, 0.2%, 0);
+    transform: scale(1.06) translate3d(0%, 0%, 0);
+  }
+  25% {
+    transform: scale(1.12) translate3d(-1.8%, -0.9%, 0);
+  }
+  50% {
+    transform: scale(1.16) translate3d(0.6%, -1.5%, 0);
+  }
+  75% {
+    transform: scale(1.11) translate3d(2%, -0.4%, 0);
   }
   100% {
-    transform: scale(1.16) translate3d(-2.4%, -1.6%, 0);
+    transform: scale(1.06) translate3d(0%, 0%, 0);
   }
 }
 
-@keyframes hero-kenburns-b {
+@keyframes hero-live-parallax {
   0% {
-    transform: scale(1.14) translate3d(2%, -0.8%, 0);
+    transform: scale(1.18) translate3d(1.5%, 1%, 0);
+    opacity: 0.22;
   }
   100% {
-    transform: scale(1.05) translate3d(-1.4%, 1%, 0);
-  }
-}
-
-/* Full loop 16s ≈ scene swap every ~8s hold + fade (rainbow↔glacier) */
-@keyframes hero-crossfade-a {
-  0%,
-  40% {
-    opacity: 1;
-  }
-  50%,
-  90% {
-    opacity: 0;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-@keyframes hero-crossfade-b {
-  0%,
-  40% {
-    opacity: 0;
-  }
-  50%,
-  90% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
+    transform: scale(1.28) translate3d(-2%, -1.2%, 0);
+    opacity: 0.4;
   }
 }
 
 @keyframes hero-clouds {
   0% {
-    opacity: 0.45;
-    transform: translate3d(-2%, 0.5%, 0) scale(1.02);
+    opacity: 0.4;
+    transform: translate3d(-3%, 0.4%, 0) scale(1.02);
   }
   100% {
-    opacity: 0.95;
-    transform: translate3d(4.5%, -2%, 0) scale(1.08);
+    opacity: 0.92;
+    transform: translate3d(5%, -2.2%, 0) scale(1.1);
   }
 }
 
 @keyframes hero-sky-drift {
   0% {
-    transform: translate3d(-22%, 0, 0);
-    opacity: 0.2;
+    transform: translate3d(-24%, 0, 0);
+    opacity: 0.18;
   }
   50% {
-    opacity: 0.55;
+    opacity: 0.5;
   }
   100% {
-    transform: translate3d(22%, 0, 0);
-    opacity: 0.2;
+    transform: translate3d(24%, 0, 0);
+    opacity: 0.18;
+  }
+}
+
+@keyframes hero-light {
+  0% {
+    opacity: 0.35;
+    transform: translate3d(-2%, 1%, 0) scale(1);
+  }
+  100% {
+    opacity: 0.75;
+    transform: translate3d(3%, -2%, 0) scale(1.08);
   }
 }
