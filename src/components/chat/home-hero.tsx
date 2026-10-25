@@ -9,6 +9,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ChatComposer } from "@/components/chat/chat-composer";
+import { LiveHeroBackdrop } from "@/components/chat/live-hero-backdrop";
 import type { ChatAttachment, ToolMode } from "@/lib/types";
 
 type HomeHeroProps = {
@@ -89,30 +90,7 @@ export function HomeHero({
 }: HomeHeroProps) {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden" aria-hidden>
-        {/* Single live-photo scene — continuous motion, no image swapping */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/brand/hero-live.webp"
-          alt=""
-          decoding="async"
-          fetchPriority="high"
-          className="hero-live-photo absolute inset-0 h-full w-full max-w-none object-cover object-[48%_40%]"
-        />
-        {/* Same frame, slight parallax depth (not a second photo) */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/brand/hero-live.webp"
-          alt=""
-          decoding="async"
-          aria-hidden
-          className="hero-live-parallax pointer-events-none absolute inset-0 h-full w-full max-w-none object-cover object-[48%_40%] opacity-35 mix-blend-soft-light"
-        />
-        <div className="hero-clouds pointer-events-none absolute inset-0" />
-        <div className="hero-sky-drift pointer-events-none absolute inset-0" />
-        <div className="hero-light pointer-events-none absolute inset-0" />
-        <div className="hero-scrim absolute inset-0" />
-      </div>
+      <LiveHeroBackdrop />
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         <div className="flex flex-1 flex-col items-center justify-center px-4 pt-10 pb-4 md:px-8 md:pt-6">

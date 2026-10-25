@@ -134,21 +134,11 @@
       );
   }
 
-  /* Live-photo hero: one scene, continuous camera + atmosphere (no crossfade) */
-  .hero-live-photo {
-    transform: translateZ(0);
+  /* Live-photo hero: JS drives camera; CSS only atmosphere */
+  .hero-live-photo,
+  .hero-live-parallax {
     transform-origin: 48% 42%;
     backface-visibility: hidden;
-    will-change: transform;
-    animation: hero-live-camera 36s ease-in-out infinite;
-  }
-
-  .hero-live-parallax {
-    transform: translateZ(0);
-    transform-origin: 52% 48%;
-    backface-visibility: hidden;
-    will-change: transform, opacity;
-    animation: hero-live-parallax 28s ease-in-out infinite alternate;
   }
 
   .hero-clouds {
@@ -198,20 +188,12 @@
 }
 
 @media (max-width: 640px) {
-  .hero-live-photo {
-    animation-duration: 44s;
-  }
-  .hero-live-parallax {
-    animation-duration: 36s;
-  }
   .hero-clouds {
     animation-duration: 30s;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-live-photo,
-  .hero-live-parallax,
   .hero-clouds,
   .hero-sky-drift,
   .hero-light {
@@ -250,36 +232,6 @@
   }
   50% {
     opacity: 1;
-  }
-}
-
-/* Continuous “live photo” camera path — no scene swap */
-@keyframes hero-live-camera {
-  0% {
-    transform: scale(1.06) translate3d(0%, 0%, 0);
-  }
-  25% {
-    transform: scale(1.12) translate3d(-1.8%, -0.9%, 0);
-  }
-  50% {
-    transform: scale(1.16) translate3d(0.6%, -1.5%, 0);
-  }
-  75% {
-    transform: scale(1.11) translate3d(2%, -0.4%, 0);
-  }
-  100% {
-    transform: scale(1.06) translate3d(0%, 0%, 0);
-  }
-}
-
-@keyframes hero-live-parallax {
-  0% {
-    transform: scale(1.18) translate3d(1.5%, 1%, 0);
-    opacity: 0.22;
-  }
-  100% {
-    transform: scale(1.28) translate3d(-2%, -1.2%, 0);
-    opacity: 0.4;
   }
 }
 
