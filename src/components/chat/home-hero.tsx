@@ -90,19 +90,23 @@ export function HomeHero({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="absolute inset-0 overflow-hidden" aria-hidden>
-        {/* Primary: rainbow valley — slow Ken Burns */}
+        {/* Primary: rainbow valley (store genghis-hero-rainbow.webp) */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/brand/hero-rainbow.webp"
           alt=""
-          className="hero-layer hero-layer-a absolute inset-0 h-full w-full object-cover object-[50%_42%]"
+          decoding="async"
+          fetchPriority="high"
+          className="hero-layer hero-layer-a absolute inset-0 h-full w-full max-w-none object-cover object-[50%_42%]"
         />
-        {/* Secondary: glacier (cropped) — opposite drift + soft crossfade */}
+        {/* Secondary: glacier — object-position hides left Adobe bar */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/brand/hero-glacier.jpg"
           alt=""
-          className="hero-layer hero-layer-b absolute inset-0 h-full w-full object-cover object-[58%_35%]"
+          decoding="async"
+          loading="lazy"
+          className="hero-layer hero-layer-b absolute inset-0 h-full w-full max-w-none object-cover object-[68%_38%]"
         />
         <div className="hero-clouds pointer-events-none absolute inset-0" />
         <div className="hero-sky-drift pointer-events-none absolute inset-0" />
