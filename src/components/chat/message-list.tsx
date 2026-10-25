@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { FileIcon } from "lucide-react";
 import type { ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +39,7 @@ export function MessageList({
             >
               <div
                 className={cn(
-                  "max-w-[92%] text-[15px] leading-relaxed whitespace-pre-wrap md:max-w-[85%]",
+                  "max-w-[92%] text-[15px] leading-relaxed md:max-w-[85%]",
                   isUser
                     ? "rounded-2xl bg-ink px-4 py-2.5 text-cream"
                     : "text-ink"
@@ -49,23 +50,67 @@ export function MessageList({
                     Genghis AI
                   </p>
                 ) : null}
-                {message.content ||
-                  (isStreaming ? (
-                    <span className="inline-flex gap-1 py-1">
-                      <span className="size-1.5 rounded-full bg-gold animate-pulse-soft" />
-                      <span
-                        className="size-1.5 rounded-full bg-gold animate-pulse-soft"
-                        style={{ animationDelay: "0.2s" }}
-                      />
-                      <span
-                        className="size-1.5 rounded-full bg-gold animate-pulse-soft"
-                        style={{ animationDelay: "0.4s" }}
-                      />
-                    </span>
-                  ) : null)}
-                {isStreaming && message.content ? (
-                  <span className="ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-gold animate-pulse-soft" />
+
+                {message.attachments?.length ? (
+                  <div
+                    className={cn(
+                      "mb-2 flex flex-wrap gap-2",
+                      isUser ? "" : ""
+                    )}
+                  >
+                    {message.attachments.map((att) =>
+                      att.kind === "image" && att.dataUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={att.id}
+                          src={att.dataUrl}
+                          alt={att.name}
+                          className="max-h-40 max-w-[12rem] rounded-xl object-cover"
+                        />
+                      ) : (
+                        <span
+                          key={att.id}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px]",
+                            isUser ? "bg-white/10" : "bg-taupe/50"
+                          )}
+                        >
+                          <FileIcon className="size-3.5" />
+                          {att.name}
+                        </span>
+                      )
+                    )}
+                  </div>
                 ) : null}
+
+                {message.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={message.imageUrl}
+                    alt="Үүсгэсэн зураг"
+                    className="mb-2 max-h-[28rem] w-full rounded-2xl object-contain"
+                  />
+                ) : null}
+
+                <div className="whitespace-pre-wrap">
+                  {message.content ||
+                    (isStreaming ? (
+                      <span className="inline-flex gap-1 py-1">
+                        <span className="size-1.5 rounded-full bg-gold animate-pulse-soft" />
+                        <span
+                          className="size-1.5 rounded-full bg-gold animate-pulse-soft"
+                          style={{ animationDelay: "0.2s" }}
+                        />
+                        <span
+                          className="size-1.5 rounded-full bg-gold animate-pulse-soft"
+                          style={{ animationDelay: "0.4s" }}
+                        />
+                      </span>
+                    ) : null)}
+                  {isStreaming && message.content ? (
+                    <span className="ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-gold animate-pulse-soft" />
+                  ) : null}
+                </div>
               </div>
             </div>
           );

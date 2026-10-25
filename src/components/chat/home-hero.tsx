@@ -9,53 +9,68 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ChatComposer } from "@/components/chat/chat-composer";
+import type { ChatAttachment, ToolMode } from "@/lib/types";
 
 type HomeHeroProps = {
   input: string;
   onChange: (value: string) => void;
-  onSubmit: (text: string) => void;
+  onSubmit: (
+    text: string,
+    meta?: { mode: ToolMode; attachments: ChatAttachment[] }
+  ) => void;
   isLoading?: boolean;
   disabled?: boolean;
   onStop?: () => void;
-  onPrefill: (text: string) => void;
+  mode: ToolMode;
+  onModeChange: (mode: ToolMode) => void;
+  attachments: ChatAttachment[];
+  onAttachmentsChange: (next: ChatAttachment[]) => void;
+  onTool: (mode: ToolMode) => void;
 };
 
-const QUICK_PILLS = [
-  { label: "Гүнзгий судалгаа", icon: Search, prefill: "Гүнзгий судалгаа: " },
-  { label: "Зураг үүсгэх", icon: ImageIcon, prefill: "Зураг үүсгэ: " },
-  { label: "Баримт бичиг", icon: FileText, prefill: "Баримт бичиг: " },
-  { label: "Код боловсруулах", icon: Code2, prefill: "Код боловсруул: " },
-  { label: "Вэб хайлт", icon: Sparkles, prefill: "Вэб хайлт: " },
-] as const;
+const QUICK_PILLS: Array<{
+  label: string;
+  icon: typeof Search;
+  mode: ToolMode;
+}> = [
+  { label: "Гүнзгий судалгаа", icon: Search, mode: "research" },
+  { label: "Зураг үүсгэх", icon: ImageIcon, mode: "image" },
+  { label: "Баримт бичиг", icon: FileText, mode: "document" },
+  { label: "Код боловсруулах", icon: Code2, mode: "code" },
+  { label: "Вэб хайлт", icon: Sparkles, mode: "web" },
+];
 
-const FEATURES = [
+const FEATURES: Array<{
+  title: string;
+  desc: string;
+  icon: typeof Search;
+  mode: ToolMode;
+  autoSend?: string;
+}> = [
   {
     title: "Ухаалаг чат",
     desc: "Асуулт, хариулт, зөвлөгөө",
     icon: MessageSquare,
-    action: "send" as const,
-    text: "Сайн уу",
+    mode: "chat",
+    autoSend: "Сайн уу",
   },
   {
     title: "Зураг үүсгэх",
     desc: "Санаагаа зургаар амьдруулах",
     icon: ImageIcon,
-    action: "prefill" as const,
-    text: "Зураг үүсгэ: ",
+    mode: "image",
   },
   {
     title: "Баримт бичиг",
     desc: "Дүгнэлт, тайлан, и-мэйл, орчуулга",
     icon: FileText,
-    action: "prefill" as const,
-    text: "Баримт бичиг: ",
+    mode: "document",
   },
   {
     title: "Код боловсруулах",
     desc: "Програмчлал, тайлбарлах",
     icon: Code2,
-    action: "prefill" as const,
-    text: "Код боловсруул: ",
+    mode: "code",
   },
 ];
 
@@ -66,18 +81,22 @@ export function HomeHero({
   isLoading,
   disabled,
   onStop,
-  onPrefill,
+  mode,
+  onModeChange,
+  attachments,
+  onAttachmentsChange,
+  onTool,
 }: HomeHeroProps) {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      {/* Full-bleed mountain hero */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/brand/hero-mountains.jpg"
           alt=""
-          className="h-full w-full object-cover object-center"
+          className="hero-living h-full w-full object-cover object-center"
         />
+        <div className="hero-clouds pointer-events-none absolute inset-0" />
         <div className="hero-scrim absolute inset-0" />
       </div>
 
@@ -104,6 +123,10 @@ export function HomeHero({
               isLoading={isLoading}
               disabled={disabled}
               variant="hero"
+              mode={mode}
+              onModeChange={onModeChange}
+              attachments={attachments}
+              onAttachmentsChange={onAttachmentsChange}
             />
           </div>
 
@@ -115,8 +138,12 @@ export function HomeHero({
               <button
                 key={pill.label}
                 type="button"
-                onClick={() => onPrefill(pill.prefill)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-ink/35 px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-ink/50 sm:text-[13px]"
+                onClick={() => onTool(pill.mode)}
+                className={
+                  mode === pill.mode
+                    ? "inline-flex items-center gap-1.5 rounded-full border border-gold/60 bg-gold/25 px-3 py-1.5 text-xs text-white backdrop-blur-md transition sm:text-[13px]"
+                    : "inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-ink/35 px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-ink/50 sm:text-[13px]"
+                }
               >
                 <pill.icon className="size-3.5 opacity-90" />
                 {pill.label}
@@ -132,8 +159,14 @@ export function HomeHero({
                 key={feature.title}
                 type="button"
                 onClick={() => {
-                  if (feature.action === "send") onSubmit(feature.text);
-                  else onPrefill(feature.text);
+                  if (feature.autoSend) {
+                    onSubmit(feature.autoSend, {
+                      mode: feature.mode,
+                      attachments: [],
+                    });
+                  } else {
+                    onTool(feature.mode);
+                  }
                 }}
                 className="animate-fade-up rounded-2xl border border-white/40 bg-cream/95 p-4 text-left shadow-[0_12px_40px_-24px_rgb(11_13_15/0.55)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-cream"
                 style={{ animationDelay: `${180 + i * 40}ms` }}

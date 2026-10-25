@@ -1,8 +1,26 @@
+import {
+  getApiKey,
+  resolveApiConfig,
+  sanitizeApiError,
+} from "@/lib/api-config";
 import { streamMockReply } from "@/lib/mock-chat";
+import { systemPromptForMode } from "@/lib/tools";
+import type { ApiAttachment, ToolMode } from "@/lib/types";
+
+type TextPart = { type: "text"; text: string };
+type ImagePart = { type: "image_url"; image_url: { url: string } };
+type ContentPart = TextPart | ImagePart;
 
 type IncomingMessage = {
   role: "user" | "assistant" | "system";
-  content: string;
+  content: string | ContentPart[];
+};
+
+type ChatBody = {
+  messages?: IncomingMessage[];
+  mode?: ToolMode;
+  attachments?: ApiAttachment[];
+  webContext?: string;
 };
 
 function encoderStream(
@@ -23,31 +41,61 @@ function encoderStream(
   });
 }
 
-function resolveApiConfig(apiKey: string): { baseUrl: string; model: string } {
-  const isXai = apiKey.startsWith("xai-");
-  const baseUrl =
-    process.env.OPENAI_BASE_URL?.replace(/\/$/, "") ||
-    (isXai ? "https://api.x.ai/v1" : "https://api.openai.com/v1");
-  const model =
-    process.env.OPENAI_MODEL || (isXai ? "grok-4.3" : "gpt-4o-mini");
-  return { baseUrl, model };
+function buildUserContent(
+  text: string,
+  attachments?: ApiAttachment[]
+): string | ContentPart[] {
+  const images = (attachments || []).filter(
+    (a) => a.kind === "image" && a.dataUrl
+  );
+  const docs = (attachments || []).filter((a) => a.kind === "file");
+
+  let prompt = text;
+  if (docs.length) {
+    const blocks = docs.map((d) => {
+      const body = (d.text || "").slice(0, 60_000);
+      return `--- Файл: ${d.name} (${d.mime}) ---\n${body}`;
+    });
+    prompt = `${text}\n\n[Хавсралт баримтууд]\n${blocks.join("\n\n")}`;
+  }
+
+  if (!images.length) return prompt;
+
+  const parts: ContentPart[] = [{ type: "text", text: prompt || "Энэ зургийг харж тайлбарла / асуултад хариул." }];
+  for (const img of images.slice(0, 4)) {
+    if (img.dataUrl) {
+      parts.push({ type: "image_url", image_url: { url: img.dataUrl } });
+    }
+  }
+  return parts;
 }
 
-/** Strip anything that looks like a credential from upstream error text. */
-function sanitizeApiError(detail: string): string {
-  return detail
-    .replace(/xai-[A-Za-z0-9_-]+/g, "xai-<redacted>")
-    .replace(/sk-[A-Za-z0-9_-]+/g, "sk-<redacted>")
-    .replace(/Bearer\s+\S+/gi, "Bearer <redacted>")
-    .slice(0, 200);
+function lastUserText(messages: IncomingMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "user") continue;
+    if (typeof m.content === "string") return m.content;
+    const text = m.content
+      .filter((p): p is TextPart => p.type === "text")
+      .map((p) => p.text)
+      .join("\n");
+    return text;
+  }
+  return "";
 }
 
 async function* streamOpenAI(
   messages: IncomingMessage[],
   apiKey: string,
+  mode: ToolMode,
+  webContext: string | undefined,
   signal?: AbortSignal
 ): AsyncGenerator<string> {
   const { baseUrl, model } = resolveApiConfig(apiKey);
+  let system = systemPromptForMode(mode);
+  if (webContext) {
+    system += `\n\n[Вэб хайлтын үр дүн]\n${webContext}`;
+  }
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
@@ -58,14 +106,7 @@ async function* streamOpenAI(
     body: JSON.stringify({
       model,
       stream: true,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Чи Genghis AI — Монголын анхны ChatGPT шиг AI туслах. Монгол хэлээр (кирилл) тод, найрсаг хариул. Шаардлагатай үед англиар товч нэмж болно. Богино, хэрэгтэй хариултыг илүүд үз.",
-        },
-        ...messages.map((m) => ({ role: m.role, content: m.content })),
-      ],
+      messages: [{ role: "system", content: system }, ...messages],
     }),
     signal,
   });
@@ -73,7 +114,7 @@ async function* streamOpenAI(
   if (!response.ok || !response.body) {
     const detail = await response.text().catch(() => "");
     throw new Error(
-      `OpenAI API алдаа (${response.status}): ${sanitizeApiError(detail) || response.statusText}`
+      `API алдаа (${response.status}): ${sanitizeApiError(detail) || response.statusText}`
     );
   }
 
@@ -100,46 +141,60 @@ async function* streamOpenAI(
         const token = json.choices?.[0]?.delta?.content;
         if (token) yield token;
       } catch {
-        // skip malformed SSE chunks
+        // skip
       }
     }
   }
 }
 
 export async function POST(request: Request) {
-  let body: { messages?: IncomingMessage[] };
+  let body: ChatBody;
   try {
     body = await request.json();
   } catch {
-    return Response.json(
-      { error: "Буруу JSON илгээлээ." },
-      { status: 400 }
-    );
+    return Response.json({ error: "Буруу JSON илгээлээ." }, { status: 400 });
   }
 
-  const messages = body.messages?.filter(
+  const mode: ToolMode = body.mode || "chat";
+  const attachments = body.attachments || [];
+  const webContext = body.webContext?.trim();
+
+  const rawMessages = (body.messages || []).filter(
     (m) =>
       m &&
-      typeof m.content === "string" &&
-      (m.role === "user" || m.role === "assistant" || m.role === "system")
+      (m.role === "user" || m.role === "assistant" || m.role === "system") &&
+      (typeof m.content === "string" || Array.isArray(m.content))
   );
 
-  if (!messages?.length) {
-    return Response.json(
-      { error: "Мессеж хоосон байна." },
-      { status: 400 }
-    );
+  if (!rawMessages.length && !attachments.length) {
+    return Response.json({ error: "Мессеж хоосон байна." }, { status: 400 });
   }
 
-  const lastUser = [...messages].reverse().find((m) => m.role === "user");
-  const prompt = lastUser?.content ?? "";
-  // Febbas secret is currently named `AP`; prefer OPENAI_API_KEY when set.
-  const apiKey =
-    process.env.OPENAI_API_KEY?.trim() || process.env.AP?.trim();
+  // Inject attachments into the last user message
+  const messages: IncomingMessage[] = rawMessages.map((m, idx) => {
+    const isLastUser =
+      m.role === "user" &&
+      idx === rawMessages.map((x) => x.role).lastIndexOf("user");
+    if (!isLastUser || !attachments.length) return m;
+    const text = typeof m.content === "string" ? m.content : lastUserText([m]);
+    return { role: "user", content: buildUserContent(text, attachments) };
+  });
+
+  if (!messages.length) {
+    messages.push({
+      role: "user",
+      content: buildUserContent("", attachments),
+    });
+  }
+
+  const prompt = lastUserText(messages);
+  const apiKey = getApiKey();
 
   try {
     if (apiKey) {
-      const stream = encoderStream(streamOpenAI(messages, apiKey, request.signal));
+      const stream = encoderStream(
+        streamOpenAI(messages, apiKey, mode, webContext, request.signal)
+      );
       return new Response(stream, {
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
@@ -160,11 +215,10 @@ export async function POST(request: Request) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Тодорхойгүй алдаа гарлаа.";
-    // Fall back to mock if live API fails so the demo still works
     if (apiKey) {
       const stream = encoderStream(
         (async function* () {
-          yield `⚠️ Жинхэнэ API ажилласангүй (${message}). Демо горим руу шилжлээ.\n\n`;
+          yield `⚠️ Жинхэнэ API ажилласангүй (${sanitizeApiError(message)}). Демо горим руу шилжлээ.\n\n`;
           for await (const chunk of streamMockReply(prompt, request.signal)) {
             yield chunk;
           }
@@ -178,7 +232,6 @@ export async function POST(request: Request) {
         },
       });
     }
-
     return Response.json({ error: message }, { status: 500 });
   }
 }

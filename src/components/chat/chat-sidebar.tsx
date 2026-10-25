@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { GenghisLogo } from "@/components/brand/genghis-logo";
 import { Button } from "@/components/ui/button";
-import type { ChatSession } from "@/lib/types";
+import type { ChatSession, ToolMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type ChatSidebarProps = {
@@ -23,19 +23,19 @@ type ChatSidebarProps = {
   onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
-  onToolPrefill?: (text: string) => void;
+  onTool?: (mode: ToolMode) => void;
 };
 
 const TOOLS: Array<{
   label: string;
   icon: typeof Search;
-  prefill?: string;
+  mode: ToolMode;
 }> = [
-  { label: "Судалгаа", icon: Search, prefill: "Гүнзгий судалгаа: " },
-  { label: "Зураг үүсгэх", icon: ImageIcon, prefill: "Зураг үүсгэ: " },
-  { label: "Баримт бичиг", icon: FileText, prefill: "Баримт бичиг: " },
-  { label: "Вэб хайлт", icon: Globe, prefill: "Вэб хайлт: " },
-  { label: "Код боловсруулах", icon: Code2, prefill: "Код боловсруул: " },
+  { label: "Судалгаа", icon: Search, mode: "research" },
+  { label: "Зураг үүсгэх", icon: ImageIcon, mode: "image" },
+  { label: "Баримт бичиг", icon: FileText, mode: "document" },
+  { label: "Вэб хайлт", icon: Globe, mode: "web" },
+  { label: "Код боловсруулах", icon: Code2, mode: "code" },
 ];
 
 export function ChatSidebar({
@@ -46,7 +46,7 @@ export function ChatSidebar({
   onSelect,
   onNew,
   onDelete,
-  onToolPrefill,
+  onTool,
 }: ChatSidebarProps) {
   const recent = [...sessions]
     .filter((s) => s.messages.length > 0)
@@ -100,7 +100,7 @@ export function ChatSidebar({
               key={tool.label}
               type="button"
               onClick={() => {
-                if (tool.prefill) onToolPrefill?.(tool.prefill);
+                onTool?.(tool.mode);
                 onClose();
               }}
               className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-ink/75 transition-colors hover:bg-taupe/40 hover:text-ink"
