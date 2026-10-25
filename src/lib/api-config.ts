@@ -6,6 +6,7 @@ export function resolveApiConfig(apiKey: string): {
   baseUrl: string;
   model: string;
   imageModel: string;
+  imageModelCandidates: string[];
   isXai: boolean;
 } {
   const isXai = apiKey.startsWith("xai-");
@@ -16,8 +17,25 @@ export function resolveApiConfig(apiKey: string): {
     process.env.OPENAI_MODEL || (isXai ? "grok-4.3" : "gpt-4o-mini");
   const imageModel =
     process.env.OPENAI_IMAGE_MODEL ||
-    (isXai ? "grok-2-image" : "dall-e-3");
-  return { baseUrl, model, imageModel, isXai };
+    (isXai ? "grok-2-image-1212" : "dall-e-3");
+  const imageModelCandidates = isXai
+    ? Array.from(
+        new Set(
+          [
+            process.env.OPENAI_IMAGE_MODEL,
+            "grok-2-image-1212",
+            "grok-2-image",
+          ].filter(Boolean) as string[]
+        )
+      )
+    : Array.from(
+        new Set(
+          [process.env.OPENAI_IMAGE_MODEL, "dall-e-3", "gpt-image-1"].filter(
+            Boolean
+          ) as string[]
+        )
+      );
+  return { baseUrl, model, imageModel, imageModelCandidates, isXai };
 }
 
 export function sanitizeApiError(detail: string): string {

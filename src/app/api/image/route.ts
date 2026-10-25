@@ -31,55 +31,66 @@ export async function POST(request: Request) {
     );
   }
 
-  const { baseUrl, imageModel, isXai } = resolveApiConfig(apiKey);
+  const { baseUrl, imageModelCandidates, isXai } = resolveApiConfig(apiKey);
+  const errors: string[] = [];
 
   try {
-    const payload: Record<string, unknown> = {
-      model: imageModel,
-      prompt,
-      n: 1,
-    };
-    if (!isXai) {
-      payload.size = "1024x1024";
-      payload.response_format = "url";
-    }
+    for (const model of imageModelCandidates) {
+      const payload: Record<string, unknown> = {
+        model,
+        prompt,
+        n: 1,
+      };
+      if (!isXai) {
+        payload.size = "1024x1024";
+        payload.response_format = "url";
+      }
 
-    const response = await fetch(`${baseUrl}/images/generations`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-      signal: request.signal,
-    });
-
-    const raw = await response.text();
-    if (!response.ok) {
-      return Response.json(
-        {
-          error: `Зургийн API ажилласангүй (${response.status}): ${sanitizeApiError(raw) || response.statusText}. Энэ түлхүүр/загвар зураг үүсгэхийг дэмжихгүй байж болно.`,
+      const response = await fetch(`${baseUrl}/images/generations`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
         },
-        { status: 502 }
-      );
+        body: JSON.stringify(payload),
+        signal: request.signal,
+      });
+
+      const raw = await response.text();
+      if (!response.ok) {
+        errors.push(`${model}: ${sanitizeApiError(raw) || response.statusText}`);
+        continue;
+      }
+
+      let data: { data?: Array<{ url?: string; b64_json?: string }> };
+      try {
+        data = JSON.parse(raw) as typeof data;
+      } catch {
+        errors.push(`${model}: буруу JSON хариу`);
+        continue;
+      }
+
+      const first = data.data?.[0];
+      const imageUrl =
+        first?.url ||
+        (first?.b64_json ? `data:image/png;base64,${first.b64_json}` : null);
+
+      if (!imageUrl) {
+        errors.push(`${model}: хоосон хариу`);
+        continue;
+      }
+
+      return Response.json({ ok: true, imageUrl, model });
     }
 
-    const data = JSON.parse(raw) as {
-      data?: Array<{ url?: string; b64_json?: string }>;
-    };
-    const first = data.data?.[0];
-    const imageUrl =
-      first?.url ||
-      (first?.b64_json ? `data:image/png;base64,${first.b64_json}` : null);
-
-    if (!imageUrl) {
-      return Response.json(
-        { error: "Зургийн API хариу хоосон байна." },
-        { status: 502 }
-      );
-    }
-
-    return Response.json({ ok: true, imageUrl, model: imageModel });
+    return Response.json(
+      {
+        error:
+          "Зураг үүсгэж чадсангүй. Энэ түлхүүр одоогоор image model-д хандах эрхгүй эсвэл загварын нэр буруу байна. Vercel дээр OPENAI_IMAGE_MODEL тохируулж болно.",
+        detail: sanitizeApiError(errors.join(" · ")),
+      },
+      { status: 502 }
+    );
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Зураг үүсгэж чадсангүй.";
