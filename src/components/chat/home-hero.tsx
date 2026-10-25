@@ -89,14 +89,23 @@ export function HomeHero({
 }: HomeHeroProps) {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden" aria-hidden>
+        {/* Primary: rainbow valley — slow Ken Burns */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/brand/hero-mountains.jpg"
+          src="/brand/hero-rainbow.webp"
           alt=""
-          className="hero-living h-full w-full object-cover object-center"
+          className="hero-layer hero-layer-a absolute inset-0 h-full w-full object-cover object-[50%_42%]"
+        />
+        {/* Secondary: glacier (cropped) — opposite drift + soft crossfade */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/hero-glacier.jpg"
+          alt=""
+          className="hero-layer hero-layer-b absolute inset-0 h-full w-full object-cover object-[58%_35%]"
         />
         <div className="hero-clouds pointer-events-none absolute inset-0" />
+        <div className="hero-sky-drift pointer-events-none absolute inset-0" />
         <div className="hero-scrim absolute inset-0" />
       </div>
 
