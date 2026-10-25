@@ -88,7 +88,7 @@ export function HomeHero({
               Мэдэх. Бүтээх. Хийх.
             </h1>
             <p className="mt-3 text-base text-white/90 sm:text-lg md:text-xl">
-              Genghis AI — Монгол оюунаас дэлхийд.
+              Genghis AI — Монголоос дэлхийтэй холбогд.
             </p>
           </div>
 

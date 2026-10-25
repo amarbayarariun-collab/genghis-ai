@@ -15,9 +15,9 @@ const serif = Literata({
 });
 
 export const metadata: Metadata = {
-  title: "Genghis AI — Монгол оюунаас дэлхийд",
+  title: "Genghis AI — Монголоос дэлхийтэй холбогд",
   description:
-    "Genghis AI — FROM MONGOLIA TO THE WORLD. Мэдэх. Бүтээх. Хийх.",
+    "Genghis AI — Монголоос дэлхийтэй холбогд. Мэдэх. Бүтээх. Хийх.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
