@@ -33,6 +33,13 @@ export const BUILTIN_WALLPAPERS: WallpaperOption[] = [
     position: "50% 45%",
   },
   {
+    id: "ub-night-aerial",
+    label: "УБ · шөнийн гэрэл",
+    src: "/brand/wallpapers/ub-night-aerial.webp",
+    thumb: "/brand/wallpapers/thumbs/ub-night-aerial.webp",
+    position: "50% 40%",
+  },
+  {
     id: "gers",
     label: "Гэрүүд",
     src: "/brand/wallpapers/gers.webp",
@@ -73,13 +80,6 @@ export const BUILTIN_WALLPAPERS: WallpaperOption[] = [
     src: "/brand/wallpapers/ub-sukhbaatar-square.webp",
     thumb: "/brand/wallpapers/thumbs/ub-sukhbaatar-square.webp",
     position: "50% 42%",
-  },
-  {
-    id: "ub-night-aerial",
-    label: "УБ · шөнийн гэрэл",
-    src: "/brand/wallpapers/ub-night-aerial.webp",
-    thumb: "/brand/wallpapers/thumbs/ub-night-aerial.webp",
-    position: "50% 40%",
   },
   {
     id: "choijin-skyline",
