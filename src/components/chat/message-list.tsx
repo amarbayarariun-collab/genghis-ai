@@ -51,13 +51,9 @@ export function MessageList({
                 )}
               >
                 {!isUser && !isThinking ? (
-                  isStreamingAnswer ? (
-                    <ThinkingIndicator phase="streaming" />
-                  ) : (
-                    <p className="mb-1.5 text-[11px] tracking-wide text-slate dark:text-gold/90">
-                      Genghis AI
-                    </p>
-                  )
+                  <p className="mb-1.5 text-[11px] tracking-wide text-slate dark:text-gold/90">
+                    Genghis AI
+                  </p>
                 ) : null}
 
                 {message.attachments?.length ? (
