@@ -100,14 +100,16 @@ export function HomeHero({
       />
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-        <div className="absolute top-3 right-3 z-20 md:top-4 md:right-4">
-          <WallpaperPickerButton
-            activeId={wallpaper.id}
-            customDataUrl={wallpaper.customDataUrl}
-            onSelect={wallpaper.setWallpaper}
-            onUpload={wallpaper.setCustomWallpaper}
-            onClearCustom={wallpaper.clearCustomWallpaper}
-          />
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-end p-3 md:p-4">
+          <div className="pointer-events-auto">
+            <WallpaperPickerButton
+              activeId={wallpaper.id}
+              customDataUrl={wallpaper.customDataUrl}
+              onSelect={wallpaper.setWallpaper}
+              onUpload={wallpaper.setCustomWallpaper}
+              onClearCustom={wallpaper.clearCustomWallpaper}
+            />
+          </div>
         </div>
 
         <div className="flex flex-1 flex-col items-center justify-center px-4 pt-10 pb-4 md:px-8 md:pt-6">

@@ -9,7 +9,7 @@ export function LiveHeroBackdrop({
   position?: string;
 }) {
   return (
-    <div className="absolute inset-0 overflow-hidden" aria-hidden>
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         key={src.slice(0, 64)}
