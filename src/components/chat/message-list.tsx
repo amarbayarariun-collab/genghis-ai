@@ -99,7 +99,7 @@ export function MessageList({
                     {message.content || null}
                   </div>
                 ) : isThinking ? (
-                  <ThinkingIndicator phase="contemplating" />
+                  <ThinkingIndicator />
                 ) : message.content ? (
                   <div className="relative">
                     <MarkdownMessage content={message.content} />
