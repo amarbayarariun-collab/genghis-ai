@@ -22,7 +22,18 @@ export function GenghisLogo({
         height={40}
         className={cn(
           compact ? "size-8" : "size-10",
-          "shrink-0 object-contain"
+          "shrink-0 object-contain dark:hidden"
+        )}
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/brand/genghis-knot-dark.png"
+        alt=""
+        width={40}
+        height={40}
+        className={cn(
+          compact ? "size-8" : "size-10",
+          "hidden shrink-0 object-contain dark:block"
         )}
       />
       <div className="min-w-0 leading-none">
