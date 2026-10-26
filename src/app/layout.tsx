@@ -16,10 +16,11 @@ const serif = Literata({
 });
 
 export const metadata: Metadata = {
-  title: "Genghis AI. Монголоос дэлхийтэй холбогд",
+  // Thin space: browsers need a <title>, but the tab should read as knot-favicon-only.
+  title: "\u2009",
   description:
     "Genghis AI. Монголоос дэлхийтэй холбогд. Мэдэх. Бүтээх. Хийх.",
-  applicationName: "Genghis AI",
+  applicationName: "\u2009",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
