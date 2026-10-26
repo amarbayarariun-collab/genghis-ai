@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { FileIcon } from "lucide-react";
 import { MarkdownMessage } from "@/components/chat/markdown-message";
+import { ThinkingIndicator } from "@/components/chat/thinking-indicator";
 import type { ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +30,9 @@ export function MessageList({
         {messages.map((message, index) => {
           const isUser = message.role === "user";
           const isStreaming = message.id === streamingId;
+          const isThinking = isStreaming && !message.content;
+          const isStreamingAnswer = isStreaming && Boolean(message.content);
+
           return (
             <div
               key={message.id}
@@ -46,10 +50,14 @@ export function MessageList({
                     : "text-ink dark:text-zinc-100"
                 )}
               >
-                {!isUser ? (
-                  <p className="mb-1.5 text-[11px] tracking-wide text-slate dark:text-gold/90">
-                    Genghis AI
-                  </p>
+                {!isUser && !isThinking ? (
+                  isStreamingAnswer ? (
+                    <ThinkingIndicator phase="streaming" />
+                  ) : (
+                    <p className="mb-1.5 text-[11px] tracking-wide text-slate dark:text-gold/90">
+                      Genghis AI
+                    </p>
+                  )
                 ) : null}
 
                 {message.attachments?.length ? (
@@ -94,25 +102,15 @@ export function MessageList({
                   <div className="whitespace-pre-wrap">
                     {message.content || null}
                   </div>
+                ) : isThinking ? (
+                  <ThinkingIndicator phase="contemplating" />
                 ) : message.content ? (
                   <div className="relative">
                     <MarkdownMessage content={message.content} />
-                    {isStreaming ? (
+                    {isStreamingAnswer ? (
                       <span className="ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-gold animate-pulse-soft" />
                     ) : null}
                   </div>
-                ) : isStreaming ? (
-                  <span className="inline-flex gap-1 py-1">
-                    <span className="size-1.5 rounded-full bg-gold animate-pulse-soft" />
-                    <span
-                      className="size-1.5 rounded-full bg-gold animate-pulse-soft"
-                      style={{ animationDelay: "0.2s" }}
-                    />
-                    <span
-                      className="size-1.5 rounded-full bg-gold animate-pulse-soft"
-                      style={{ animationDelay: "0.4s" }}
-                    />
-                  </span>
                 ) : null}
               </div>
             </div>

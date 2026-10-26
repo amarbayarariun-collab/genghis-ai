@@ -169,6 +169,41 @@
         rgb(11 13 15 / 0.45) 100%
       );
   }
+
+  /* Contemplating: 3 brand-gold balls in a slow orbit */
+  .thinking-orbit {
+    position: relative;
+    display: inline-block;
+    width: 1.35rem;
+    height: 1.35rem;
+    animation: thinking-spin 1.35s linear infinite;
+  }
+
+  .thinking-orbit-ball {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0.38rem;
+    height: 0.38rem;
+    margin: -0.19rem;
+    border-radius: 9999px;
+    background: var(--gold);
+    box-shadow: 0 0 0 1px rgb(201 163 107 / 0.15);
+  }
+
+  .thinking-orbit-ball:nth-child(1) {
+    transform: rotate(0deg) translateY(-0.48rem) rotate(0deg);
+  }
+  .thinking-orbit-ball:nth-child(2) {
+    transform: rotate(120deg) translateY(-0.48rem) rotate(-120deg);
+  }
+  .thinking-orbit-ball:nth-child(3) {
+    transform: rotate(240deg) translateY(-0.48rem) rotate(-240deg);
+  }
+
+  .dark .thinking-orbit-ball {
+    background: #d4b07a;
+  }
 }
 
 @keyframes fade-up {
@@ -198,5 +233,20 @@
   }
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes thinking-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-orbit {
+    animation: none;
   }
 }
