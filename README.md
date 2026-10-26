@@ -1,6 +1,6 @@
 # Genghis AI
 
-Монголын анхны ChatGPT шиг AI чат туслах — **Genghis AI** MVP.
+Монголын хэрэглэгчдэд зориулсан AI чат туслах: **Genghis AI** MVP.
 
 This repo is the first usable chat slice: a Next.js web app with streaming replies, Mongolian UI copy, and a local mock fallback so the demo works without API keys.
 

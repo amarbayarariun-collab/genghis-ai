@@ -1,7 +1,7 @@
 const RESPONSES: Array<{ match: RegExp; text: string }> = [
   {
     match: /сайн\s*байн|hello|hi\b|сайн уу/i,
-    text: "Сайн байна уу! Би Genghis AI — Монголын AI туслах. Өнөөдөр юунд туслах вэ? Асуулт асууж, текст бичиж, эсвэл санаагаа хөгжүүлж болно.",
+    text: "Сайн байна уу! Би Genghis AI. Танд юугаар туслах вэ?",
   },
   {
     match: /монгол|mongolia|улаанбаатар|уб\b/i,
@@ -9,7 +9,7 @@ const RESPONSES: Array<{ match: RegExp; text: string }> = [
   },
   {
     match: /хоол|хуушуур|бууз|цуйван|food|recipe/i,
-    text: "Монгол хоолны зөвлөмж: хуушуур — махтай хавтгай шардмал; бууз — уураар жигнэсэн бялуу; цуйван — гоймонтой махны хоол. Жор, орц, эсвэл рестораны зөвлөмж хэрэгтэй юу?",
+    text: "Монгол хоолны зөвлөмж: хуушуур - махтай хавтгай шардмал; бууз - уураар жигнэсэн бялуу; цуйван - гоймонтой махны хоол. Жор, орц, эсвэл рестораны зөвлөмж хэрэгтэй юу?",
   },
   {
     match: /код|code|програм|javascript|python|react/i,
@@ -17,12 +17,12 @@ const RESPONSES: Array<{ match: RegExp; text: string }> = [
   },
   {
     match: /genghis|chinggis|чингис|chingis/i,
-    text: "Genghis AI бол Монголын хэрэглэгчдэд зориулсан AI чат туслах. Одоогийн хувилбар нь чатны үндсэн туршлагыг үзүүлэх MVP — дараагийн алхамд илүү олон загвар, санах ой, хэрэгсэл нэмэгдэнэ.",
+    text: "Genghis AI бол Монголын хэрэглэгчдэд зориулсан AI чат туслах. Одоогийн хувилбар нь чатны үндсэн туршлагыг үзүүлэх MVP. Дараагийн алхамд илүү олон загвар, санах ой, хэрэгсэл нэмэгдэнэ.",
   },
 ];
 
 const FALLBACK =
-  "Ойлголоо. Энэ бол орон нутгийн демо горим — жинхэнэ OpenAI түлхүүр холбогдоогүй үед Genghis AI иймэрхүү хариулт өгдөг.\n\nТаны асуулт: «{q}»\n\nЖинхэнэ загвар холбохын тулд `OPENAI_API_KEY` environment хувьсагчийг тохируулаад серверээ дахин асаана уу. Дараа нь би илүү нарийвчилсан, урт хариулт өгөх боломжтой.";
+  "Ойлголоо. Энэ бол орон нутгийн демо горим. Жинхэнэ OpenAI түлхүүр холбогдоогүй үед Genghis AI иймэрхүү хариулт өгдөг.\n\nТаны асуулт: «{q}»\n\nЖинхэнэ загвар холбохын тулд `OPENAI_API_KEY` environment хувьсагчийг тохируулаад серверээ дахин асаана уу. Дараа нь би илүү нарийвчилсан, урт хариулт өгөх боломжтой.";
 
 function pickResponse(prompt: string): string {
   for (const item of RESPONSES) {
@@ -32,7 +32,7 @@ function pickResponse(prompt: string): string {
   return FALLBACK.replace("{q}", trimmed);
 }
 
-/** Stream a mock reply character-by-character for a ChatGPT-like feel. */
+/** Stream a mock reply character-by-character for a live chat feel. */
 export async function* streamMockReply(
   prompt: string,
   signal?: AbortSignal

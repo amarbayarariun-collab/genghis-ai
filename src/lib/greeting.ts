@@ -26,6 +26,6 @@ export function greetingForNow(now = new Date()): string {
     case "afternoon":
       return "Өдрийн мэнд";
     case "evening":
-      return "Үдшийн мэнд ✨";
+      return "Оройн мэнд";
   }
 }
