@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import {
   Code2,
   FileText,
@@ -12,6 +13,11 @@ import {
 } from "lucide-react";
 import { GenghisLogo } from "@/components/brand/genghis-logo";
 import { Button } from "@/components/ui/button";
+import { useSidebarWidth } from "@/hooks/use-sidebar-width";
+import {
+  SIDEBAR_WIDTH_MAX,
+  SIDEBAR_WIDTH_MIN,
+} from "@/lib/sidebar";
 import type { ChatSession, ToolMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +54,7 @@ export function ChatSidebar({
   onDelete,
   onTool,
 }: ChatSidebarProps) {
+  const { width, setWidth, beginResize, isResizing } = useSidebarWidth();
   const recent = [...sessions]
     .filter((s) => s.messages.length > 0)
     .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -65,9 +72,11 @@ export function ChatSidebar({
       />
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[min(17.5rem,90vw)] flex-col border-r border-zinc-200 bg-white transition-transform dark:border-zinc-800 dark:bg-zinc-950 md:static md:z-0 md:w-64 md:translate-x-0",
-          open ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 left-0 z-50 flex w-[min(17.5rem,90vw)] flex-col border-r border-zinc-200 bg-white transition-transform dark:border-zinc-800 dark:bg-zinc-950 md:relative md:z-0 md:w-[var(--sidebar-w)] md:shrink-0 md:translate-x-0",
+          open ? "translate-x-0" : "-translate-x-full",
+          isResizing && "md:select-none md:transition-none"
         )}
+        style={{ "--sidebar-w": `${width}px` } as CSSProperties}
       >
         <div className="flex items-start justify-between gap-2 px-4 pt-5 pb-3">
           <GenghisLogo compact showTagline />
@@ -179,6 +188,40 @@ export function ChatSidebar({
             </div>
           </div>
         </div>
+
+        {/* Desktop resize handle (ChatGPT-style). Hidden on mobile drawer. */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-valuemin={SIDEBAR_WIDTH_MIN}
+          aria-valuemax={SIDEBAR_WIDTH_MAX}
+          aria-valuenow={width}
+          aria-label="Хажуугийн самбарын өргөн"
+          tabIndex={0}
+          onPointerDown={beginResize}
+          onKeyDown={(e) => {
+            const step = e.shiftKey ? 24 : 12;
+            if (e.key === "ArrowLeft") {
+              e.preventDefault();
+              setWidth(width - step, true);
+            } else if (e.key === "ArrowRight") {
+              e.preventDefault();
+              setWidth(width + step, true);
+            } else if (e.key === "Home") {
+              e.preventDefault();
+              setWidth(SIDEBAR_WIDTH_MIN, true);
+            } else if (e.key === "End") {
+              e.preventDefault();
+              setWidth(SIDEBAR_WIDTH_MAX, true);
+            }
+          }}
+          className={cn(
+            "absolute top-0 right-0 z-20 hidden h-full w-1.5 translate-x-1/2 cursor-col-resize touch-none md:block",
+            "after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-transparent after:transition-colors",
+            "hover:after:bg-zinc-300 focus-visible:after:bg-gold dark:hover:after:bg-zinc-600",
+            isResizing && "after:bg-gold"
+          )}
+        />
       </aside>
     </>
   );
