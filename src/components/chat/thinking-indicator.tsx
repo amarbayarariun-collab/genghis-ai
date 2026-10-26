@@ -28,7 +28,15 @@ export function ThinkingIndicator({
         alt=""
         width={28}
         height={28}
-        className="size-7 shrink-0 rounded-full bg-white object-contain shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700"
+        className="size-7 shrink-0 rounded-full bg-white object-contain shadow-sm ring-1 ring-zinc-200 dark:hidden"
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/brand/genghis-knot-dark.png"
+        alt=""
+        width={28}
+        height={28}
+        className="hidden size-7 shrink-0 rounded-full bg-zinc-900 object-contain shadow-sm ring-1 ring-zinc-700 dark:block"
       />
       <span className="thinking-orbit" aria-hidden>
         <span className="thinking-orbit-ball" />
