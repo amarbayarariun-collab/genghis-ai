@@ -10,7 +10,7 @@ export function LiveHeroBackdrop() {
         alt=""
         decoding="async"
         fetchPriority="high"
-        className="absolute inset-0 h-full w-full max-w-none object-cover object-[42%_40%]"
+        className="absolute inset-0 h-full w-full max-w-none object-cover object-[50%_45%]"
       />
       <div className="hero-scrim absolute inset-0" />
     </div>
