@@ -16,7 +16,7 @@ export function GenghisLogo({
     <div className={cn("flex items-center gap-2.5", className)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/brand/olzii-mark.png"
+        src="/brand/genghis-knot.png"
         alt=""
         width={40}
         height={40}
