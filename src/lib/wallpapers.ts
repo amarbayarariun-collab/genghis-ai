@@ -5,7 +5,10 @@ export type BuiltinWallpaperId =
   | "autumn-steppe"
   | "ulaanbaatar-winter"
   | "ub-blue-tower"
-  | "ub-sukhbaatar-square";
+  | "ub-sukhbaatar-square"
+  | "ub-night-aerial"
+  | "choijin-skyline"
+  | "amusement-park-night";
 
 export type WallpaperId = BuiltinWallpaperId | "custom";
 
@@ -71,8 +74,30 @@ export const BUILTIN_WALLPAPERS: WallpaperOption[] = [
     thumb: "/brand/wallpapers/thumbs/ub-sukhbaatar-square.webp",
     position: "50% 42%",
   },
+  {
+    id: "ub-night-aerial",
+    label: "УБ · шөнийн гэрэл",
+    src: "/brand/wallpapers/ub-night-aerial.webp",
+    thumb: "/brand/wallpapers/thumbs/ub-night-aerial.webp",
+    position: "50% 40%",
+  },
+  {
+    id: "choijin-skyline",
+    label: "Чойжин · хот",
+    src: "/brand/wallpapers/choijin-skyline.webp",
+    thumb: "/brand/wallpapers/thumbs/choijin-skyline.webp",
+    position: "50% 35%",
+  },
+  {
+    id: "amusement-park-night",
+    label: "Парк · шөнө",
+    src: "/brand/wallpapers/amusement-park-night.webp",
+    thumb: "/brand/wallpapers/thumbs/amusement-park-night.webp",
+    position: "50% 40%",
+  },
 ];
 
+/** New visitors (no localStorage): horseman herd = batch 09. */
 export const DEFAULT_WALLPAPER_ID: WallpaperId = "horseman";
 
 const BUILTIN_IDS = new Set(BUILTIN_WALLPAPERS.map((w) => w.id));
