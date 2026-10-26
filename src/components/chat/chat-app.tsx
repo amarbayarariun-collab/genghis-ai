@@ -6,6 +6,7 @@ import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { HomeHero } from "@/components/chat/home-hero";
 import { MessageList } from "@/components/chat/message-list";
+import { ThemeToggle } from "@/components/chat/theme-toggle";
 import { createId } from "@/lib/id";
 import { TOOL_LABELS } from "@/lib/tools";
 import type {
@@ -366,7 +367,7 @@ export function ChatApp() {
   const isHome = messages.length === 0;
 
   return (
-    <div className="flex h-dvh min-h-0 overflow-hidden bg-cream">
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-white dark:bg-zinc-950">
       <ChatSidebar
         sessions={sessions}
         activeId={activeSession?.id ?? ""}
@@ -378,10 +379,10 @@ export function ChatApp() {
         onTool={handleTool}
       />
 
-      <div className="relative flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col bg-white dark:bg-zinc-950">
         <button
           type="button"
-          className="absolute top-3 left-3 z-20 inline-flex size-10 items-center justify-center rounded-full bg-cream/90 text-ink shadow md:hidden"
+          className="absolute top-3 left-3 z-20 inline-flex size-10 items-center justify-center rounded-full bg-white/95 text-ink shadow dark:bg-zinc-900 dark:text-zinc-100 md:hidden"
           onClick={() => setSidebarOpen(true)}
           aria-label="Цэс нээх"
         >
@@ -404,10 +405,13 @@ export function ChatApp() {
           />
         ) : (
           <>
-            <header className="flex items-center justify-center border-b border-taupe/70 bg-cream px-4 py-3">
-              <p className="truncate text-sm font-medium text-ink">
+            <header className="relative flex items-center justify-center border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+              <p className="truncate text-sm font-medium text-ink dark:text-zinc-100">
                 {activeSession?.title || "Шинэ чат"}
               </p>
+              <div className="absolute top-1/2 right-3 hidden -translate-y-1/2 sm:block [&_button]:text-ink [&_div]:border-zinc-200 [&_div]:bg-zinc-100 dark:[&_button]:text-zinc-100 dark:[&_div]:border-zinc-700 dark:[&_div]:bg-zinc-900">
+                <ThemeToggle />
+              </div>
             </header>
             <MessageList
               messages={messages}
@@ -431,7 +435,7 @@ export function ChatApp() {
                 </div>
               </div>
             ) : null}
-            <div className="border-t border-taupe/50 bg-cream px-3 py-3 md:px-6 md:py-4">
+            <div className="border-t border-zinc-200 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950 md:px-6 md:py-4">
               <div className="mx-auto max-w-2xl">
                 <ChatComposer
                   value={input}

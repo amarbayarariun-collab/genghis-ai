@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { LiveHeroBackdrop } from "@/components/chat/live-hero-backdrop";
+import { ThemeToggle } from "@/components/chat/theme-toggle";
 import { WallpaperPickerButton } from "@/components/chat/wallpaper-picker";
 import { useWallpaper } from "@/hooks/use-wallpaper";
 import type { ChatAttachment, ToolMode } from "@/lib/types";
@@ -100,8 +101,9 @@ export function HomeHero({
       />
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-end p-3 md:p-4">
-          <div className="pointer-events-auto">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-end gap-2 p-3 md:p-4">
+          <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-2">
+            <ThemeToggle />
             <WallpaperPickerButton
               activeId={wallpaper.id}
               customDataUrl={wallpaper.customDataUrl}
@@ -118,7 +120,7 @@ export function HomeHero({
               Мэдэх. Бүтээх. Хийх.
             </h1>
             <p className="mt-3 text-base text-white/90 sm:text-lg md:text-xl">
-              Genghis AI — Монголоос дэлхийтэй холбогд.
+              Genghis AI. Монголоос дэлхийтэй холбогд.
             </p>
           </div>
 

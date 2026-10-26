@@ -27,13 +27,15 @@ export function GenghisLogo({
       />
       <div className="min-w-0 leading-none">
         <p className={cn("tracking-tight", compact ? "text-base" : "text-lg")}>
-          <span className="font-semibold text-ink">GENGHIS</span>{" "}
+          <span className="font-semibold text-ink dark:text-zinc-50">
+            GENGHIS
+          </span>{" "}
           <span className="font-[family-name:var(--font-heading)] font-medium text-gold">
             AI
           </span>
         </p>
         {showTagline ? (
-          <p className="mt-1 text-[10px] leading-snug tracking-wide text-ink/70">
+          <p className="mt-1 text-[10px] leading-snug tracking-wide text-ink/70 dark:text-zinc-400">
             Монголоос дэлхийтэй холбогд
           </p>
         ) : null}
