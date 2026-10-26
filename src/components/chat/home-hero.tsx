@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Code2,
   FileText,
@@ -13,6 +14,7 @@ import { LiveHeroBackdrop } from "@/components/chat/live-hero-backdrop";
 import { ThemeToggle } from "@/components/chat/theme-toggle";
 import { WallpaperPickerButton } from "@/components/chat/wallpaper-picker";
 import { useWallpaper } from "@/hooks/use-wallpaper";
+import { greetingForNow } from "@/lib/greeting";
 import type { ChatAttachment, ToolMode } from "@/lib/types";
 
 type HomeHeroProps = {
@@ -92,6 +94,11 @@ export function HomeHero({
   onTool,
 }: HomeHeroProps) {
   const wallpaper = useWallpaper();
+  const [greeting, setGreeting] = useState("");
+
+  useEffect(() => {
+    setGreeting(greetingForNow());
+  }, []);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -117,11 +124,26 @@ export function HomeHero({
         <div className="flex flex-1 flex-col items-center justify-center px-4 pt-10 pb-4 md:px-8 md:pt-6">
           <div className="animate-fade-up mx-auto w-full max-w-3xl text-center">
             <h1 className="text-3xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-4xl md:text-5xl">
-              Мэдэх. Бүтээх. Хийх.
+              <span className="font-semibold">Genghis</span>{" "}
+              <span className="font-[family-name:var(--font-heading)] font-medium text-gold">
+                AI
+              </span>
             </h1>
             <p className="mt-3 text-base text-white/90 sm:text-lg md:text-xl">
-              Genghis AI. Монголоос дэлхийтэй холбогд.
+              Монголоос дэлхийтэй холбогд
             </p>
+            {greeting ? (
+              <p className="mt-4 text-sm font-medium tracking-wide text-white/75 sm:text-base">
+                {greeting}
+              </p>
+            ) : (
+              <p
+                className="mt-4 text-sm font-medium tracking-wide text-transparent sm:text-base"
+                aria-hidden
+              >
+                &nbsp;
+              </p>
+            )}
           </div>
 
           <div
