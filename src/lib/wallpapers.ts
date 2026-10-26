@@ -3,7 +3,9 @@ export type BuiltinWallpaperId =
   | "gers"
   | "gobi-camels"
   | "autumn-steppe"
-  | "ulaanbaatar-winter";
+  | "ulaanbaatar-winter"
+  | "ub-blue-tower"
+  | "ub-sukhbaatar-square";
 
 export type WallpaperId = BuiltinWallpaperId | "custom";
 
@@ -54,6 +56,20 @@ export const BUILTIN_WALLPAPERS: WallpaperOption[] = [
     src: "/brand/wallpapers/ulaanbaatar-winter.webp",
     thumb: "/brand/wallpapers/thumbs/ulaanbaatar-winter.webp",
     position: "50% 40%",
+  },
+  {
+    id: "ub-blue-tower",
+    label: "УБ · шилэн цамхаг",
+    src: "/brand/wallpapers/ub-blue-tower.webp",
+    thumb: "/brand/wallpapers/thumbs/ub-blue-tower.webp",
+    position: "50% 40%",
+  },
+  {
+    id: "ub-sukhbaatar-square",
+    label: "Сүхбаатарын талбай",
+    src: "/brand/wallpapers/ub-sukhbaatar-square.webp",
+    thumb: "/brand/wallpapers/thumbs/ub-sukhbaatar-square.webp",
+    position: "50% 42%",
   },
 ];
 
