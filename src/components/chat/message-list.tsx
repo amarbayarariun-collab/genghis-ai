@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { FileIcon } from "lucide-react";
+import { MarkdownMessage } from "@/components/chat/markdown-message";
 import type { ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +24,7 @@ export function MessageList({
   }, [messages, isLoading]);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-cream">
+    <div className="min-h-0 flex-1 overflow-y-auto bg-white dark:bg-zinc-950">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 py-8 md:px-6">
         {messages.map((message, index) => {
           const isUser = message.role === "user";
@@ -41,23 +42,18 @@ export function MessageList({
                 className={cn(
                   "max-w-[92%] text-[15px] leading-relaxed md:max-w-[85%]",
                   isUser
-                    ? "rounded-2xl bg-ink px-4 py-2.5 text-cream"
-                    : "text-ink"
+                    ? "rounded-2xl bg-ink px-4 py-2.5 text-cream dark:bg-zinc-100 dark:text-zinc-900"
+                    : "text-ink dark:text-zinc-100"
                 )}
               >
                 {!isUser ? (
-                  <p className="mb-1.5 text-[11px] tracking-wide text-slate">
+                  <p className="mb-1.5 text-[11px] tracking-wide text-slate dark:text-gold/90">
                     Genghis AI
                   </p>
                 ) : null}
 
                 {message.attachments?.length ? (
-                  <div
-                    className={cn(
-                      "mb-2 flex flex-wrap gap-2",
-                      isUser ? "" : ""
-                    )}
-                  >
+                  <div className="mb-2 flex flex-wrap gap-2">
                     {message.attachments.map((att) =>
                       att.kind === "image" && att.dataUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -72,7 +68,9 @@ export function MessageList({
                           key={att.id}
                           className={cn(
                             "inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px]",
-                            isUser ? "bg-white/10" : "bg-taupe/50"
+                            isUser
+                              ? "bg-white/10"
+                              : "bg-zinc-100 text-ink dark:bg-zinc-800 dark:text-zinc-200"
                           )}
                         >
                           <FileIcon className="size-3.5" />
@@ -92,25 +90,30 @@ export function MessageList({
                   />
                 ) : null}
 
-                <div className="whitespace-pre-wrap">
-                  {message.content ||
-                    (isStreaming ? (
-                      <span className="inline-flex gap-1 py-1">
-                        <span className="size-1.5 rounded-full bg-gold animate-pulse-soft" />
-                        <span
-                          className="size-1.5 rounded-full bg-gold animate-pulse-soft"
-                          style={{ animationDelay: "0.2s" }}
-                        />
-                        <span
-                          className="size-1.5 rounded-full bg-gold animate-pulse-soft"
-                          style={{ animationDelay: "0.4s" }}
-                        />
-                      </span>
-                    ) : null)}
-                  {isStreaming && message.content ? (
-                    <span className="ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-gold animate-pulse-soft" />
-                  ) : null}
-                </div>
+                {isUser ? (
+                  <div className="whitespace-pre-wrap">
+                    {message.content || null}
+                  </div>
+                ) : message.content ? (
+                  <div className="relative">
+                    <MarkdownMessage content={message.content} />
+                    {isStreaming ? (
+                      <span className="ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-gold animate-pulse-soft" />
+                    ) : null}
+                  </div>
+                ) : isStreaming ? (
+                  <span className="inline-flex gap-1 py-1">
+                    <span className="size-1.5 rounded-full bg-gold animate-pulse-soft" />
+                    <span
+                      className="size-1.5 rounded-full bg-gold animate-pulse-soft"
+                      style={{ animationDelay: "0.2s" }}
+                    />
+                    <span
+                      className="size-1.5 rounded-full bg-gold animate-pulse-soft"
+                      style={{ animationDelay: "0.4s" }}
+                    />
+                  </span>
+                ) : null}
               </div>
             </div>
           );

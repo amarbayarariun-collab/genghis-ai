@@ -139,7 +139,8 @@ async function* streamOpenAI(
           choices?: Array<{ delta?: { content?: string } }>;
         };
         const token = json.choices?.[0]?.delta?.content;
-        if (token) yield token;
+        // Never surface em/en dashes in assistant UI copy.
+        if (token) yield token.replace(/\u2014/g, ",").replace(/\u2013/g, "-");
       } catch {
         // skip
       }

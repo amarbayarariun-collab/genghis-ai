@@ -85,14 +85,27 @@ export async function fileToAttachment(file: File): Promise<ChatAttachment> {
   }
 
   if (mime === "application/pdf" || /\.pdf$/i.test(file.name)) {
-    return {
-      id: createId("att"),
-      name: file.name,
-      mime: "application/pdf",
-      kind: "file",
-      text: `[PDF хавсаргасан: ${file.name}. Текст автоматаар бүрэн задлагдаагүй — нэр/контекстээр туслана уу.]`,
-      size: file.size,
-    };
+    try {
+      const { extractPdfText } = await import("@/lib/pdf-text");
+      const text = await extractPdfText(file);
+      return {
+        id: createId("att"),
+        name: file.name,
+        mime: "application/pdf",
+        kind: "file",
+        text,
+        size: file.size,
+      };
+    } catch {
+      return {
+        id: createId("att"),
+        name: file.name,
+        mime: "application/pdf",
+        kind: "file",
+        text: `PDF «${file.name}»-ийн текстийг уншиж чадсангүй. Текстээ хуулж буулгана уу, эсвэл өөр PDF туршина уу.`,
+        size: file.size,
+      };
+    }
   }
 
   return {

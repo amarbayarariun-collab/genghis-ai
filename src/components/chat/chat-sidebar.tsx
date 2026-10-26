@@ -65,7 +65,7 @@ export function ChatSidebar({
       />
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[min(17.5rem,90vw)] flex-col border-r border-zinc-200 bg-white transition-transform md:static md:z-0 md:w-64 md:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex w-[min(17.5rem,90vw)] flex-col border-r border-zinc-200 bg-white transition-transform dark:border-zinc-800 dark:bg-zinc-950 md:static md:z-0 md:w-64 md:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -89,7 +89,7 @@ export function ChatSidebar({
               onNew();
               onClose();
             }}
-            className="flex items-center gap-2.5 rounded-xl bg-gold/20 px-3 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-gold/30"
+            className="flex items-center gap-2.5 rounded-xl bg-gold/20 px-3 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-gold/30 dark:text-zinc-100"
           >
             <MessageSquarePlus className="size-4 opacity-80" />
             Шинэ чат
@@ -103,7 +103,7 @@ export function ChatSidebar({
                 onTool?.(tool.mode);
                 onClose();
               }}
-              className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-ink/75 transition-colors hover:bg-zinc-100 hover:text-ink"
+              className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-ink/75 transition-colors hover:bg-zinc-100 hover:text-ink dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-50"
             >
               <tool.icon className="size-4 opacity-70" />
               {tool.label}
@@ -112,7 +112,7 @@ export function ChatSidebar({
 
           <button
             type="button"
-            className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-ink/55"
+            className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-ink/55 dark:text-zinc-500"
             disabled
           >
             <MoreHorizontal className="size-4" />
@@ -121,12 +121,14 @@ export function ChatSidebar({
         </div>
 
         <div className="mt-5 px-4 pb-1">
-          <p className="text-[11px] tracking-wide text-ink/45">Сүүлд чатласан</p>
+          <p className="text-[11px] tracking-wide text-ink/45 dark:text-zinc-500">
+            Сүүлд чатласан
+          </p>
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3">
           {recent.length === 0 ? (
-            <p className="px-2 py-6 text-center text-xs text-ink/40">
+            <p className="px-2 py-6 text-center text-xs text-ink/40 dark:text-zinc-600">
               Одоогоор яриа байхгүй.
             </p>
           ) : (
@@ -142,15 +144,15 @@ export function ChatSidebar({
                     className={cn(
                       "w-full rounded-xl px-3 py-2 pr-8 text-left text-[13px] transition-colors",
                       session.id === activeId
-                        ? "bg-zinc-100 text-ink"
-                        : "text-ink/65 hover:bg-zinc-50 hover:text-ink"
+                        ? "bg-zinc-100 text-ink dark:bg-zinc-900 dark:text-zinc-50"
+                        : "text-ink/65 hover:bg-zinc-50 hover:text-ink dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
                     )}
                   >
                     <span className="line-clamp-1">{session.title}</span>
                   </button>
                   <button
                     type="button"
-                    className="absolute top-1.5 right-1.5 rounded-md px-1.5 py-0.5 text-[10px] text-ink/40 opacity-0 transition-opacity group-hover:opacity-100 hover:text-ink"
+                    className="absolute top-1.5 right-1.5 rounded-md px-1.5 py-0.5 text-[10px] text-ink/40 opacity-0 transition-opacity group-hover:opacity-100 hover:text-ink dark:text-zinc-500"
                     onClick={() => onDelete(session.id)}
                     aria-label="Устгах"
                   >
@@ -162,16 +164,18 @@ export function ChatSidebar({
           )}
         </nav>
 
-        <div className="mt-auto border-t border-zinc-200 px-3 py-3">
+        <div className="mt-auto border-t border-zinc-200 px-3 py-3 dark:border-zinc-800">
           <div className="flex items-center gap-2.5 rounded-xl px-2 py-1.5">
-            <div className="flex size-8 items-center justify-center rounded-full bg-ink text-xs font-semibold text-white">
+            <div className="flex size-8 items-center justify-center rounded-full bg-ink text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
               A
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-ink">
+              <p className="truncate text-sm font-medium text-ink dark:text-zinc-100">
                 A. Amarbayar
               </p>
-              <p className="text-[11px] text-ink/45">Genghis AI · MVP</p>
+              <p className="text-[11px] text-ink/45 dark:text-zinc-500">
+                Genghis AI · MVP
+              </p>
             </div>
           </div>
         </div>

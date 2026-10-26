@@ -13,8 +13,9 @@ export function resolveApiConfig(apiKey: string): {
   const baseUrl =
     process.env.OPENAI_BASE_URL?.replace(/\/$/, "") ||
     (isXai ? "https://api.x.ai/v1" : "https://api.openai.com/v1");
+  // Strongest public xAI chat model (GPT-5.2-class target quality).
   const model =
-    process.env.OPENAI_MODEL || (isXai ? "grok-4.3" : "gpt-4o-mini");
+    process.env.OPENAI_MODEL || (isXai ? "grok-4.7" : "gpt-4o");
   const imageModel =
     process.env.OPENAI_IMAGE_MODEL ||
     (isXai ? "grok-2-image-1212" : "dall-e-3");
