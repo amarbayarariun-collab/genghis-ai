@@ -1,4 +1,9 @@
-export type BuiltinWallpaperId = "horseman" | "gers";
+export type BuiltinWallpaperId =
+  | "horseman"
+  | "gers"
+  | "gobi-camels"
+  | "autumn-steppe"
+  | "ulaanbaatar-winter";
 
 export type WallpaperId = BuiltinWallpaperId | "custom";
 
@@ -29,9 +34,36 @@ export const BUILTIN_WALLPAPERS: WallpaperOption[] = [
     thumb: "/brand/wallpapers/thumbs/gers.webp",
     position: "42% 40%",
   },
+  {
+    id: "gobi-camels",
+    label: "Тэмээ · элс",
+    src: "/brand/wallpapers/gobi-camels.webp",
+    thumb: "/brand/wallpapers/thumbs/gobi-camels.webp",
+    position: "50% 45%",
+  },
+  {
+    id: "autumn-steppe",
+    label: "Намрын тал",
+    src: "/brand/wallpapers/autumn-steppe.webp",
+    thumb: "/brand/wallpapers/thumbs/autumn-steppe.webp",
+    position: "50% 42%",
+  },
+  {
+    id: "ulaanbaatar-winter",
+    label: "УБ · өвөл",
+    src: "/brand/wallpapers/ulaanbaatar-winter.webp",
+    thumb: "/brand/wallpapers/thumbs/ulaanbaatar-winter.webp",
+    position: "50% 40%",
+  },
 ];
 
 export const DEFAULT_WALLPAPER_ID: WallpaperId = "horseman";
+
+const BUILTIN_IDS = new Set(BUILTIN_WALLPAPERS.map((w) => w.id));
+
+export function isBuiltinWallpaperId(id: string): id is BuiltinWallpaperId {
+  return BUILTIN_IDS.has(id as BuiltinWallpaperId);
+}
 
 export function resolveWallpaper(
   id: WallpaperId,

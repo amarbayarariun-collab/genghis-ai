@@ -6,6 +6,7 @@ import {
   WALLPAPER_CUSTOM_STORAGE_KEY,
   WALLPAPER_STORAGE_KEY,
   compressWallpaperFile,
+  isBuiltinWallpaperId,
   resolveWallpaper,
   type WallpaperId,
 } from "@/lib/wallpapers";
@@ -28,13 +29,14 @@ export function useWallpaper() {
       const id = (localStorage.getItem(WALLPAPER_STORAGE_KEY) ||
         DEFAULT_WALLPAPER_ID) as WallpaperId;
       const custom = localStorage.getItem(WALLPAPER_CUSTOM_STORAGE_KEY);
+      const validId: WallpaperId =
+        id === "custom" && custom
+          ? "custom"
+          : isBuiltinWallpaperId(id)
+            ? id
+            : DEFAULT_WALLPAPER_ID;
       setState({
-        id:
-          id === "custom" && !custom
-            ? DEFAULT_WALLPAPER_ID
-            : id === "horseman" || id === "gers" || id === "custom"
-              ? id
-              : DEFAULT_WALLPAPER_ID,
+        id: validId,
         customDataUrl: custom,
         hydrated: true,
       });
