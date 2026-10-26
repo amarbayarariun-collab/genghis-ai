@@ -123,14 +123,14 @@ export function HomeHero({
 
         <div className="flex flex-1 flex-col items-center justify-center px-4 pt-10 pb-4 md:px-8 md:pt-6">
           <div className="animate-fade-up mx-auto w-full max-w-3xl text-center">
-            <h1 className="text-4xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-5xl md:text-6xl">
+            <h1 className="text-5xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-6xl md:text-7xl">
               {greeting || (
                 <span className="invisible" aria-hidden>
                   Өдрийн мэнд
                 </span>
               )}
             </h1>
-            <p className="mt-3 text-sm text-white/80 sm:text-base md:text-lg">
+            <p className="mt-3 text-sm text-white/75 sm:text-base">
               Монголоос дэлхийтэй холбогд
             </p>
           </div>
