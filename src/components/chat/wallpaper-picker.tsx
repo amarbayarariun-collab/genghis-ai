@@ -52,19 +52,21 @@ export function WallpaperPickerButton({
               role="dialog"
               aria-modal="true"
               aria-label="Дэвсгэр сонгох"
-              className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl"
+              className="flex max-h-[min(92vh,40rem)] w-full max-w-md flex-col rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-950"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
                 <div>
-                  <p className="text-sm font-semibold text-ink">Дэвсгэр зураг</p>
-                  <p className="text-xs text-ink/50">
+                  <p className="text-sm font-semibold text-ink dark:text-zinc-50">
+                    Дэвсгэр зураг
+                  </p>
+                  <p className="text-xs text-ink/50 dark:text-zinc-400">
                     Нүүр хуудсын дэвсгэрийг солино
                   </p>
                 </div>
                 <button
                   type="button"
-                  className="rounded-lg p-1.5 text-ink/50 transition hover:bg-ink/5 hover:text-ink"
+                  className="rounded-lg p-1.5 text-ink/50 transition hover:bg-ink/5 hover:text-ink dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
                   onClick={() => setOpen(false)}
                   aria-label="Хаах"
                 >
@@ -72,6 +74,7 @@ export function WallpaperPickerButton({
                 </button>
               </div>
 
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5">
               <div className="grid grid-cols-2 gap-2.5">
                 {BUILTIN_WALLPAPERS.map((wall) => {
                   const selected = activeId === wall.id;
@@ -147,8 +150,9 @@ export function WallpaperPickerButton({
                   </button>
                 ) : null}
               </div>
+              </div>
 
-              <div className="mt-3">
+              <div className="mt-3 shrink-0">
                 <input
                   ref={inputRef}
                   type="file"
