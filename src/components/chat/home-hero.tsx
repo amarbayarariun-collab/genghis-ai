@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { LiveHeroBackdrop } from "@/components/chat/live-hero-backdrop";
+import { WallpaperPickerButton } from "@/components/chat/wallpaper-picker";
+import { useWallpaper } from "@/hooks/use-wallpaper";
 import type { ChatAttachment, ToolMode } from "@/lib/types";
 
 type HomeHeroProps = {
@@ -88,11 +90,26 @@ export function HomeHero({
   onAttachmentsChange,
   onTool,
 }: HomeHeroProps) {
+  const wallpaper = useWallpaper();
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <LiveHeroBackdrop />
+      <LiveHeroBackdrop
+        src={wallpaper.current.src}
+        position={wallpaper.current.position}
+      />
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+        <div className="absolute top-3 right-3 z-20 md:top-4 md:right-4">
+          <WallpaperPickerButton
+            activeId={wallpaper.id}
+            customDataUrl={wallpaper.customDataUrl}
+            onSelect={wallpaper.setWallpaper}
+            onUpload={wallpaper.setCustomWallpaper}
+            onClearCustom={wallpaper.clearCustomWallpaper}
+          />
+        </div>
+
         <div className="flex flex-1 flex-col items-center justify-center px-4 pt-10 pb-4 md:px-8 md:pt-6">
           <div className="animate-fade-up mx-auto w-full max-w-3xl text-center">
             <h1 className="text-3xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-4xl md:text-5xl">

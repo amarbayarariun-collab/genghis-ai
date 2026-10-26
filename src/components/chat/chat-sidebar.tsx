@@ -65,7 +65,7 @@ export function ChatSidebar({
       />
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[min(17.5rem,90vw)] flex-col border-r border-taupe bg-cream transition-transform md:static md:z-0 md:w-64 md:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex w-[min(17.5rem,90vw)] flex-col border-r border-zinc-200 bg-white transition-transform md:static md:z-0 md:w-64 md:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -89,7 +89,7 @@ export function ChatSidebar({
               onNew();
               onClose();
             }}
-            className="flex items-center gap-2.5 rounded-xl bg-taupe/55 px-3 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-taupe"
+            className="flex items-center gap-2.5 rounded-xl bg-gold/20 px-3 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-gold/30"
           >
             <MessageSquarePlus className="size-4 opacity-80" />
             Шинэ чат
@@ -103,7 +103,7 @@ export function ChatSidebar({
                 onTool?.(tool.mode);
                 onClose();
               }}
-              className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-ink/75 transition-colors hover:bg-taupe/40 hover:text-ink"
+              className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-ink/75 transition-colors hover:bg-zinc-100 hover:text-ink"
             >
               <tool.icon className="size-4 opacity-70" />
               {tool.label}
@@ -142,8 +142,8 @@ export function ChatSidebar({
                     className={cn(
                       "w-full rounded-xl px-3 py-2 pr-8 text-left text-[13px] transition-colors",
                       session.id === activeId
-                        ? "bg-taupe/60 text-ink"
-                        : "text-ink/65 hover:bg-taupe/35 hover:text-ink"
+                        ? "bg-zinc-100 text-ink"
+                        : "text-ink/65 hover:bg-zinc-50 hover:text-ink"
                     )}
                   >
                     <span className="line-clamp-1">{session.title}</span>
@@ -162,9 +162,9 @@ export function ChatSidebar({
           )}
         </nav>
 
-        <div className="mt-auto border-t border-taupe px-3 py-3">
+        <div className="mt-auto border-t border-zinc-200 px-3 py-3">
           <div className="flex items-center gap-2.5 rounded-xl px-2 py-1.5">
-            <div className="flex size-8 items-center justify-center rounded-full bg-ink text-xs font-semibold text-cream">
+            <div className="flex size-8 items-center justify-center rounded-full bg-ink text-xs font-semibold text-white">
               A
             </div>
             <div className="min-w-0">
