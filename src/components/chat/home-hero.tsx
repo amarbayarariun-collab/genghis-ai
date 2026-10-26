@@ -123,27 +123,16 @@ export function HomeHero({
 
         <div className="flex flex-1 flex-col items-center justify-center px-4 pt-10 pb-4 md:px-8 md:pt-6">
           <div className="animate-fade-up mx-auto w-full max-w-3xl text-center">
-            <h1 className="text-3xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-4xl md:text-5xl">
-              <span className="font-semibold">Genghis</span>{" "}
-              <span className="font-[family-name:var(--font-heading)] font-medium text-gold">
-                AI
-              </span>
+            <h1 className="text-4xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-5xl md:text-6xl">
+              {greeting || (
+                <span className="invisible" aria-hidden>
+                  Өдрийн мэнд
+                </span>
+              )}
             </h1>
-            <p className="mt-3 text-base text-white/90 sm:text-lg md:text-xl">
+            <p className="mt-3 text-sm text-white/80 sm:text-base md:text-lg">
               Монголоос дэлхийтэй холбогд
             </p>
-            {greeting ? (
-              <p className="mt-4 text-sm font-medium tracking-wide text-white/75 sm:text-base">
-                {greeting}
-              </p>
-            ) : (
-              <p
-                className="mt-4 text-sm font-medium tracking-wide text-transparent sm:text-base"
-                aria-hidden
-              >
-                &nbsp;
-              </p>
-            )}
           </div>
 
           <div
