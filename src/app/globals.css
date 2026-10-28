@@ -170,39 +170,158 @@
       );
   }
 
-  /* Contemplating: 3 brand-gold balls in a slow orbit */
-  .thinking-orbit {
-    position: relative;
-    display: inline-block;
-    width: 1.35rem;
-    height: 1.35rem;
-    animation: thinking-spin 1.35s linear infinite;
+  /* Claude-style thinking steps (coral dots + expandable row) */
+  .thinking-steps {
+    --thinking-coral: #d17c64;
+    --thinking-muted: rgb(82 82 91);
+    width: 100%;
+    max-width: 36rem;
   }
 
-  .thinking-orbit-ball {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 0.38rem;
-    height: 0.38rem;
-    margin: -0.19rem;
+  .dark .thinking-steps {
+    --thinking-coral: #e08b72;
+    --thinking-muted: rgb(161 161 170);
+  }
+
+  .thinking-coral-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.18rem;
+    width: 1.15rem;
+    flex-shrink: 0;
+  }
+
+  .thinking-coral-dots span {
+    display: block;
     border-radius: 9999px;
-    background: var(--gold);
-    box-shadow: 0 0 0 1px rgb(201 163 107 / 0.15);
+    background: var(--thinking-coral);
   }
 
-  .thinking-orbit-ball:nth-child(1) {
-    transform: rotate(0deg) translateY(-0.48rem) rotate(0deg);
+  .thinking-coral-dots span:nth-child(1) {
+    width: 0.28rem;
+    height: 0.28rem;
+    opacity: 0.95;
   }
-  .thinking-orbit-ball:nth-child(2) {
-    transform: rotate(120deg) translateY(-0.48rem) rotate(-120deg);
+  .thinking-coral-dots span:nth-child(2) {
+    width: 0.34rem;
+    height: 0.34rem;
+    opacity: 0.85;
   }
-  .thinking-orbit-ball:nth-child(3) {
-    transform: rotate(240deg) translateY(-0.48rem) rotate(-240deg);
+  .thinking-coral-dots span:nth-child(3) {
+    width: 0.22rem;
+    height: 0.22rem;
+    opacity: 0.7;
   }
 
-  .dark .thinking-orbit-ball {
-    background: #d4b07a;
+  .thinking-coral-dots.is-active span {
+    animation: thinking-dot-pulse 1.2s ease-in-out infinite;
+  }
+  .thinking-coral-dots.is-active span:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .thinking-coral-dots.is-active span:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  .thinking-steps-toggle {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.45rem;
+    border: 0;
+    background: transparent;
+    padding: 0.15rem 0;
+    text-align: left;
+    color: var(--thinking-muted);
+    cursor: pointer;
+  }
+
+  .thinking-steps-toggle:hover .thinking-steps-summary {
+    color: rgb(63 63 70);
+  }
+
+  .dark .thinking-steps-toggle:hover .thinking-steps-summary {
+    color: rgb(212 212 216);
+  }
+
+  .thinking-steps-summary {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    color: var(--thinking-muted);
+  }
+
+  .thinking-steps-duration {
+    flex-shrink: 0;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    color: rgb(161 161 170);
+  }
+
+  .dark .thinking-steps-duration {
+    color: rgb(113 113 122);
+  }
+
+  .thinking-steps-caret {
+    color: rgb(113 113 122);
+    transition: transform 160ms ease;
+  }
+
+  .thinking-steps-caret.is-open {
+    transform: rotate(90deg);
+  }
+
+  .thinking-steps-panel {
+    margin-top: 0.55rem;
+    margin-left: 1.45rem;
+    border-left: 1px solid rgb(228 228 231);
+    padding-left: 0.85rem;
+  }
+
+  .dark .thinking-steps-panel {
+    border-left-color: rgb(63 63 70);
+  }
+
+  .thinking-steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .thinking-steps-item-title {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: rgb(82 82 91);
+  }
+
+  .dark .thinking-steps-item-title {
+    color: rgb(212 212 216);
+  }
+
+  .thinking-steps-item-detail {
+    margin-top: 0.15rem;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: rgb(113 113 122);
+  }
+
+  .dark .thinking-steps-item-detail {
+    color: rgb(161 161 170);
+  }
+
+  .thinking-steps-item.is-current .thinking-steps-item-title {
+    color: var(--thinking-coral);
+  }
+
+  .thinking-steps-live {
+    margin-top: 0.65rem;
+    font-size: 0.75rem;
+    color: rgb(161 161 170);
   }
 }
 
@@ -236,17 +355,20 @@
   }
 }
 
-@keyframes thinking-spin {
-  from {
-    transform: rotate(0deg);
+@keyframes thinking-dot-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(0);
   }
-  to {
-    transform: rotate(360deg);
+  50% {
+    opacity: 1;
+    transform: translateY(-0.5px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .thinking-orbit {
+  .thinking-coral-dots.is-active span {
     animation: none;
   }
 }
