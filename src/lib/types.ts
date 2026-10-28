@@ -23,6 +23,18 @@ export type ChatAttachment = {
   size: number;
 };
 
+export type ThinkingStep = {
+  summary: string;
+  detail: string;
+};
+
+export type ThinkingTrace = {
+  steps: ThinkingStep[];
+  activeIndex: number;
+  durationSec: number;
+  startedAt: number;
+};
+
 export type ChatMessage = {
   id: string;
   role: ChatRole;
@@ -31,6 +43,8 @@ export type ChatMessage = {
   /** Assistant-generated image URL (data or https). */
   imageUrl?: string;
   tool?: ToolMode;
+  /** Claude-style expandable thinking summary for this reply. */
+  thinking?: ThinkingTrace;
 };
 
 export type ChatSession = {
