@@ -13,7 +13,6 @@ import type {
   ChatAttachment,
   ChatMessage,
   ChatSession,
-  ThinkingTrace,
   ToolMode,
 } from "@/lib/types";
 
@@ -119,20 +118,6 @@ export function ChatApp() {
     setIsLoading(false);
     setStreamingId(null);
   }, []);
-
-  const handleThinkingCommit = useCallback(
-    (messageId: string, thinking: ThinkingTrace) => {
-      setSessions((prev) =>
-        prev.map((s) => ({
-          ...s,
-          messages: s.messages.map((m) =>
-            m.id === messageId ? { ...m, thinking } : m
-          ),
-        }))
-      );
-    },
-    []
-  );
 
   const sendMessage = useCallback(
     async (raw: string, meta?: SubmitMeta) => {
@@ -432,7 +417,6 @@ export function ChatApp() {
               messages={messages}
               streamingId={streamingId}
               isLoading={isLoading}
-              onThinkingCommit={handleThinkingCommit}
             />
             {error ? (
               <div className="mx-auto w-full max-w-2xl px-4 pb-2">

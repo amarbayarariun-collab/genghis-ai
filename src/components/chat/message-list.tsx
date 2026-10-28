@@ -1,37 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { FileIcon } from "lucide-react";
 import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { ThinkingIndicator } from "@/components/chat/thinking-indicator";
-import type { ChatMessage, ThinkingTrace } from "@/lib/types";
+import type { ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type MessageListProps = {
   messages: ChatMessage[];
   streamingId?: string | null;
   isLoading?: boolean;
-  onThinkingCommit?: (messageId: string, thinking: ThinkingTrace) => void;
 };
 
 export function MessageList({
   messages,
   streamingId,
   isLoading,
-  onThinkingCommit,
 }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isLoading]);
-
-  const commitThinking = useCallback(
-    (messageId: string, thinking: ThinkingTrace) => {
-      onThinkingCommit?.(messageId, thinking);
-    },
-    [onThinkingCommit]
-  );
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto bg-white dark:bg-zinc-950">
@@ -41,11 +32,6 @@ export function MessageList({
           const isStreaming = message.id === streamingId;
           const isThinking = isStreaming && !message.content;
           const isStreamingAnswer = isStreaming && Boolean(message.content);
-          const showThinking =
-            !isUser &&
-            (isThinking ||
-              isStreamingAnswer ||
-              Boolean(message.thinking?.steps?.length));
 
           return (
             <div
@@ -114,18 +100,9 @@ export function MessageList({
                   </div>
                 ) : (
                   <>
-                    {showThinking ? (
-                      <div className={cn(message.content ? "mb-3" : undefined)}>
-                        <ThinkingIndicator
-                          messageId={message.id}
-                          mode={message.tool ?? "chat"}
-                          running={isThinking}
-                          trace={message.thinking}
-                          onCommit={(thinking) =>
-                            commitThinking(message.id, thinking)
-                          }
-                        />
-                      </div>
+                    {/* Only while waiting for tokens — hide once answer streams / done. */}
+                    {isThinking ? (
+                      <ThinkingIndicator mode={message.tool ?? "chat"} />
                     ) : null}
 
                     {message.content ? (
