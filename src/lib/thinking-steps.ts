@@ -1,8 +1,9 @@
+import type { Locale } from "@/lib/locale";
 import type { ThinkingStep, ToolMode } from "@/lib/types";
 
 export type { ThinkingStep, ThinkingTrace } from "@/lib/types";
 
-const BASE_STEPS: ThinkingStep[] = [
+const BASE_MN: ThinkingStep[] = [
   {
     summary: "Асуултыг уншиж байна",
     detail: "Хэрэглэгчийн асуулт, хавсралт, горимыг шалгаж эхэллээ.",
@@ -21,7 +22,26 @@ const BASE_STEPS: ThinkingStep[] = [
   },
 ];
 
-const BY_MODE: Partial<Record<ToolMode, ThinkingStep[]>> = {
+const BASE_EN: ThinkingStep[] = [
+  {
+    summary: "Reading your question",
+    detail: "Checking the question, attachments, and mode.",
+  },
+  {
+    summary: "Finding the key idea",
+    detail: "Clarifying the core problem to answer.",
+  },
+  {
+    summary: "Planning the reply",
+    detail: "Ordering a clear, useful response.",
+  },
+  {
+    summary: "Writing the answer",
+    detail: "Drafting a friendly, helpful reply.",
+  },
+];
+
+const BY_MODE_MN: Partial<Record<ToolMode, ThinkingStep[]>> = {
   think: [
     {
       summary: "Гүнзгий бодол эхлүүлж байна",
@@ -112,8 +132,103 @@ const BY_MODE: Partial<Record<ToolMode, ThinkingStep[]>> = {
   ],
 };
 
-export function thinkingStepsForMode(mode: ToolMode = "chat"): ThinkingStep[] {
-  return BY_MODE[mode] ?? BASE_STEPS;
+const BY_MODE_EN: Partial<Record<ToolMode, ThinkingStep[]>> = {
+  think: [
+    {
+      summary: "Starting deeper reasoning",
+      detail: "Analyzing the problem from several angles.",
+    },
+    {
+      summary: "Separating facts and guesses",
+      detail: "Marking what is known versus uncertain.",
+    },
+    {
+      summary: "Ordering the steps",
+      detail: "Building a logical path to a conclusion.",
+    },
+    {
+      summary: "Preparing the conclusion",
+      detail: "Writing a brief conclusion and next steps.",
+    },
+  ],
+  research: [
+    {
+      summary: "Breaking down the topic",
+      detail: "Setting intro, key facts, and counterpoints.",
+    },
+    {
+      summary: "Checking sources",
+      detail: "Comparing web and built-in knowledge.",
+    },
+    {
+      summary: "Writing structured research",
+      detail: "Preparing conclusion and next steps.",
+    },
+  ],
+  web: [
+    {
+      summary: "Reading search results",
+      detail: "Combining titles, snippets, and links.",
+    },
+    {
+      summary: "Filtering reliable info",
+      detail: "Dropping conflicting or outdated bits.",
+    },
+    {
+      summary: "Assembling the answer",
+      detail: "Writing a concise, source-aware reply.",
+    },
+  ],
+  code: [
+    {
+      summary: "Breaking down the coding task",
+      detail: "Identifying language, framework, and expected result.",
+    },
+    {
+      summary: "Choosing a solution",
+      detail: "Picking a safe, working approach.",
+    },
+    {
+      summary: "Preparing example code",
+      detail: "Writing explanation plus working sample.",
+    },
+  ],
+  document: [
+    {
+      summary: "Reading document needs",
+      detail: "Clarifying goal, tone, and structure.",
+    },
+    {
+      summary: "Planning the text",
+      detail: "Ordering headings, sections, and summary.",
+    },
+    {
+      summary: "Writing the document",
+      detail: "Producing ready-to-use text.",
+    },
+  ],
+  image: [
+    {
+      summary: "Clarifying the image idea",
+      detail: "Breaking down subject, style, and composition.",
+    },
+    {
+      summary: "Preparing the depiction",
+      detail: "Shaping a clear prompt for the model.",
+    },
+    {
+      summary: "Creating the image",
+      detail: "Waiting on and checking the result.",
+    },
+  ],
+};
+
+export function thinkingStepsForMode(
+  mode: ToolMode = "chat",
+  locale: Locale = "mn"
+): ThinkingStep[] {
+  if (locale === "en") return BY_MODE_EN[mode] ?? BASE_EN;
+  return BY_MODE_MN[mode] ?? BASE_MN;
 }
 
 export function formatThinkingDuration(sec: number): string {

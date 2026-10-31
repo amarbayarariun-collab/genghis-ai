@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import {
   Code2,
   FileText,
@@ -11,8 +11,10 @@ import {
 } from "lucide-react";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { LiveHeroBackdrop } from "@/components/chat/live-hero-backdrop";
+import { LocaleToggle } from "@/components/chat/locale-toggle";
 import { ThemeToggle } from "@/components/chat/theme-toggle";
 import { WallpaperPickerButton } from "@/components/chat/wallpaper-picker";
+import { useLocale } from "@/components/locale-provider";
 import { useWallpaper } from "@/hooks/use-wallpaper";
 import { greetingForNow } from "@/lib/greeting";
 import type { ChatAttachment, ToolMode } from "@/lib/types";
@@ -34,52 +36,6 @@ type HomeHeroProps = {
   onTool: (mode: ToolMode) => void;
 };
 
-const QUICK_PILLS: Array<{
-  label: string;
-  icon: typeof Search;
-  mode: ToolMode;
-}> = [
-  { label: "Гүнзгий судалгаа", icon: Search, mode: "research" },
-  { label: "Зураг үүсгэх", icon: ImageIcon, mode: "image" },
-  { label: "Баримт бичиг", icon: FileText, mode: "document" },
-  { label: "Код боловсруулах", icon: Code2, mode: "code" },
-  { label: "Вэб хайлт", icon: Sparkles, mode: "web" },
-];
-
-const FEATURES: Array<{
-  title: string;
-  desc: string;
-  icon: typeof Search;
-  mode: ToolMode;
-  autoSend?: string;
-}> = [
-  {
-    title: "Ухаалаг чат",
-    desc: "Асуулт, хариулт, зөвлөгөө",
-    icon: MessageSquare,
-    mode: "chat",
-    autoSend: "Сайн уу",
-  },
-  {
-    title: "Зураг үүсгэх",
-    desc: "Санаагаа зургаар амьдруулах",
-    icon: ImageIcon,
-    mode: "image",
-  },
-  {
-    title: "Баримт бичиг",
-    desc: "Дүгнэлт, тайлан, и-мэйл, орчуулга",
-    icon: FileText,
-    mode: "document",
-  },
-  {
-    title: "Код боловсруулах",
-    desc: "Програмчлал, тайлбарлах",
-    icon: Code2,
-    mode: "code",
-  },
-];
-
 export function HomeHero({
   input,
   onChange,
@@ -94,11 +50,54 @@ export function HomeHero({
   onTool,
 }: HomeHeroProps) {
   const wallpaper = useWallpaper();
-  const [greeting, setGreeting] = useState("");
+  const { locale, t } = useLocale();
+  const greeting = useMemo(
+    () => greetingForNow(new Date(), locale),
+    [locale]
+  );
 
-  useEffect(() => {
-    setGreeting(greetingForNow());
-  }, []);
+  const quickPills = useMemo(
+    () =>
+      [
+        { label: t("toolResearch"), icon: Search, mode: "research" as const },
+        { label: t("toolImage"), icon: ImageIcon, mode: "image" as const },
+        { label: t("toolDocument"), icon: FileText, mode: "document" as const },
+        { label: t("toolCode"), icon: Code2, mode: "code" as const },
+        { label: t("toolWeb"), icon: Sparkles, mode: "web" as const },
+      ] as const,
+    [t]
+  );
+
+  const features = useMemo(
+    () => [
+      {
+        title: t("featureChatTitle"),
+        desc: t("featureChatDesc"),
+        icon: MessageSquare,
+        mode: "chat" as const,
+        autoSend: t("hiAutoSend"),
+      },
+      {
+        title: t("toolImage"),
+        desc: t("featureImageDesc"),
+        icon: ImageIcon,
+        mode: "image" as const,
+      },
+      {
+        title: t("toolDocument"),
+        desc: t("featureDocDesc"),
+        icon: FileText,
+        mode: "document" as const,
+      },
+      {
+        title: t("toolCode"),
+        desc: t("featureCodeDesc"),
+        icon: Code2,
+        mode: "code" as const,
+      },
+    ],
+    [t]
+  );
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -110,6 +109,7 @@ export function HomeHero({
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
         <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-end gap-2 p-3 md:p-4">
           <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-2">
+            <LocaleToggle />
             <ThemeToggle />
             <WallpaperPickerButton
               activeId={wallpaper.id}
@@ -126,12 +126,12 @@ export function HomeHero({
             <h1 className="text-5xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-6xl md:text-7xl">
               {greeting || (
                 <span className="invisible" aria-hidden>
-                  Өдрийн мэнд
+                  {t("greetingAfternoon")}
                 </span>
               )}
             </h1>
             <p className="mt-3 text-sm text-white/75 sm:text-base">
-              Монголоос дэлхийтэй холбогд
+              {t("tagline")}
             </p>
           </div>
 
@@ -158,9 +158,9 @@ export function HomeHero({
             className="animate-fade-up mt-4 flex max-w-3xl flex-wrap items-center justify-center gap-2"
             style={{ animationDelay: "140ms" }}
           >
-            {QUICK_PILLS.map((pill) => (
+            {quickPills.map((pill) => (
               <button
-                key={pill.label}
+                key={pill.mode}
                 type="button"
                 onClick={() => onTool(pill.mode)}
                 className={
@@ -178,7 +178,7 @@ export function HomeHero({
 
         <div className="relative z-10 px-4 pb-5 md:px-8 md:pb-7">
           <div className="mx-auto grid w-full max-w-5xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURES.map((feature, i) => (
+            {features.map((feature, i) => (
               <button
                 key={feature.title}
                 type="button"

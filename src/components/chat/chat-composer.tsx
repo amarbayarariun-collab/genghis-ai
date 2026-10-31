@@ -11,8 +11,9 @@ import {
   Square,
   X,
 } from "lucide-react";
+import { useLocale } from "@/components/locale-provider";
 import { fileToAttachment } from "@/lib/attachments";
-import { TOOL_LABELS } from "@/lib/tools";
+import { toolLabel } from "@/lib/locale";
 import type { ChatAttachment, ToolMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +64,7 @@ export function ChatComposer({
   attachments = [],
   onAttachmentsChange,
 }: ChatComposerProps) {
+  const { locale, t } = useLocale();
   const ref = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [attachError, setAttachError] = useState<string | null>(null);
@@ -71,6 +73,7 @@ export function ChatComposer({
   const recognitionRef = useRef<SpeechRec | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- detect SpeechRecognition once
     setMicSupported(Boolean(getSpeechRecognition()));
   }, []);
 
@@ -85,7 +88,7 @@ export function ChatComposer({
     if (disabled || isLoading) return;
     const text = (ref.current?.value ?? value).trim();
     if (!text && attachments.length === 0) return;
-    onSubmit(text || (attachments.length ? "Хавсралтыг үзэж өгнө үү." : ""), {
+    onSubmit(text || (attachments.length ? t("viewAttachments") : ""), {
       mode,
       attachments,
     });
@@ -109,7 +112,7 @@ export function ChatComposer({
       onAttachmentsChange(next.slice(0, 6));
     } catch (err) {
       setAttachError(
-        err instanceof Error ? err.message : "Файл нэмж чадсангүй."
+        err instanceof Error ? err.message : t("fileAddFail")
       );
     } finally {
       if (fileRef.current) fileRef.current.value = "";
@@ -131,7 +134,7 @@ export function ChatComposer({
     }
 
     const rec = new Ctor();
-    rec.lang = "mn-MN";
+    rec.lang = locale === "en" ? "en-US" : "mn-MN";
     rec.continuous = false;
     rec.interimResults = false;
     rec.onresult = (ev) => {
@@ -179,7 +182,7 @@ export function ChatComposer({
               <button
                 type="button"
                 className="absolute -top-1.5 -right-1.5 inline-flex size-5 items-center justify-center rounded-full bg-[#0B0D0F] text-white"
-                aria-label="Хавсралт хасах"
+                aria-label={t("removeAttachment")}
                 onClick={() => removeAttachment(att.id)}
               >
                 <X className="size-3" />
@@ -192,14 +195,14 @@ export function ChatComposer({
       {mode !== "chat" ? (
         <div className="mb-2 flex items-center gap-2 px-1">
           <span className="rounded-full bg-[#C9A36B]/20 px-2.5 py-0.5 text-[11px] font-medium text-[#0B0D0F]">
-            {TOOL_LABELS[mode]}
+            {toolLabel(locale, mode)}
           </span>
           <button
             type="button"
             className="text-[11px] text-[#5C584F] underline"
             onClick={() => onModeChange?.("chat")}
           >
-            Цуцлах
+            {t("cancel")}
           </button>
         </div>
       ) : null}
@@ -224,7 +227,7 @@ export function ChatComposer({
         <button
           type="button"
           className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-[#0B0D0F] transition hover:bg-[#F3F0EA]"
-          aria-label="Зураг эсвэл файл хавсаргах"
+          aria-label={t("attach")}
           disabled={disabled || isLoading}
           onClick={() => fileRef.current?.click()}
         >
@@ -239,10 +242,10 @@ export function ChatComposer({
           onChange={(e) => onChange(e.target.value)}
           placeholder={
             mode === "image"
-              ? "Зургийн тайлбараа бичнэ үү..."
+              ? t("placeholderImage")
               : mode === "web"
-                ? "Юу хайх вэ?"
-                : "Genghis AI -д асуух зүйлээ бичнэ үү..."
+                ? t("placeholderWeb")
+                : t("placeholderDefault")
           }
           disabled={disabled}
           rows={1}
@@ -275,10 +278,10 @@ export function ChatComposer({
                 : "text-[#5C584F] hover:bg-[#F3F0EA] hover:text-[#0B0D0F]"
             )}
             aria-pressed={mode === "think"}
-            aria-label="Think"
+            aria-label={t("toolThink")}
           >
             <Brain className="size-4 stroke-[1.75]" />
-            <span>Think</span>
+            <span>{t("toolThink")}</span>
           </button>
 
           <button
@@ -291,10 +294,10 @@ export function ChatComposer({
                 : "text-[#5C584F] hover:bg-[#F3F0EA] hover:text-[#0B0D0F]"
             )}
             aria-pressed={mode === "web"}
-            aria-label="Вэб хайлт"
+            aria-label={t("toolWeb")}
           >
             <Globe className="size-4 stroke-[1.75]" />
-            <span>Вэб хайлт</span>
+            <span>{t("toolWeb")}</span>
           </button>
         </div>
 
@@ -310,14 +313,12 @@ export function ChatComposer({
           aria-label={
             micSupported
               ? listening
-                ? "Дуу хоолойг зогсоох"
-                : "Дуу хоолойгоор бичих"
-              : "Микрофон энэ браузерт дэмжигдэхгүй"
+                ? t("micStop")
+                : t("micStart")
+              : t("micUnsupported")
           }
           title={
-            micSupported
-              ? "Дуу хоолойгоор бичих"
-              : "Энэ браузер SpeechRecognition дэмжихгүй"
+            micSupported ? t("micStart") : t("micTitleUnsupported")
           }
           disabled={disabled || isLoading || !micSupported}
           onClick={toggleMic}
@@ -335,7 +336,7 @@ export function ChatComposer({
             submit();
           }}
           disabled={disabled || (!isLoading && !canSend)}
-          aria-label={isLoading ? "Зогсоох" : "Илгээх"}
+          aria-label={isLoading ? t("stop") : t("send")}
           className={cn(
             "inline-flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
             "disabled:pointer-events-none disabled:opacity-45",

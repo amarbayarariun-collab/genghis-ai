@@ -5,10 +5,12 @@ import { Menu } from "lucide-react";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { HomeHero } from "@/components/chat/home-hero";
+import { LocaleToggle } from "@/components/chat/locale-toggle";
 import { MessageList } from "@/components/chat/message-list";
 import { ThemeToggle } from "@/components/chat/theme-toggle";
+import { useLocale } from "@/components/locale-provider";
 import { createId } from "@/lib/id";
-import { TOOL_LABELS } from "@/lib/tools";
+import { toolLabel, type Locale } from "@/lib/locale";
 import type {
   ChatAttachment,
   ChatMessage,
@@ -19,16 +21,29 @@ import type {
 const STORAGE_KEY = "genghis-ai-sessions-v3";
 const BOOTSTRAP_SESSION_ID = "chat_bootstrap";
 
-function titleFromPrompt(prompt: string, mode: ToolMode): string {
+function newChatTitle(locale: Locale): string {
+  return locale === "en" ? "New chat" : "Шинэ чат";
+}
+
+function titleFromPrompt(
+  prompt: string,
+  mode: ToolMode,
+  locale: Locale
+): string {
   const clean = prompt.replace(/\s+/g, " ").trim();
-  if (!clean) return mode === "chat" ? "Шинэ чат" : TOOL_LABELS[mode];
+  if (!clean) {
+    return mode === "chat" ? newChatTitle(locale) : toolLabel(locale, mode);
+  }
   return clean.length > 42 ? `${clean.slice(0, 42)}…` : clean;
 }
 
-function createSession(partial?: Partial<ChatSession>): ChatSession {
+function createSession(
+  locale: Locale = "mn",
+  partial?: Partial<ChatSession>
+): ChatSession {
   return {
     id: createId("chat"),
-    title: "Шинэ чат",
+    title: newChatTitle(locale),
     messages: [],
     updatedAt: Date.now(),
     ...partial,
@@ -45,6 +60,8 @@ const BOOTSTRAP_SESSION: ChatSession = {
 type SubmitMeta = { mode: ToolMode; attachments: ChatAttachment[] };
 
 export function ChatApp() {
+  const { locale, t } = useLocale();
+  const localeRef = useRef(locale);
   const [sessions, setSessions] = useState<ChatSession[]>([BOOTSTRAP_SESSION]);
   const [activeId, setActiveId] = useState(BOOTSTRAP_SESSION_ID);
   const [input, setInput] = useState("");
@@ -69,6 +86,10 @@ export function ChatApp() {
   }, [sessions]);
 
   useEffect(() => {
+    localeRef.current = locale;
+  }, [locale]);
+
+  useEffect(() => {
     loadingRef.current = false;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -78,6 +99,7 @@ export function ChatApp() {
           activeId?: string;
         };
         if (parsed.sessions?.length) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate sessions
           setSessions(parsed.sessions);
           setActiveId(
             parsed.activeId &&
@@ -92,7 +114,7 @@ export function ChatApp() {
     } catch {
       // ignore
     }
-    const fresh = createSession();
+    const fresh = createSession(localeRef.current);
     setSessions([fresh]);
     setActiveId(fresh.id);
     setHydrated(true);
@@ -144,12 +166,17 @@ export function ChatApp() {
       setAttachments([]);
       setMode("chat");
 
+      const uiLocale = localeRef.current;
       const userMessage: ChatMessage = {
         id: createId("msg"),
         role: "user",
         content:
           content ||
-          (activeAttachments.length ? "Хавсралтыг үзэж өгнө үү." : ""),
+          (activeAttachments.length
+            ? uiLocale === "en"
+              ? "Please review the attachments."
+              : "Хавсралтыг үзэж өгнө үү."
+            : ""),
         attachments: activeAttachments.length ? activeAttachments : undefined,
         tool: activeMode,
       };
@@ -174,7 +201,11 @@ export function ChatApp() {
                 ...s,
                 title:
                   s.messages.length === 0
-                    ? titleFromPrompt(userMessage.content, activeMode)
+                    ? titleFromPrompt(
+                        userMessage.content,
+                        activeMode,
+                        uiLocale
+                      )
                     : s.title,
                 messages: nextMessages,
                 updatedAt: Date.now(),
@@ -220,13 +251,10 @@ export function ChatApp() {
             model?: string;
           } | null;
           if (!response.ok || !data?.imageUrl) {
-            throw new Error(
-              data?.error ||
-                "Зураг үүсгэж чадсангүй. Энэ API түлхүүр/загвар зураг дэмжихгүй байж болно."
-            );
+            throw new Error(data?.error || t("imageFail"));
           }
           patchAssistant({
-            content: `Зураг амжилттай үүслээ${data.model ? ` (${data.model})` : ""}.`,
+            content: `${t("imageOk")}${data.model ? ` (${data.model})` : ""}.`,
             imageUrl: data.imageUrl,
           });
           return;
@@ -256,8 +284,7 @@ export function ChatApp() {
               webContext = searchData.notice;
             }
           } catch {
-            webContext =
-              "Вэб хайлт түр ажилласангүй. Дотоод мэдлэгээр судалгааны бүтэцтэй хариул.";
+            webContext = t("webSearchFail");
           }
         }
 
@@ -271,6 +298,7 @@ export function ChatApp() {
           body: JSON.stringify({
             messages: history,
             mode: activeMode,
+            locale: uiLocale,
             attachments: activeAttachments.map((a) => ({
               name: a.name,
               mime: a.mime,
@@ -287,11 +315,13 @@ export function ChatApp() {
           const data = (await response.json().catch(() => null)) as {
             error?: string;
           } | null;
-          throw new Error(data?.error || `Алдаа (${response.status})`);
+          throw new Error(
+            data?.error || `${t("errorPrefix")} (${response.status})`
+          );
         }
 
         if (!response.body) {
-          throw new Error("Хариу хоосон байна.");
+          throw new Error(t("emptyReply"));
         }
 
         const reader = response.body.getReader();
@@ -309,12 +339,10 @@ export function ChatApp() {
           return;
         }
         const message =
-          err instanceof Error ? err.message : "Тодорхойгүй алдаа гарлаа.";
+          err instanceof Error ? err.message : t("unknownError");
         setError(message);
         patchAssistant({
-          content:
-            message ||
-            "Уучлаарай, хариу өгч чадсангүй. Дахин оролдоно уу.",
+          content: message || t("replyFail"),
         });
       } finally {
         loadingRef.current = false;
@@ -323,7 +351,7 @@ export function ChatApp() {
         abortRef.current = null;
       }
     },
-    [attachments, hydrated, mode]
+    [attachments, hydrated, mode, t]
   );
 
   const handleTool = useCallback(
@@ -339,7 +367,7 @@ export function ChatApp() {
 
   const handleNew = () => {
     stop();
-    const session = createSession();
+    const session = createSession(locale);
     setSessions((prev) => [session, ...prev]);
     setActiveId(session.id);
     setError(null);
@@ -384,7 +412,7 @@ export function ChatApp() {
           type="button"
           className="absolute top-3 left-3 z-20 inline-flex size-10 items-center justify-center rounded-full bg-white/95 text-ink shadow dark:bg-zinc-900 dark:text-zinc-100 md:hidden"
           onClick={() => setSidebarOpen(true)}
-          aria-label="Цэс нээх"
+          aria-label={t("openMenu")}
         >
           <Menu className="size-5" />
         </button>
@@ -407,9 +435,10 @@ export function ChatApp() {
           <>
             <header className="relative flex items-center justify-center border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
               <p className="truncate text-sm font-medium text-ink dark:text-zinc-100">
-                {activeSession?.title || "Шинэ чат"}
+                {activeSession?.title || t("newChat")}
               </p>
-              <div className="absolute top-1/2 right-3 hidden -translate-y-1/2 sm:block [&_button]:text-ink [&_div]:border-zinc-200 [&_div]:bg-zinc-100 dark:[&_button]:text-zinc-100 dark:[&_div]:border-zinc-700 dark:[&_div]:bg-zinc-900">
+              <div className="absolute top-1/2 right-3 hidden -translate-y-1/2 items-center gap-2 sm:flex [&_button]:text-ink [&_div]:border-zinc-200 [&_div]:bg-zinc-100 dark:[&_button]:text-zinc-100 dark:[&_div]:border-zinc-700 dark:[&_div]:bg-zinc-900">
+                <LocaleToggle className="[&_button]:text-ink dark:[&_button]:text-zinc-100" />
                 <ThemeToggle />
               </div>
             </header>

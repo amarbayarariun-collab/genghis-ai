@@ -1,10 +1,25 @@
 "use client";
 
 import { ImageIcon, Upload, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useLocale } from "@/components/locale-provider";
+import type { UiKey } from "@/lib/locale";
 import { BUILTIN_WALLPAPERS, type WallpaperId } from "@/lib/wallpapers";
 import { cn } from "@/lib/utils";
+
+const WALLPAPER_LABEL_KEYS: Record<string, UiKey> = {
+  horseman: "wallpaperHorseman",
+  "ub-night-aerial": "wallpaperUbNight",
+  gers: "wallpaperGers",
+  "gobi-camels": "wallpaperCamels",
+  "autumn-steppe": "wallpaperAutumn",
+  "ulaanbaatar-winter": "wallpaperUbWinter",
+  "ub-blue-tower": "wallpaperUbTower",
+  "ub-sukhbaatar-square": "wallpaperSquare",
+  "choijin-skyline": "wallpaperChoijin",
+  "amusement-park-night": "wallpaperPark",
+};
 
 type WallpaperPickerProps = {
   activeId: WallpaperId;
@@ -21,11 +36,20 @@ export function WallpaperPickerButton({
   onUpload,
   onClearCustom,
 }: WallpaperPickerProps) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const walls = useMemo(
+    () =>
+      BUILTIN_WALLPAPERS.map((wall) => ({
+        ...wall,
+        label: t(WALLPAPER_LABEL_KEYS[wall.id] ?? "wallpaper"),
+      })),
+    [t]
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -51,24 +75,24 @@ export function WallpaperPickerButton({
             <div
               role="dialog"
               aria-modal="true"
-              aria-label="Дэвсгэр сонгох"
+              aria-label={t("wallpaperPick")}
               className="flex max-h-[min(92vh,40rem)] w-full max-w-md flex-col rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-950"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold text-ink dark:text-zinc-50">
-                    Дэвсгэр зураг
+                    {t("wallpaperTitle")}
                   </p>
                   <p className="text-xs text-ink/50 dark:text-zinc-400">
-                    Нүүр хуудсын дэвсгэрийг солино
+                    {t("wallpaperHint")}
                   </p>
                 </div>
                 <button
                   type="button"
                   className="rounded-lg p-1.5 text-ink/50 transition hover:bg-ink/5 hover:text-ink dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
                   onClick={() => setOpen(false)}
-                  aria-label="Хаах"
+                  aria-label={t("closeDialog")}
                 >
                   <X className="size-4" />
                 </button>
@@ -76,7 +100,7 @@ export function WallpaperPickerButton({
 
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5">
               <div className="grid grid-cols-2 gap-2.5">
-                {BUILTIN_WALLPAPERS.map((wall) => {
+                {walls.map((wall) => {
                   const selected = activeId === wall.id;
                   return (
                     <button
@@ -127,7 +151,7 @@ export function WallpaperPickerButton({
                       className="aspect-[3/2] w-full object-cover"
                     />
                     <span className="flex items-center justify-between gap-1 px-2.5 py-2 text-xs font-medium text-ink">
-                      Миний зураг
+                      {t("wallpaperMine")}
                       <span
                         role="button"
                         tabIndex={0}
@@ -144,7 +168,7 @@ export function WallpaperPickerButton({
                           }
                         }}
                       >
-                        Устгах
+                        {t("delete")}
                       </span>
                     </span>
                   </button>
@@ -171,7 +195,7 @@ export function WallpaperPickerButton({
                       setError(
                         err instanceof Error
                           ? err.message
-                          : "Зураг ачаалж чадсангүй"
+                          : t("wallpaperLoadFail")
                       );
                     } finally {
                       setBusy(false);
@@ -185,13 +209,13 @@ export function WallpaperPickerButton({
                   className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-3 py-2.5 text-sm text-ink/70 transition hover:border-gold/50 hover:text-ink disabled:opacity-60"
                 >
                   <Upload className="size-4" />
-                  {busy ? "Боловсруулж байна…" : "Өөрийн зураг оруулах"}
+                  {busy ? t("wallpaperBusy") : t("wallpaperUpload")}
                 </button>
                 {error ? (
                   <p className="mt-2 text-xs text-destructive">{error}</p>
                 ) : (
                   <p className="mt-2 text-[11px] text-ink/40">
-                    Зөвхөн энэ төхөөрөмжид хадгалагдана
+                    {t("wallpaperLocalOnly")}
                   </p>
                 )}
               </div>
@@ -211,7 +235,7 @@ export function WallpaperPickerButton({
         aria-expanded={open}
       >
         <ImageIcon className="size-3.5 opacity-90" />
-        Дэвсгэр
+        {t("wallpaper")}
       </button>
       {dialog}
     </>

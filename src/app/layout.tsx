@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Literata, Source_Sans_3 } from "next/font/google";
+import { LocaleProvider } from "@/components/locale-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
@@ -42,6 +43,10 @@ const themeBootScript = `
     else r.classList.remove('dark');
     r.dataset.theme = t;
     r.style.colorScheme = t;
+    var l = localStorage.getItem('genghis:locale');
+    if (l !== 'en' && l !== 'mn') l = 'mn';
+    r.lang = l === 'en' ? 'en' : 'mn';
+    r.dataset.locale = l;
   } catch (e) {}
 })();`;
 
@@ -56,7 +61,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body className="flex min-h-full flex-col font-sans">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <LocaleProvider>{children}</LocaleProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

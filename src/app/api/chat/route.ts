@@ -3,6 +3,7 @@ import {
   resolveApiConfig,
   sanitizeApiError,
 } from "@/lib/api-config";
+import { isLocale, type Locale } from "@/lib/locale";
 import { streamMockReply } from "@/lib/mock-chat";
 import { systemPromptForMode } from "@/lib/tools";
 import type { ApiAttachment, ToolMode } from "@/lib/types";
@@ -19,6 +20,7 @@ type IncomingMessage = {
 type ChatBody = {
   messages?: IncomingMessage[];
   mode?: ToolMode;
+  locale?: Locale;
   attachments?: ApiAttachment[];
   webContext?: string;
 };
@@ -89,12 +91,16 @@ async function* streamOpenAI(
   apiKey: string,
   mode: ToolMode,
   webContext: string | undefined,
+  locale: Locale,
   signal?: AbortSignal
 ): AsyncGenerator<string> {
   const { baseUrl, model } = resolveApiConfig(apiKey);
-  let system = systemPromptForMode(mode);
+  let system = systemPromptForMode(mode, locale);
   if (webContext) {
-    system += `\n\n[Вэб хайлтын үр дүн]\n${webContext}`;
+    system +=
+      locale === "en"
+        ? `\n\n[Web search results]\n${webContext}`
+        : `\n\n[Вэб хайлтын үр дүн]\n${webContext}`;
   }
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -157,6 +163,7 @@ export async function POST(request: Request) {
   }
 
   const mode: ToolMode = body.mode || "chat";
+  const locale: Locale = isLocale(body.locale) ? body.locale : "mn";
   const attachments = body.attachments || [];
   const webContext = body.webContext?.trim();
 
@@ -194,7 +201,14 @@ export async function POST(request: Request) {
   try {
     if (apiKey) {
       const stream = encoderStream(
-        streamOpenAI(messages, apiKey, mode, webContext, request.signal)
+        streamOpenAI(
+          messages,
+          apiKey,
+          mode,
+          webContext,
+          locale,
+          request.signal
+        )
       );
       return new Response(stream, {
         headers: {
