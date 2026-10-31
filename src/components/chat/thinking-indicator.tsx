@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
+import { useLocale } from "@/components/locale-provider";
 import {
   formatThinkingDuration,
   stepIndexForElapsed,
@@ -27,14 +28,17 @@ function CoralDots() {
 
 /**
  * Single horizontal thinking row (Claude-style):
- * coral dots + cycling MN summary + duration + caret.
- * Step text swaps in place — never stacks vertically.
+ * coral dots + cycling summary + duration + caret.
  */
 export function ThinkingIndicator({
   className,
   mode = "chat",
 }: ThinkingIndicatorProps) {
-  const catalog = useMemo(() => thinkingStepsForMode(mode), [mode]);
+  const { locale, t } = useLocale();
+  const catalog = useMemo(
+    () => thinkingStepsForMode(mode, locale),
+    [mode, locale]
+  );
   const [elapsedMs, setElapsedMs] = useState(0);
 
   useEffect(() => {
@@ -46,13 +50,13 @@ export function ThinkingIndicator({
   }, []);
 
   const idx = stepIndexForElapsed(elapsedMs, catalog.length);
-  const summary = catalog[idx]?.summary || "Бодож байна…";
+  const summary = catalog[idx]?.summary || t("thinkingFallback");
 
   return (
     <div
       className={cn("thinking-steps", className)}
       aria-live="polite"
-      aria-label="Бодож байна"
+      aria-label={t("thinking")}
     >
       <div className="thinking-steps-row">
         <CoralDots />

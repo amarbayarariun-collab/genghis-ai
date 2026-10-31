@@ -1,11 +1,14 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
+import { useLocale } from "@/components/locale-provider";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/lib/utils";
 
 export function ThemeToggle({ className }: { className?: string }) {
-  const { theme, setTheme, hydrated } = useTheme();
+  const { theme, setTheme, hydrated: themeHydrated } = useTheme();
+  const { t, hydrated: localeHydrated } = useLocale();
+  const hydrated = themeHydrated && localeHydrated;
 
   if (!hydrated) {
     return (
@@ -27,7 +30,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         className
       )}
       role="group"
-      aria-label="Гэрэлтүүлэг"
+      aria-label={t("themeGroup")}
     >
       <button
         type="button"
@@ -41,7 +44,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         aria-pressed={theme === "light"}
       >
         <Sun className="size-3.5" />
-        Гэрэлтэй
+        {t("themeLight")}
       </button>
       <button
         type="button"
@@ -55,7 +58,7 @@ export function ThemeToggle({ className }: { className?: string }) {
         aria-pressed={theme === "dark"}
       >
         <Moon className="size-3.5" />
-        Харанхуй
+        {t("themeDark")}
       </button>
     </div>
   );

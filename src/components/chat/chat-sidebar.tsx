@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { GenghisLogo } from "@/components/brand/genghis-logo";
+import { useLocale } from "@/components/locale-provider";
 import { Button } from "@/components/ui/button";
 import { useSidebarWidth } from "@/hooks/use-sidebar-width";
 import {
@@ -32,18 +33,6 @@ type ChatSidebarProps = {
   onTool?: (mode: ToolMode) => void;
 };
 
-const TOOLS: Array<{
-  label: string;
-  icon: typeof Search;
-  mode: ToolMode;
-}> = [
-  { label: "Судалгаа", icon: Search, mode: "research" },
-  { label: "Зураг үүсгэх", icon: ImageIcon, mode: "image" },
-  { label: "Баримт бичиг", icon: FileText, mode: "document" },
-  { label: "Вэб хайлт", icon: Globe, mode: "web" },
-  { label: "Код боловсруулах", icon: Code2, mode: "code" },
-];
-
 export function ChatSidebar({
   sessions,
   activeId,
@@ -54,7 +43,19 @@ export function ChatSidebar({
   onDelete,
   onTool,
 }: ChatSidebarProps) {
+  const { t } = useLocale();
   const { width, setWidth, beginResize, isResizing } = useSidebarWidth();
+  const tools: Array<{
+    label: string;
+    icon: typeof Search;
+    mode: ToolMode;
+  }> = [
+    { label: t("toolResearchShort"), icon: Search, mode: "research" },
+    { label: t("toolImage"), icon: ImageIcon, mode: "image" },
+    { label: t("toolDocument"), icon: FileText, mode: "document" },
+    { label: t("toolWeb"), icon: Globe, mode: "web" },
+    { label: t("toolCode"), icon: Code2, mode: "code" },
+  ];
   const recent = [...sessions]
     .filter((s) => s.messages.length > 0)
     .sort((a, b) => b.updatedAt - a.updatedAt)
@@ -85,7 +86,7 @@ export function ChatSidebar({
             size="icon-sm"
             className="md:hidden"
             onClick={onClose}
-            aria-label="Хаалт"
+            aria-label={t("close")}
           >
             <X className="size-4" />
           </Button>
@@ -101,10 +102,10 @@ export function ChatSidebar({
             className="flex items-center gap-2.5 rounded-xl bg-gold/20 px-3 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-gold/30 dark:text-zinc-100"
           >
             <MessageSquarePlus className="size-4 opacity-80" />
-            Шинэ чат
+            {t("newChat")}
           </button>
 
-          {TOOLS.map((tool) => (
+          {tools.map((tool) => (
             <button
               key={tool.label}
               type="button"
@@ -125,20 +126,20 @@ export function ChatSidebar({
             disabled
           >
             <MoreHorizontal className="size-4" />
-            Илүү их
+            {t("more")}
           </button>
         </div>
 
         <div className="mt-5 px-4 pb-1">
           <p className="text-[11px] tracking-wide text-ink/45 dark:text-zinc-500">
-            Сүүлд чатласан
+            {t("recentChats")}
           </p>
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-3">
           {recent.length === 0 ? (
             <p className="px-2 py-6 text-center text-xs text-ink/40 dark:text-zinc-600">
-              Одоогоор яриа байхгүй.
+              {t("noChats")}
             </p>
           ) : (
             <ul className="space-y-0.5">
@@ -163,7 +164,7 @@ export function ChatSidebar({
                     type="button"
                     className="absolute top-1.5 right-1.5 rounded-md px-1.5 py-0.5 text-[10px] text-ink/40 opacity-0 transition-opacity group-hover:opacity-100 hover:text-ink dark:text-zinc-500"
                     onClick={() => onDelete(session.id)}
-                    aria-label="Устгах"
+                    aria-label={t("delete")}
                   >
                     ×
                   </button>
@@ -196,7 +197,7 @@ export function ChatSidebar({
           aria-valuemin={SIDEBAR_WIDTH_MIN}
           aria-valuemax={SIDEBAR_WIDTH_MAX}
           aria-valuenow={width}
-          aria-label="Хажуугийн самбарын өргөн"
+          aria-label={t("sidebarResize")}
           tabIndex={0}
           onPointerDown={beginResize}
           onKeyDown={(e) => {

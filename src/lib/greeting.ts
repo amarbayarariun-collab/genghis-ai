@@ -1,5 +1,7 @@
 /** Time-of-day greeting in Asia/Ulaanbaatar (Mongolia product). */
 
+import { t, type Locale } from "@/lib/locale";
+
 export type DayPart = "morning" | "afternoon" | "evening";
 
 export function getUlaanbaatarHour(now = new Date()): number {
@@ -18,14 +20,14 @@ export function getDayPart(hour: number): DayPart {
   return "evening";
 }
 
-export function greetingForNow(now = new Date()): string {
+export function greetingForNow(now = new Date(), locale: Locale = "mn"): string {
   const part = getDayPart(getUlaanbaatarHour(now));
   switch (part) {
     case "morning":
-      return "Өглөөний мэнд";
+      return t(locale, "greetingMorning");
     case "afternoon":
-      return "Өдрийн мэнд";
+      return t(locale, "greetingAfternoon");
     case "evening":
-      return "Оройн мэнд";
+      return t(locale, "greetingEvening");
   }
 }

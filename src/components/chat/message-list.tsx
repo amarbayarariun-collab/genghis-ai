@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { FileIcon } from "lucide-react";
 import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { ThinkingIndicator } from "@/components/chat/thinking-indicator";
+import { useLocale } from "@/components/locale-provider";
 import type { ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ export function MessageList({
   streamingId,
   isLoading,
 }: MessageListProps) {
+  const { t } = useLocale();
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,7 +91,7 @@ export function MessageList({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={message.imageUrl}
-                    alt="Үүсгэсэн зураг"
+                    alt={t("generatedImage")}
                     className="mb-2 max-h-[28rem] w-full rounded-2xl object-contain"
                   />
                 ) : null}

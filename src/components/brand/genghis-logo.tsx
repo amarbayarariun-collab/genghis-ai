@@ -1,3 +1,6 @@
+"use client";
+
+import { useLocale } from "@/components/locale-provider";
 import { cn } from "@/lib/utils";
 
 type GenghisLogoProps = {
@@ -12,6 +15,8 @@ export function GenghisLogo({
   showTagline = true,
   compact = false,
 }: GenghisLogoProps) {
+  const { t } = useLocale();
+
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -47,7 +52,7 @@ export function GenghisLogo({
         </p>
         {showTagline ? (
           <p className="mt-1 text-[10px] leading-snug tracking-wide text-ink/70 dark:text-zinc-400">
-            Монголоос дэлхийтэй холбогд
+            {t("tagline")}
           </p>
         ) : null}
       </div>
