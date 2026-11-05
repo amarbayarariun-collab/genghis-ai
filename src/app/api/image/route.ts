@@ -1,6 +1,5 @@
 import {
-  getApiKey,
-  resolveApiConfig,
+  resolveImageApiConfig,
   sanitizeApiError,
 } from "@/lib/api-config";
 
@@ -20,18 +19,18 @@ export async function POST(request: Request) {
     );
   }
 
-  const apiKey = getApiKey();
-  if (!apiKey) {
+  const config = resolveImageApiConfig();
+  if (!config) {
     return Response.json(
       {
         error:
-          "Зураг үүсгэхэд API түлхүүр хэрэгтэй. OPENAI_API_KEY / AP тохируулаагүй байна.",
+          "Зураг үүсгэхэд API түлхүүр хэрэгтэй. OPENAI_IMAGE_API_KEY эсвэл OPENAI_API_KEY / AP тохируулаагүй байна.",
       },
       { status: 503 }
     );
   }
 
-  const { baseUrl, imageModelCandidates, isXai } = resolveApiConfig(apiKey);
+  const { apiKey, baseUrl, imageModelCandidates, isXai } = config;
   const errors: string[] = [];
 
   try {
