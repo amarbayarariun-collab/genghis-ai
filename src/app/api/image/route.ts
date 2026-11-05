@@ -47,8 +47,8 @@ export async function POST(request: Request) {
         n: 1,
       };
       if (!isXai) {
+        // OpenAI Images API rejects response_format on current models.
         payload.size = "1024x1024";
-        payload.response_format = "url";
       }
 
       const response = await fetch(`${baseUrl}/images/generations`, {
