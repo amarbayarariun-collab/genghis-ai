@@ -2,6 +2,22 @@ export function getApiKey(): string | undefined {
   return process.env.OPENAI_API_KEY?.trim() || process.env.AP?.trim();
 }
 
+export function getImageApiKey(): string | undefined {
+  return process.env.OPENAI_IMAGE_API_KEY?.trim();
+}
+
+const OPENAI_IMAGE_BASE_URL = "https://api.openai.com/v1";
+
+function openaiImageModelCandidates(): string[] {
+  return Array.from(
+    new Set(
+      [process.env.OPENAI_IMAGE_MODEL, "dall-e-3", "gpt-image-1"].filter(
+        Boolean
+      ) as string[]
+    )
+  );
+}
+
 export function resolveApiConfig(apiKey: string): {
   baseUrl: string;
   model: string;
@@ -29,14 +45,40 @@ export function resolveApiConfig(apiKey: string): {
           ].filter(Boolean) as string[]
         )
       )
-    : Array.from(
-        new Set(
-          [process.env.OPENAI_IMAGE_MODEL, "dall-e-3", "gpt-image-1"].filter(
-            Boolean
-          ) as string[]
-        )
-      );
+    : openaiImageModelCandidates();
   return { baseUrl, model, imageModel, imageModelCandidates, isXai };
+}
+
+/** Image generation: prefer dedicated OpenAI key; else shared chat key. */
+export function resolveImageApiConfig(): {
+  apiKey: string;
+  baseUrl: string;
+  imageModelCandidates: string[];
+  isXai: boolean;
+  usingDedicatedImageKey: boolean;
+} | null {
+  const imageKey = getImageApiKey();
+  if (imageKey) {
+    return {
+      apiKey: imageKey,
+      baseUrl: OPENAI_IMAGE_BASE_URL,
+      imageModelCandidates: openaiImageModelCandidates(),
+      isXai: false,
+      usingDedicatedImageKey: true,
+    };
+  }
+
+  const apiKey = getApiKey();
+  if (!apiKey) return null;
+
+  const { baseUrl, imageModelCandidates, isXai } = resolveApiConfig(apiKey);
+  return {
+    apiKey,
+    baseUrl,
+    imageModelCandidates,
+    isXai,
+    usingDedicatedImageKey: false,
+  };
 }
 
 export function sanitizeApiError(detail: string): string {
