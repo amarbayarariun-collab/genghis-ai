@@ -24,13 +24,19 @@ export async function POST(request: Request) {
     return Response.json(
       {
         error:
-          "Зураг үүсгэхэд API түлхүүр хэрэгтэй. OPENAI_IMAGE_API_KEY эсвэл OPENAI_API_KEY / AP тохируулаагүй байна.",
+          "Зураг үүсгэхэд API түлхүүр хэрэгтэй. Vercel дээр OPENAI_IMAGE_API_KEY тохируулаад Production Redeploy хийнэ үү (эсвэл OPENAI_API_KEY / AP).",
       },
       { status: 503 }
     );
   }
 
-  const { apiKey, baseUrl, imageModelCandidates, isXai } = config;
+  const {
+    apiKey,
+    baseUrl,
+    imageModelCandidates,
+    isXai,
+    usingDedicatedImageKey,
+  } = config;
   const errors: string[] = [];
 
   try {
@@ -82,11 +88,15 @@ export async function POST(request: Request) {
       return Response.json({ ok: true, imageUrl, model });
     }
 
+    const error = !usingDedicatedImageKey
+      ? "Зураг үүсгэж чадсангүй. OPENAI_IMAGE_API_KEY Vercel дээр тохируулаагүй (эсвэл Redeploy хийгээгүй) байна. Env нэрийг яг OPENAI_IMAGE_API_KEY гэж тавиад Production Redeploy хийнэ үү."
+      : "Зураг үүсгэж чадсангүй. OpenAI image model эрх/billing эсвэл загварын нэр буруу байна. Vercel дээр OPENAI_IMAGE_MODEL=dall-e-3 тавиад Redeploy хийнэ үү.";
+
     return Response.json(
       {
-        error:
-          "Зураг үүсгэж чадсангүй. Энэ түлхүүр одоогоор image model-д хандах эрхгүй эсвэл загварын нэр буруу байна. Vercel дээр OPENAI_IMAGE_MODEL тохируулж болно.",
+        error,
         detail: sanitizeApiError(errors.join(" · ")),
+        usingDedicatedImageKey,
       },
       { status: 502 }
     );
