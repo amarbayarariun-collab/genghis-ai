@@ -1,0 +1,924 @@
+// МСХ · Тэмүжин v1 — Sumiro-style chapters + Taichiud + GLB Temüjin.
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { buildWorld } from './world.js';
+import { buildBurkhanWorld } from './scenes/burkhan.js';
+import { buildAct2World } from './scenes/act2.js';
+import { buildAct3World } from './scenes/act3.js';
+import {
+  buildTaichiudCapture,
+  buildTaichiudEscape,
+  buildTaichiudRiver,
+  buildTaichiudGer,
+} from './scenes/taichiud.js';
+import {
+  STORY, SOURCES, END_LINES, CHAPTERS, CREDITS,
+  NEXT_TEASER, TAICHIUD_TEASER, ACT2_TEASER, ACT3_TEASER, MVP_DONE,
+} from './story.js';
+import { createCameraRig } from './systems/camera-rig.js';
+import { createMover } from './systems/player-move.js';
+import { createCinematic as createSimpleCine } from './systems/cinematic.js';
+import { createCinematic as createPathCine, ONON_INTRO } from './systems/harvest/cinematic-camera.js';
+import { createMist as createHarvestMist } from './systems/harvest/fx-mist.js';
+import { createDustSteps, createStrideTrigger } from './systems/harvest/fx-dust-steps.js';
+import { createSteppeMotes } from './systems/harvest/fx-steppe-motes.js';
+import { createBirds } from './systems/harvest/fx-birds.js';
+import { createSteppeAudio } from './systems/harvest/ambient-audio.js';
+import { createLocomotionFSM } from './systems/harvest/anim-state-machine.js';
+import { createAdaptiveQuality } from './systems/harvest/lod-instancing.js';
+import { qualityPreset, pickTierFromAvgMs, applyRendererQuality, QUALITY_TIERS } from './systems/quality.js';
+import { loadSave, writeSave, unlockNext } from './save.js';
+
+const $ = (id) => document.getElementById(id);
+const canvas = $('game');
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: false, // cheaper; CSS warmGrade softens edges
+  powerPreference: 'high-performance',
+  stencil: false,
+  depth: true,
+});
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.info.autoReset = true;
+
+const scene = new THREE.Scene();
+let envMap = null;
+function ensureEnvMap(on) {
+  if (on) {
+    if (!envMap) {
+      envMap = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+    }
+    scene.environment = envMap;
+    scene.environmentIntensity = 0.45;
+  } else {
+    scene.environment = null;
+    scene.environmentIntensity = 0;
+  }
+}
+const camera = new THREE.PerspectiveCamera(62, 1, 0.12, 420);
+
+// ---- Quality / adaptive ----
+let save = loadSave();
+let qualityId = save.quality || 'med'; // null in save → start med, auto-probe first 2s
+let quality = qualityPreset(qualityId);
+let qualityManual = !!save.quality;
+let probeAcc = 0;
+let probeFrames = 0;
+let probeDone = qualityManual;
+let adapt = null;
+const stepDir = new THREE.Vector3();
+const ndc = new THREE.Vector2();
+let showPerf = false;
+let fpsEma = 60;
+let fpsFrames = 0;
+let fpsWindowT = 0;
+
+function updatePerfHud(force) {
+  const el = $('perfHud');
+  if (!el) return;
+  if (!showPerf) {
+    el.classList.add('hidden');
+    return;
+  }
+  el.classList.remove('hidden');
+  if (!force && fpsFrames < 8) return;
+  const info = renderer.info;
+  el.textContent = `${fpsEma.toFixed(0)} fps · ${quality.label} · draw ${info.render.calls} · tri ${info.render.triangles} · pr ${renderer.getPixelRatio().toFixed(2)}`;
+}
+
+function setQuality(id, { manual = false, reloadScene = true } = {}) {
+  if (!QUALITY_TIERS.includes(id)) id = 'med';
+  qualityId = id;
+  quality = qualityPreset(id);
+  if (manual) {
+    qualityManual = true;
+    save = writeSave({ quality: id });
+  }
+  applyRendererQuality(renderer, THREE, quality);
+  ensureEnvMap(id !== 'low');
+  adapt = createAdaptiveQuality(renderer, {
+    targetMs: id === 'low' ? 33 : id === 'high' ? 16.7 : 20,
+    min: id === 'low' ? 0.75 : 0.85,
+    max: quality.pixelRatioCap,
+    every: 2,
+    steps: id === 'low' ? [0.75, 1] : id === 'med' ? [0.85, 1, 1.25] : [1, 1.25, 1.5],
+  });
+  document.querySelectorAll('[data-quality]').forEach((b) => {
+    b.classList.toggle('active', b.getAttribute('data-quality') === id);
+  });
+  if (reloadScene && typeof world !== 'undefined' && world && state !== 'title') {
+    loadScene(sceneId, { cinematic: false });
+  }
+  updatePerfHud(true);
+}
+setQuality(qualityId, { manual: qualityManual, reloadScene: false });
+
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+resize();
+
+function clearScene() {
+  for (let i = scene.children.length - 1; i >= 0; i--) {
+    const obj = scene.children[i];
+    scene.remove(obj);
+    obj.traverse?.((c) => {
+      c.geometry?.dispose?.();
+      if (c.material) {
+        const mats = Array.isArray(c.material) ? c.material : [c.material];
+        mats.forEach((m) => { m.map?.dispose?.(); m.dispose?.(); });
+      }
+    });
+  }
+}
+
+const player = { pos: new THREE.Vector3(0, 0, 10), yaw: 0.15, bob: 0 };
+const cam = createCameraRig(camera, { distance: 5.0, height: 1.55, minPitch: -0.35, maxPitch: 0.55 });
+const mover = createMover(player);
+const audio = createSteppeAudio({ volume: 0.75 });
+audio.attachUnlock?.();
+const simpleCine = createSimpleCine(camera, { duration: 2.8 });
+const pathCine = createPathCine(camera, ONON_INTRO);
+let activeCine = null; // { update, active, skip? }
+const keys = {};
+let world = null;
+let sceneId = 'camp';
+let chapterId = 'camp';
+let NPCS = [];
+let harvestMist = null;
+let motes = null;
+let birds = null;
+let dust = null;
+const stride = createStrideTrigger({ strideLen: 0.72 });
+// Procedural Temüjin → animator:null FSM still fires synthetic footfalls for dust/audio
+const loco = createLocomotionFSM({
+  animator: null,
+  gaits: { idle: 'Idle', walk: 'Walk', jog: 'Run' },
+  onStep: (_side, p) => {
+    stepDir.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+    if (dust) dust.step(p, stepDir);
+    audio.step?.(sceneId === 'burkhan' ? 'rock' : 'grass');
+  },
+});
+let state = 'title'; // title | chapters | cine | explore | dialogue | end | pause
+/** When true, freeze camera at aerialView (proof / cinematic hold) — spring rig must not overwrite. */
+let aerialLocked = false;
+let flag = null;
+let talkTarget = null;
+let spottedCooldown = 0;
+
+const PLAYER_RADIUS = 0.3;
+const CHAPTER_ORDER = CHAPTERS.map((c) => c.id);
+
+function resolveCollisions(p) {
+  for (const c of world?.colliders || []) {
+    const dx = p.x - c.x, dz = p.z - c.z;
+    const d = Math.hypot(dx, dz);
+    const min = c.r + PLAYER_RADIUS;
+    if (d < min && d > 1e-4) {
+      p.x += (dx / d) * (min - d);
+      p.z += (dz / d) * (min - d);
+    } else if (d < 1e-5) p.x += min;
+  }
+}
+
+function buildScene(id) {
+  const qOpts = { quality };
+  if (id === 'burkhan') return buildBurkhanWorld(scene);
+  if (id === 'act2') return buildAct2World(scene);
+  if (id === 'act3') return buildAct3World(scene);
+  if (id === 'taichiud_capture') return buildTaichiudCapture(scene);
+  if (id === 'taichiud_escape') return buildTaichiudEscape(scene);
+  if (id === 'taichiud_river') return buildTaichiudRiver(scene);
+  if (id === 'taichiud_ger') return buildTaichiudGer(scene);
+  return buildWorld(scene, qOpts);
+}
+
+function npcsFromWorld(w, id) {
+  if (w.npcs) return w.npcs;
+  if (id === 'burkhan') {
+    return (w.interactables || []).map((i) => ({ obj: i.obj, name: i.name, node: i.node }));
+  }
+  if (id === 'camp' || !id) {
+    return [
+      { obj: w.hoelun, name: 'Өэлүн эхтэй', node: 'start' },
+      { obj: w.chirha, name: 'Чирха өвгөнтэй', node: 'chirha' },
+    ];
+  }
+  return [];
+}
+
+function audioModeFor(id) {
+  if (id === 'taichiud_escape' || id === 'taichiud_ger') return id === 'taichiud_ger' ? 'ger' : 'night';
+  if (id === 'taichiud_river' || id === 'burkhan') return 'dawn';
+  return 'day';
+}
+
+function afterCine(id, dialogueNode) {
+  if (dialogueNode) startDialogue(dialogueNode);
+  else if (id === 'burkhan') startDialogue('burkhan_start');
+  else if (id === 'act2') state = 'explore';
+  else if (id === 'act3') startDialogue('mergen_start');
+  else if (id === 'taichiud_capture') startDialogue('taichiud_capture');
+  else if (id === 'taichiud_escape') state = 'explore';
+  else if (id === 'taichiud_river') startDialogue('taichiud_river');
+  else if (id === 'taichiud_ger') startDialogue('taichiud_ger');
+  else state = 'explore';
+}
+
+function disposeHarvestFx() {
+  harvestMist?.dispose?.();
+  harvestMist = null;
+  motes?.dispose?.();
+  motes = null;
+  birds?.dispose?.();
+  birds = null;
+  if (dust?.points) scene.remove(dust.points);
+  dust = null;
+}
+
+function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
+  disposeHarvestFx();
+  clearScene();
+  activeCine = null;
+  aerialLocked = false;
+  sceneId = id;
+  world = buildScene(id);
+  chapterId = world.chapterId || CHAPTERS.find((c) => c.scene === id)?.id || id;
+  NPCS = npcsFromWorld(world, id);
+  $('chapter').textContent = world.chapterLabel || 'Бүлэг';
+  const stealthOn = !!(world.stealth && world.stealth.torches);
+  $('stealthHint').classList.toggle('hidden', !stealthOn);
+
+  const sp = world.startPos || new THREE.Vector3(0, 0, 10);
+  player.pos.set(sp.x, sp.y, sp.z);
+  // Face camp / sun (north-ish) for f03 rider framing
+  player.yaw = id === 'camp' ? 0.05 : 0.15;
+  mover.reset();
+
+  // ---- Harvest FX (gated by quality tier) ----
+  if (!id.includes('ger') && quality.mist) {
+    try {
+      const mistOpts =
+        id === 'camp' || id === 'taichiud_river'
+          ? { center: [-18, 0.5, -20], size: [120, 50], along: [0.2, 1], layers: qualityId === 'high' ? 2 : 1, color: '#e8d2a8', thin: '#e0c498', intensity: 0.22, alphaMax: 0.28, opticalDepth: 1.0 }
+          : id === 'burkhan'
+            ? { center: [0, 1.2, -20], size: [120, 60], along: [1, 0.2], layers: 2, color: '#d8d2c4', intensity: 0.55, alphaMax: 0.45 }
+            : { center: [0, 0.4, -18], size: [70, 28], along: [1, 0.15], layers: 1, color: '#e0c8a0', intensity: 0.3, alphaMax: 0.4 };
+      harvestMist = createHarvestMist(scene, mistOpts);
+    } catch (e) {
+      console.warn('[harvest mist]', e);
+      harvestMist = null;
+    }
+  }
+  if (!id.includes('ger') && quality.motes > 0) {
+    try {
+      const base = id === 'camp' ? quality.motes : Math.max(12, (quality.motes * 0.6) | 0);
+      motes = createSteppeMotes(base);
+      scene.add(motes.group);
+      motes.setWind?.(0.35, 0.12);
+    } catch (e) {
+      console.warn('[harvest motes]', e);
+      motes = null;
+    }
+  }
+  if (quality.birds && (id === 'camp' || id === 'burkhan')) {
+    try {
+      birds = createBirds(scene, {
+        count: quality.birdCount || (id === 'camp' ? 4 : 3),
+        center: id === 'camp' ? [6, 0, -14] : [0, 8, -20],
+        radius: id === 'camp' ? 20 : 28,
+        height: id === 'camp' ? 22 : 34,
+        perches: id === 'camp' ? [[4.2, 5.3, -8.5]] : [[0, 14, -30]],
+      });
+    } catch (e) {
+      console.warn('[harvest birds]', e);
+      birds = null;
+    }
+  }
+  if (quality.dust) {
+    try {
+      dust = createDustSteps(scene);
+      scene.add(dust.points);
+    } catch (e) {
+      console.warn('[harvest dust]', e);
+      dust = null;
+    }
+  }
+
+  audio.setChapter?.(id === 'taichiud_capture' || id === 'taichiud_escape' || id === 'taichiud_river' || id === 'taichiud_ger' ? 'camp' : id);
+  audio.setMode?.(audioModeFor(id));
+
+  const groundY = world.heightAt(sp.x, sp.z);
+  cam.view.pitch = 0.22;
+  cam.view.distance = id === 'camp' ? 6.2 : 5.0;
+  camera.far = quality.camFar || 420;
+  camera.updateProjectionMatrix();
+  cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, 0.22);
+
+  if (cinematic) {
+    state = 'cine';
+    $('hud').classList.remove('hidden');
+    $('dialogue').classList.add('hidden');
+
+    if (id === 'camp' && world.aerialView) {
+      // High wide f03 framing → ease down to Temüjin (harvest path cine)
+      const aerial = world.aerialView;
+      const chaseEye = new THREE.Vector3(
+        sp.x + Math.sin(player.yaw) * 6.2,
+        groundY + 2.8,
+        sp.z + Math.cos(player.yaw) * 6.2
+      );
+      pathCine.setPath({
+        positions: [
+          [aerial.eye.x, aerial.eye.y, aerial.eye.z],
+          [aerial.eye.x * 0.6, aerial.eye.y * 0.7, aerial.eye.z * 0.75],
+          [sp.x + 4, groundY + 8, sp.z + 14],
+          [chaseEye.x, chaseEye.y + 1.2, chaseEye.z + 2],
+          [chaseEye.x, chaseEye.y, chaseEye.z],
+        ],
+        targets: [
+          [aerial.look.x, aerial.look.y, aerial.look.z],
+          [-2, 1.8, -4],
+          [sp.x, groundY + 1.4, sp.z - 2],
+          [sp.x, groundY + 1.35, sp.z],
+          [sp.x, groundY + 1.3, sp.z],
+        ],
+        duration: 5.5,
+        fov: 48,
+        closed: false,
+        entry: 0.6,
+      });
+      camera.position.copy(aerial.eye);
+      camera.lookAt(aerial.look);
+      camera.fov = 48;
+      camera.updateProjectionMatrix();
+      pathCine.start({
+        from: aerial.eye,
+        lookingAt: aerial.look,
+        onDone: () => {
+          camera.fov = 62;
+          camera.updateProjectionMatrix();
+          cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, 0.22);
+          activeCine = null;
+          afterCine(id, dialogueNode);
+        },
+      });
+      activeCine = pathCine;
+    } else {
+      const eyeTo = new THREE.Vector3(
+        sp.x + Math.sin(player.yaw) * 5,
+        groundY + 2.6,
+        sp.z + Math.cos(player.yaw) * 5
+      );
+      const eyeFrom = eyeTo.clone().add(new THREE.Vector3(6, 5, 10));
+      simpleCine.start({
+        eyeFrom,
+        eyeTo,
+        lookAtFrom: new THREE.Vector3(sp.x, groundY + 2, sp.z - 6),
+        lookAtTo: new THREE.Vector3(sp.x, groundY + 1.35, sp.z),
+        done: () => {
+          cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, 0.16);
+          activeCine = null;
+          afterCine(id, dialogueNode);
+        },
+      });
+      activeCine = {
+        get active() { return simpleCine.active; },
+        update: (dt) => simpleCine.update(dt),
+        skip: () => { /* simple has no skip */ },
+      };
+    }
+  } else {
+    state = 'explore';
+    if (dialogueNode) startDialogue(dialogueNode);
+  }
+
+  writeSave({ lastChapter: chapterId });
+}
+
+// Initial camp preload behind title
+loadScene('camp', { cinematic: false });
+state = 'title';
+$('hud').classList.add('hidden');
+
+addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (e.code === 'F3') {
+    showPerf = !showPerf;
+    updatePerfHud(true);
+    e.preventDefault();
+  }
+  if (e.code === 'Escape') {
+    if (state === 'cine' && activeCine?.skip) activeCine.skip();
+    else if (state === 'pause') closePause();
+    else if (state === 'explore' || state === 'dialogue') openPause();
+  }
+  if (state === 'cine' && (e.code === 'Space' || e.code === 'Enter') && activeCine?.skip) {
+    activeCine.skip();
+  }
+  if (e.code === 'KeyE' && state === 'explore') {
+    const n = nearest();
+    if (n) talk(n);
+  }
+});
+
+function openPause() {
+  state = 'pause';
+  $('pause')?.classList.remove('hidden');
+  $('dialogue').classList.add('hidden');
+  document.querySelectorAll('[data-quality]').forEach((b) => {
+    b.classList.toggle('active', b.getAttribute('data-quality') === qualityId);
+  });
+}
+function closePause() {
+  $('pause')?.classList.add('hidden');
+  state = 'explore';
+  $('hud').classList.remove('hidden');
+}
+$('pauseResume')?.addEventListener('click', () => closePause());
+$('pauseTitle')?.addEventListener('click', () => {
+  $('pause')?.classList.add('hidden');
+  showTitle();
+});
+document.querySelectorAll('[data-quality]').forEach((b) => {
+  b.addEventListener('click', () => {
+    setQuality(b.getAttribute('data-quality'), { manual: true, reloadScene: true });
+  });
+});
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+let dragging = false, lx = 0, ly = 0;
+canvas.addEventListener('pointerdown', (e) => { dragging = true; lx = e.clientX; ly = e.clientY; });
+addEventListener('pointerup', () => { dragging = false; });
+addEventListener('pointermove', (e) => {
+  if (!dragging || state !== 'explore') return;
+  cam.lookDelta(e.clientX - lx, e.clientY - ly);
+  player.yaw = cam.yaw;
+  lx = e.clientX; ly = e.clientY;
+});
+
+const ray = new THREE.Raycaster();
+canvas.addEventListener('click', (e) => {
+  if (state !== 'explore') return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  for (const n of NPCS) {
+    if (n.obj && ray.intersectObject(n.obj, true).length && dist(n.obj) < 8) return talk(n);
+  }
+});
+
+const dist = (o) => Math.hypot(player.pos.x - o.position.x, player.pos.z - o.position.z);
+function nearest(r = 3.5) {
+  return NPCS.find((n) => n.obj && dist(n.obj) < r) || null;
+}
+function nearSet(r = 4.2) {
+  return new Set(NPCS.filter((n) => n.obj && dist(n.obj) < r).map((n) => n.obj));
+}
+function talk(n) {
+  talkTarget = n.obj;
+  startDialogue(n.node);
+}
+
+let source = 'intro';
+function setSource(id) {
+  source = id;
+  if (!$('source').classList.contains('hidden')) renderSource();
+}
+function renderSource() {
+  const c = SOURCES[source];
+  if (!c) return;
+  $('source').innerHTML = `${c.text}<span class="ref">— ${c.ref}</span>`;
+}
+
+function showTitle() {
+  state = 'title';
+  $('hud').classList.add('hidden');
+  $('dialogue').classList.add('hidden');
+  $('chapters').classList.add('hidden');
+  $('title').classList.remove('hidden');
+  refreshContinue();
+}
+
+function refreshContinue() {
+  const btn = $('continueBtn');
+  if (save.lastChapter) {
+    btn.classList.remove('hidden');
+    btn.textContent = `Үргэлжлүүлэх · ${CHAPTERS.find((c) => c.id === save.lastChapter)?.title || ''}`;
+  } else btn.classList.add('hidden');
+}
+refreshContinue();
+
+function renderChapterSelect() {
+  const list = $('chapterList');
+  list.innerHTML = '';
+  save = loadSave();
+  for (const ch of CHAPTERS) {
+    const unlocked = save.unlocked.includes(ch.id) || ch.id === 'camp';
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chapter-card' + (unlocked ? '' : ' locked');
+    b.disabled = !unlocked;
+    b.innerHTML = `<span class="ch-title">${ch.title}</span><span class="ch-blurb">${ch.blurb}</span><span class="ch-src">${ch.source}</span>`;
+    b.onclick = () => {
+      $('chapters').classList.add('hidden');
+      $('title').classList.add('hidden');
+      audio.unlock();
+      loadScene(ch.scene, { cinematic: true });
+    };
+    list.append(b);
+  }
+}
+
+$('startBtn').onclick = () => {
+  audio.unlock();
+  writeSave({ unlocked: ['camp'], lastChapter: 'camp', flags: {} });
+  save = loadSave();
+  const title = $('title');
+  title.classList.add('fade-out');
+  setTimeout(() => {
+    title.classList.add('hidden');
+    title.classList.remove('fade-out');
+    $('hud').classList.remove('hidden');
+    $('chapter').textContent = '0 бүлэг · Удиртгал';
+    loadScene('camp', { cinematic: true, dialogueNode: 'intro0' });
+  }, 400);
+};
+$('continueBtn').onclick = () => {
+  audio.unlock();
+  $('title').classList.add('hidden');
+  const ch = CHAPTERS.find((c) => c.id === save.lastChapter) || CHAPTERS[0];
+  loadScene(ch.scene, { cinematic: true });
+};
+$('chaptersBtn').onclick = () => {
+  $('title').classList.add('hidden');
+  $('chapters').classList.remove('hidden');
+  renderChapterSelect();
+  state = 'chapters';
+};
+$('chaptersBack').onclick = () => showTitle();
+$('creditsBtn').onclick = () => {
+  endCard({
+    eyebrow: 'Зохиогчид',
+    title: 'МСХ · Тэмүжин',
+    body: CREDITS.replace(/\n/g, '<br>'),
+    button: 'Нүүр рүү',
+    onNext: () => showTitle(),
+    memory: '',
+  });
+};
+$('sourceBtn').onclick = () => {
+  renderSource();
+  $('source').classList.toggle('hidden');
+};
+
+function startDialogue(id) {
+  state = 'dialogue';
+  $('prompt').classList.add('hidden');
+  $('dialogue').classList.remove('hidden');
+  audio.duck?.(0.4, 0.5);
+  birds?.startle?.();
+  show(id);
+}
+
+function show(id) {
+  if (id === 'intro_done') {
+    $('dialogue').classList.add('hidden');
+    $('chapter').textContent = world.chapterLabel || 'I бүлэг · Өнчин өдрүүд';
+    audio.duck?.(1, 0.8);
+    state = 'explore';
+    return;
+  }
+  if (id === 'taichiud_to_escape') {
+    $('dialogue').classList.add('hidden');
+    loadScene('taichiud_escape', { cinematic: true });
+    return;
+  }
+  if (id === 'taichiud_to_river') {
+    $('dialogue').classList.add('hidden');
+    loadScene('taichiud_river', { cinematic: true });
+    return;
+  }
+  if (id === 'taichiud_to_ger') {
+    $('dialogue').classList.add('hidden');
+    loadScene('taichiud_ger', { cinematic: true });
+    return;
+  }
+  if (id === 'end') return endCampSlice();
+  if (id === 'burkhan_end') return endBurkhanSlice();
+  if (id === 'taichiud_end') return endTaichiudSlice();
+  if (id === 'act2_end') return endAct2Slice();
+  if (id === 'act3_end') return endAct3Slice();
+  if (id === 'close') {
+    $('dialogue').classList.add('hidden');
+    audio.duck?.(1, 0.8);
+    state = 'explore';
+    return;
+  }
+  const node = STORY[id];
+  if (!node) return;
+  if (node.source) setSource(node.source);
+  $('speaker').textContent = node.speaker;
+  $('text').textContent = node.text;
+  const box = $('choices');
+  box.innerHTML = '';
+  if (node.choices) {
+    const nextAfter = node.choiceNext || 'after';
+    node.choices.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.textContent = `${i + 1}. ${c.label}`;
+      b.onclick = () => {
+        flag = c.flag;
+        writeSave({ flags: { ...(loadSave().flags || {}), [c.flag]: true } });
+        if (c.source) setSource(c.source);
+        $('speaker').textContent = 'Тэмүжин';
+        $('text').textContent = c.consequence;
+        box.innerHTML = '';
+        box.append(btn('Үргэлжлүүлэх →', () => show(nextAfter)));
+      };
+      box.append(b);
+    });
+  } else {
+    box.append(btn('Цааш →', () => show(node.next)));
+  }
+}
+
+function btn(label, fn) {
+  const b = document.createElement('button');
+  b.textContent = label;
+  b.onclick = fn;
+  return b;
+}
+
+function endCard({ eyebrow, title, body, button, onNext, memory }) {
+  state = 'end';
+  $('dialogue').classList.add('hidden');
+  $('hud').classList.add('hidden');
+  const o = $('title');
+  const mem = memory !== undefined ? memory : (END_LINES[flag] || '');
+  o.innerHTML = `
+    <div class="title-card end-card">
+      <div class="title-art" aria-hidden="true"></div>
+      <div class="title-copy">
+        <p class="eyebrow">${eyebrow}</p>
+        <h1>${title}</h1>
+        <p class="sub">${mem}</p>
+        <p class="body">${body}</p>
+        <button id="nextBtn" type="button">${button}</button>
+      </div>
+    </div>`;
+  o.classList.remove('hidden');
+  $('nextBtn').onclick = onNext;
+}
+
+function endCampSlice() {
+  save = unlockNext('camp', CHAPTER_ORDER);
+  endCard({
+    eyebrow: 'Бүлэг дууслаа',
+    title: 'Өнчин өдрүүд',
+    body: NEXT_TEASER,
+    button: 'Бурхан халдун →',
+    onNext: () => { $('title').classList.add('hidden'); loadScene('burkhan', { cinematic: true }); flag = null; },
+  });
+}
+function endBurkhanSlice() {
+  save = unlockNext('burkhan', CHAPTER_ORDER);
+  endCard({
+    eyebrow: 'Бүлэг дууслаа',
+    title: 'Бурхан халдун',
+    body: TAICHIUD_TEASER,
+    button: 'Тайчууд олзлолт →',
+    onNext: () => { $('title').classList.add('hidden'); loadScene('taichiud_capture', { cinematic: true }); flag = null; },
+  });
+}
+function endTaichiudSlice() {
+  save = unlockNext('taichiud', CHAPTER_ORDER);
+  endCard({
+    eyebrow: 'Бүлэг дууслаа',
+    title: 'Тайчууд · чөлөөлөлт',
+    body: ACT2_TEASER,
+    button: 'II бүлэг →',
+    onNext: () => { $('title').classList.add('hidden'); loadScene('act2', { cinematic: true }); flag = null; },
+  });
+}
+function endAct2Slice() {
+  save = unlockNext('act2', CHAPTER_ORDER);
+  endCard({
+    eyebrow: 'Бүлэг дууслаа',
+    title: 'Боорчи · Бөртэ',
+    body: ACT3_TEASER,
+    button: 'III бүлэг →',
+    onNext: () => { $('title').classList.add('hidden'); loadScene('act3', { cinematic: true }); flag = null; },
+  });
+}
+function endAct3Slice() {
+  save = unlockNext('act3', CHAPTER_ORDER);
+  endCard({
+    eyebrow: 'Тоглоом дууслаа',
+    title: 'Чингис',
+    body: MVP_DONE,
+    button: 'Бүлгүүд · дахин',
+    onNext: () => { showTitle(); $('chapters').classList.remove('hidden'); $('title').classList.add('hidden'); renderChapterSelect(); },
+  });
+}
+
+const clock = new THREE.Clock();
+let moving = false;
+let moveSpeed = 0;
+
+function checkStealth(dt) {
+  const st = world?.stealth;
+  if (!st?.torches || state !== 'explore') return;
+  spottedCooldown = Math.max(0, spottedCooldown - dt);
+  if (spottedCooldown > 0) return;
+  for (const tr of st.torches) {
+    const d = Math.hypot(player.pos.x - tr.x, player.pos.z - tr.z);
+    if (d < (tr.radius || 6.5) && moveSpeed > 0.4) {
+      spottedCooldown = 4;
+      startDialogue('taichiud_spotted');
+      return;
+    }
+  }
+}
+
+function tick() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  // FPS + adaptive probe (single rAF loop only)
+  fpsFrames++;
+  fpsWindowT += dt;
+  if (dt > 0) fpsEma = fpsEma * 0.9 + (1 / dt) * 0.1;
+  if (fpsWindowT >= 0.5) {
+    updatePerfHud(true);
+    fpsWindowT = 0;
+    fpsFrames = 0;
+  }
+  if (!probeDone && state !== 'title' && world) {
+    probeAcc += dt;
+    probeFrames++;
+    if (probeAcc >= 2) {
+      const avgMs = (probeAcc / Math.max(1, probeFrames)) * 1000;
+      probeDone = true;
+      if (!qualityManual) {
+        const picked = pickTierFromAvgMs(avgMs);
+        if (picked !== qualityId) setQuality(picked, { manual: false, reloadScene: true });
+      }
+    }
+  } else if (probeDone && adapt && state !== 'title' && state !== 'pause') {
+    adapt.frame(dt);
+  }
+
+  if (state === 'title' || state === 'chapters' || state === 'pause' || state === 'end') {
+    // Still render world under overlays when paused/explore-backed
+    if (world && (state === 'pause' || state === 'end')) {
+      renderer.render(scene, camera);
+    }
+    requestAnimationFrame(tick);
+    return;
+  }
+
+  if (state === 'cine') {
+    activeCine?.update?.(dt);
+    harvestMist?.update?.(dt, camera, renderer);
+    motes?.update?.(dt, camera);
+    birds?.update?.(dt, t, player.pos);
+    dust?.update?.(dt, camera, renderer);
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+    return;
+  }
+
+  if (!world) {
+    requestAnimationFrame(tick);
+    return;
+  }
+  const { temujin, heightAt, update: updateWorld } = world;
+
+  if (state === 'explore') {
+    player.yaw = cam.yaw;
+    const lim = sceneId === 'burkhan' ? 45 : sceneId.includes('ger') ? 8 : 50;
+    const result = mover.step(
+      dt,
+      {
+        forward: !!(keys.KeyW || keys.ArrowUp),
+        back: !!(keys.KeyS || keys.ArrowDown),
+        left: !!(keys.KeyA || keys.ArrowLeft),
+        right: !!(keys.KeyD || keys.ArrowRight),
+      },
+      resolveCollisions,
+      { min: -lim, max: lim }
+    );
+    moving = result.moving;
+    moveSpeed = result.speed || 0;
+    player.bob += dt * (moving ? 8.5 : 1.6);
+    checkStealth(dt);
+
+    const n = nearest();
+    $('prompt').classList.toggle('hidden', !n);
+    if (n) $('prompt').textContent = `[E] ${n.name}`;
+  } else {
+    moving = false;
+    moveSpeed = 0;
+  }
+
+  const groundY = heightAt(player.pos.x, player.pos.z);
+  player.pos.y = groundY;
+  temujin.position.set(player.pos.x, groundY, player.pos.z);
+  temujin.rotation.y = cam.yaw + Math.PI;
+  temujin.userData.setMoving?.(moving && state === 'explore');
+  temujin.userData.setSpeed?.(moveSpeed);
+
+  if (state === 'explore') {
+    stride.update(player.pos, moving, (p, dir) => {
+      dust?.step(p, dir);
+      audio.step?.(sceneId === 'burkhan' ? 'rock' : 'grass');
+    });
+    loco.update?.(dt, { speed: moveSpeed, yaw: temujin.rotation.y, talking: false });
+  }
+
+  const faceYaw =
+    state === 'dialogue' && talkTarget
+      ? Math.atan2(-(talkTarget.position.x - player.pos.x), -(talkTarget.position.z - player.pos.z))
+      : undefined;
+  if (faceYaw != null) {
+    player.yaw = faceYaw;
+    cam.yaw = faceYaw;
+  }
+  if (aerialLocked && world?.aerialView) {
+    camera.position.copy(world.aerialView.eye);
+    camera.lookAt(world.aerialView.look);
+    camera.fov = world.aerialView.fov ?? 45;
+    camera.updateProjectionMatrix();
+  } else if (state === 'explore' || state === 'dialogue') {
+    cam.update(dt, player.pos, { faceYaw, dialoguePull: faceYaw != null ? 3.2 : 0 });
+  }
+
+  harvestMist?.update?.(dt, camera, renderer);
+  motes?.update?.(dt, camera);
+  birds?.update?.(dt, t, player.pos);
+  dust?.update?.(dt, camera, renderer);
+  updateWorld?.(dt, t, state === 'explore' ? nearSet() : null, temujin.position, moving && state === 'explore');
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+tick();
+
+window.__mshLoadScene = (id) => loadScene(id, { cinematic: false });
+window.__mshShow = show;
+window.__mshStartDialogue = startDialogue;
+window.__mshSetQuality = (id) => setQuality(id, { manual: true, reloadScene: true });
+window.__mshPerf = () => {
+  renderer.render(scene, camera);
+  return {
+    fps: fpsEma,
+    tier: qualityId,
+    label: quality.label,
+    pixelRatio: renderer.getPixelRatio(),
+    calls: renderer.info.render.calls,
+    triangles: renderer.info.render.triangles,
+    programs: renderer.info.programs?.length ?? null,
+    geometries: renderer.info.memory.geometries,
+    textures: renderer.info.memory.textures,
+  };
+};
+window.__mshShowPerf = (v) => { showPerf = v !== false; updatePerfHud(true); };
+window.__mshUnlockAll = () => {
+  writeSave({ unlocked: CHAPTER_ORDER.slice(), lastChapter: 'camp' });
+  save = loadSave();
+};
+/** Proof helper: lock camera to f03 aerial (gers mid-left, herd right, river BL, sun ahead). */
+window.__mshAerial = (opts = {}) => {
+  if (!world?.aerialView) return false;
+  aerialLocked = true;
+  activeCine = null;
+  state = 'explore';
+  // Rider small bottom-center on the path
+  const sp = world.startPos || new THREE.Vector3(0, 0, 16);
+  player.pos.set(sp.x, sp.y, sp.z);
+  player.yaw = 0.02;
+  const av = world.aerialView;
+  camera.fov = av.fov ?? 45;
+  camera.updateProjectionMatrix();
+  camera.position.copy(av.eye);
+  camera.lookAt(av.look);
+  if (opts.hideHud) {
+    $('hud').classList.add('hidden');
+    document.getElementById('warmGrade')?.classList.add('proof');
+  } else {
+    $('hud').classList.remove('hidden');
+  }
+  $('dialogue').classList.add('hidden');
+  $('title')?.classList.add('hidden');
+  $('chapters')?.classList.add('hidden');
+  return {
+    eye: av.eye.toArray(),
+    look: av.look.toArray(),
+    fov: camera.fov,
+    locked: true,
+  };
+};
+window.__mshUnlockAerial = () => { aerialLocked = false; };
