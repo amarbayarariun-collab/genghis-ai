@@ -100,9 +100,17 @@ function measureAndDress(root, { shadows, colliders, windMats }) {
   terrain.castShadow = false;
 
   const grasses = [];
+  const berries = [];
   root.traverse((o) => {
     if (!o.isMesh || o === terrain) return;
     const named = `${o.name} ${o.parent?.name || ''}`;
+    if (/berry|bush/i.test(named)) {
+      _box.setFromObject(o);
+      if (!_box.isEmpty()) {
+        _box.getCenter(_center);
+        berries.push({ x: round(_center.x), z: round(_center.z) });
+      }
+    }
     if (/grass/i.test(named)) {
       grasses.push(o);
       return;
@@ -132,6 +140,7 @@ function measureAndDress(root, { shadows, colliders, windMats }) {
     terrainMin: roundV(tBox.min),
     terrainMax: roundV(tBox.max),
     gers,
+    berries,
     colliders: colliders.length,
     grassInstances: grasses.length,
   };

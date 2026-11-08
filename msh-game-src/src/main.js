@@ -169,6 +169,7 @@ let state = 'title'; // title | chapters | cine | explore | dialogue | end | pau
 let aerialLocked = false;
 let flag = null;
 let talkTarget = null;
+let dialogueId = null;
 let spottedCooldown = 0;
 
 const PLAYER_RADIUS = 0.3;
@@ -290,12 +291,13 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
     try {
       birds = createBirds(scene, {
         count: id === 'camp' ? 4 : (quality.birdCount || 3),
-        center: id === 'camp' ? [1, 3, 8] : [0, 8, -20],
-        radius: id === 'camp' ? 14 : 28,
-        height: id === 'camp' ? 6 : 34,
+        center: id === 'camp' ? [0, 2, 2] : [0, 8, -20],
+        radius: id === 'camp' ? 11 : 28,
+        height: id === 'camp' ? 3.1 : 34,
         span: id === 'camp' ? 3.4 : 2,
         color: id === 'camp' ? '#1a120c' : undefined,
         speed: id === 'camp' ? 6 : 7,
+        soar: id === 'camp' ? 0.6 : 6,
         perches: id === 'burkhan' ? [[0, 14, -30]] : [],
       });
     } catch (e) {
@@ -424,10 +426,16 @@ addEventListener('keydown', (e) => {
     else if (state === 'pause') closePause();
     else if (state === 'explore' || state === 'dialogue') openPause();
   }
-  if (state === 'cine' && (e.code === 'Space' || e.code === 'Enter') && activeCine?.skip) {
+  const moveKey = e.code === 'KeyW' || e.code === 'KeyA' || e.code === 'KeyS' || e.code === 'KeyD'
+    || e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight';
+  if (state === 'cine' && (moveKey || e.code === 'Space' || e.code === 'Enter') && activeCine?.skip) {
     activeCine.skip();
   }
+  if (state === 'dialogue' && moveKey && (dialogueId === 'intro0' || dialogueId === 'intro1' || dialogueId === 'intro2')) {
+    show('intro_done');
+  }
   if (e.code === 'KeyE' && state === 'explore') {
+    if (performPendingErrand()) return;
     const n = nearest();
     if (n) talk(n);
   }
@@ -491,6 +499,7 @@ function talk(n) {
     const f = campFlags();
     if (!f.metHoelun) return startDialogue('start');
     if (!f.chirhaSeen) return startDialogue('camp_wait');
+    if (f.pendingErrand && !f.pendingDone) return startDialogue('camp_errand_wait');
     if (!campTaskDone()) return startDialogue('ask');
     return startDialogue('after');
   }
@@ -612,8 +621,10 @@ function updateObjective() {
   const f = campFlags();
   let text = 'Өэлүн эх дээр очиж E дар';
   if (f.metHoelun && !f.chirhaSeen) text = 'Чирха өвгөнийг олж E дар';
+  else if (f.pendingErrand === 'food' && !f.pendingDone) text = 'Ононы эрэгт очиж E дар';
+  else if (f.pendingErrand === 'family' && !f.pendingDone) text = 'Мойлны бутанд очиж E дар';
   else if (f.chirhaSeen && !campTaskDone()) text = 'Өэлүн эх дээр буцаж очоод E дар';
-  else if (campTaskDone()) text = 'Бүлэг дууслаа';
+  else if (campTaskDone()) text = 'Өэлүн эх дээр буцаж бүлгээ дуусга';
   el.textContent = text;
   el.classList.remove('hidden');
 }
@@ -627,7 +638,61 @@ function releasePlay() {
   updateObjective();
 }
 
+function nearBerry(r = 2.35) {
+  return (world?.berryPoints || []).some((p) => Math.hypot(player.pos.x - p.x, player.pos.z - p.z) < r);
+}
+
+function performPendingErrand() {
+  const f = campFlags();
+  if (sceneId !== 'camp' || !f.pendingErrand || f.pendingDone) return false;
+  const food = f.pendingErrand === 'food' && world?.fishSpot && dist(world.fishSpot) < 2.7;
+  const family = f.pendingErrand === 'family' && nearBerry();
+  if (!food && !family) return false;
+  flag = f.pendingErrand;
+  save = writeSave({ flags: { ...f, pendingDone: true, [f.pendingErrand]: true } });
+  state = 'dialogue';
+  dialogueId = 'errand_got';
+  $('dialogue').classList.remove('hidden');
+  $('prompt').classList.add('hidden');
+  $('speaker').textContent = 'Тэмүжин';
+  $('text').textContent = f.pendingText || (food
+    ? 'Хэдэн жараахай, нэг эрэмдэг загас. Одоо Өэлүн эх дээр буц.'
+    : 'Мойл дүүрэн хормой. Одоо Өэлүн эх дээр буц.');
+  const box = $('choices');
+  box.innerHTML = '';
+  box.append(btn('За', () => show('close')));
+  updateObjective();
+  return true;
+}
+
+function beginCampChoice(choice) {
+  if (choice.source) setSource(choice.source);
+  if (choice.flag === 'oath') {
+    flag = 'oath';
+    save = writeSave({ flags: { ...campFlags(), oath: true, pendingErrand: null, pendingDone: true, pendingText: choice.consequence } });
+    $('speaker').textContent = 'Тэмүжин';
+    $('text').textContent = choice.consequence;
+    const box = $('choices');
+    box.innerHTML = '';
+    box.append(btn('Үргэлжлүүлэх →', () => show('after')));
+    updateObjective();
+    return;
+  }
+  save = writeSave({
+    flags: { ...campFlags(), pendingErrand: choice.flag, pendingDone: false, pendingText: choice.consequence },
+  });
+  $('speaker').textContent = 'Өэлүн эх';
+  $('text').textContent = choice.flag === 'food'
+    ? 'Ононы эргийн хөх туган дээр очиж загасаа барь. Дараа нь над дээр буц.'
+    : 'Мойлны бутанд очиж түүж ир. Дараа нь над дээр буц.';
+  const box = $('choices');
+  box.innerHTML = '';
+  box.append(btn('За, явья', () => show('close')));
+  updateObjective();
+}
+
 function startDialogue(id) {
+  dialogueId = id;
   state = 'dialogue';
   $('prompt').classList.add('hidden');
   $('dialogue').classList.remove('hidden');
@@ -637,6 +702,7 @@ function startDialogue(id) {
 }
 
 function show(id) {
+  dialogueId = id;
   if (id === 'intro_done' || id === 'camp_go') {
     $('dialogue').classList.add('hidden');
     if (id === 'camp_go') {
@@ -667,7 +733,8 @@ function show(id) {
     if (sceneId === 'camp' && !campTaskDone()) {
       $('dialogue').classList.remove('hidden');
       if (state === 'explore') state = 'dialogue';
-      return show(campFlags().chirhaSeen ? 'ask' : 'camp_wait');
+      const f = campFlags();
+      return show(f.pendingErrand && !f.pendingDone ? 'camp_errand_wait' : f.chirhaSeen ? 'ask' : 'camp_wait');
     }
     return endCampSlice();
   }
@@ -685,9 +752,22 @@ function show(id) {
   if (!node) return;
   if (node.source) setSource(node.source);
   $('speaker').textContent = node.speaker;
-  $('text').textContent = node.text;
+  $('text').textContent = id === 'camp_errand_wait' && campFlags().pendingErrand === 'food'
+    ? 'Загас хараахан алга. Ононы эргийн хөх туган дээр очиж барь.'
+    : id === 'camp_errand_wait' && campFlags().pendingErrand === 'family'
+      ? 'Мойл хараахан алга. Бутанд очиж түүгээд ир.'
+      : node.text;
   const box = $('choices');
   box.innerHTML = '';
+  if (id === 'ask' && sceneId === 'camp' && node.choices) {
+    node.choices.forEach((c, i) => {
+      const b = document.createElement('button');
+      b.textContent = `${i + 1}. ${c.label}`;
+      b.onclick = () => beginCampChoice(c);
+      box.append(b);
+    });
+    return;
+  }
   if (node.choices) {
     const nextAfter = node.choiceNext || 'after';
     node.choices.forEach((c, i) => {
@@ -887,9 +967,17 @@ function tick() {
     player.bob += dt * (moving ? 8.5 : 1.6);
     checkStealth(dt);
 
+    const f = sceneId === 'camp' ? campFlags() : {};
+    const errandLine = f.pendingErrand === 'food' && !f.pendingDone && world?.fishSpot && dist(world.fishSpot) < 2.7
+      ? '[E] Загас барих'
+      : f.pendingErrand === 'family' && !f.pendingDone && nearBerry()
+        ? '[E] Мойл түүх'
+        : null;
     const n = nearest();
-    $('prompt').classList.toggle('hidden', !n);
-    if (n) $('prompt').textContent = `[E] ${n.name}`;
+    const prompt = errandLine || (n ? `[E] ${n.name}` : null);
+    $('prompt').classList.toggle('hidden', !prompt);
+    if (prompt) $('prompt').textContent = prompt;
+    if (sceneId === 'camp') updateObjective();
   } else {
     moving = false;
     moveSpeed = 0;

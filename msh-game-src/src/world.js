@@ -152,6 +152,24 @@ export function buildWorld(scene, opts = {}) {
   scene.add(compass);
   let compassBase = 6;
 
+  const fishSpot = new THREE.Group();
+  fishSpot.name = 'onon-bank';
+  const bankRing = glowRing('#7eb0c4');
+  bankRing.material.opacity = 0.9;
+  const bankPost = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.08, 1.15, 6),
+    new THREE.MeshLambertMaterial({ color: '#6a4a30' })
+  );
+  bankPost.position.y = 0.55;
+  const bankFlag = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.38, 0.28),
+    new THREE.MeshLambertMaterial({ color: '#2f6f86', side: THREE.DoubleSide })
+  );
+  bankFlag.position.set(0.16, 1.05, 0);
+  fishSpot.add(bankRing, bankPost, bankFlag);
+  scene.add(fishSpot);
+  const berryPoints = [];
+
   function plant(obj, x, z, lift = 0) {
     obj.position.set(x, heightAt(x, z) + lift, z);
   }
@@ -166,6 +184,8 @@ export function buildWorld(scene, opts = {}) {
     const gy = heightAt(0, -36);
     compassBase = gy + 4.5;
     compass.position.y = compassBase;
+    plant(fishSpot, 2.2, 15, 0);
+    berryPoints.splice(0, berryPoints.length, ...(info.report.berries || []));
     const spawnY = heightAt(0.4, 28);
     console.info('[camp] spawn', JSON.stringify({ x: 0.4, y: Math.round(spawnY * 100) / 100, z: 28, gers: info.report.gers }));
   });
@@ -284,6 +304,8 @@ export function buildWorld(scene, opts = {}) {
       look: new THREE.Vector3(-1, 1.2, -4),
       fov: 48,
     },
+    fishSpot,
+    berryPoints,
   };
 }
 

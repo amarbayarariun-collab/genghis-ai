@@ -71,6 +71,7 @@ export function createBirds(scene, opts = {}) {
   const H = opts.height ?? 20;
   const span = opts.span ?? 2.0;
   const speed = opts.speed ?? 7;
+  const soarAmp = opts.soar ?? 6;
   const startleRadius = opts.startleRadius ?? 6;
   const mat = new THREE.MeshLambertMaterial({ color: opts.color ?? '#2b1f16', side: THREE.DoubleSide });
   const group = new THREE.Group();
@@ -135,7 +136,7 @@ export function createBirds(scene, opts = {}) {
     // soaring cycle: slow climb for 40 % of the cycle, long shallow glide down for the rest
     const u = (b.soar % b.soarLen) / b.soarLen;
     const climb = u < 0.4 ? u / 0.4 : 1 - (u - 0.4) / 0.6;
-    const y = b.h + climb * 6 + Math.sin(theta * 2.0) * 0.8;
+    const y = b.h + climb * soarAmp + Math.sin(theta * 2.0) * 0.35;
     return out.set(center.x + Math.cos(theta) * r, center.y + y, center.z + Math.sin(theta) * r);
   }
 
