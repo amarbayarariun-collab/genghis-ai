@@ -15,9 +15,26 @@ export function createTemujin() {
   group.add(placeholder.root);
   let speed = 0;
   let moving = false;
+  let slope = 0;
+  let phase = 0;
   group.userData.setMoving = (v) => { moving = !!v; };
   group.userData.setSpeed = (s) => { speed = Math.max(0, s || 0); };
-  group.userData.update = (dt, t) => placeholder.update(dt, t, moving ? Math.max(speed, 1.6) : 0);
+  group.userData.setSlope = (s) => { slope = s || 0; };
+  const motion = (node, dt, baseY) => {
+    const sp = moving ? speed : 0;
+    const walking = sp > 0.08;
+    const g = THREE.MathUtils.clamp(sp / 3.4, 0, 1);
+    phase += dt * (walking ? 2.6 + sp * 1.7 : 1.35);
+    const bob = walking ? Math.abs(Math.sin(phase)) * 0.05 * Math.max(g, 0.35) : Math.sin(phase) * 0.012;
+    node.position.y = baseY + bob;
+    node.rotation.z = Math.sin(phase) * 0.045 * g;
+    const climb = THREE.MathUtils.clamp(slope / 0.7, -0.35, 0.35);
+    node.rotation.x = (walking ? Math.sin(phase * 2) * 0.035 * g : 0) + climb;
+  };
+  group.userData.update = (dt, t) => {
+    placeholder.update(dt, t, moving ? speed : 0);
+    motion(placeholder.root, dt, 0);
+  };
 
   if (!USE_TEMUJIN_GLB) return group;
 
@@ -54,14 +71,8 @@ export function createTemujin() {
         group.remove(placeholder.root);
         group.add(wrap);
 
-        let phase = 0;
         const baseY = wrap.position.y;
-        group.userData.update = (dt) => {
-          const sp = moving ? Math.max(speed, 0.5) : speed;
-          const g = THREE.MathUtils.clamp(sp / 3.4, 0, 1);
-          phase += dt * (sp > 0.05 ? 3.2 + sp * 1.5 : 0);
-          wrap.position.y = baseY + Math.abs(Math.sin(phase)) * 0.035 * g;
-        };
+        group.userData.update = (dt) => motion(wrap, dt, baseY);
       } catch (err) {
         console.error('[temujin] GLB setup failed, procedural kept', err);
       }

@@ -90,8 +90,24 @@ html, body {
 .title-art {
   min-height: 280px;
   background:
-    linear-gradient(90deg, rgba(18, 12, 8, 0.15), rgba(18, 12, 8, 0.55)),
-    url("./title-card.jpg") center / cover no-repeat;
+    linear-gradient(90deg, rgba(18, 12, 8, 0.05), rgba(18, 12, 8, 0.28)),
+    url("./title-card.jpg") 18% center / cover no-repeat;
+}
+
+/* Official launch cover: the painting fills the title card. Text sits on the sunset. */
+#title .title-card {
+  grid-template-columns: 1.35fr 0.8fr;
+  min-height: 460px;
+  background:
+    linear-gradient(90deg, rgba(8, 6, 12, 0.02) 0%, rgba(8, 6, 12, 0.08) 48%, rgba(10, 7, 12, 0.72) 72%, rgba(8, 6, 10, 0.9) 100%),
+    url("./title-card.jpg") center center / cover no-repeat;
+}
+#title .title-art {
+  min-height: 460px;
+  background: none;
+}
+#title .title-copy {
+  background: transparent;
 }
 
 .title-copy {
@@ -376,8 +392,25 @@ button:disabled {
     max-height: min(92vh, 820px);
   }
   .title-art {
-    min-height: 150px;
-    max-height: 34vh;
+    min-height: 180px;
+    max-height: 38vh;
+    background-position: center 30%;
+  }
+  #title .title-card {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    background-color: rgba(22, 16, 12, 0.94);
+    background-image: url("./title-card.jpg");
+    background-repeat: no-repeat;
+    background-position: center top;
+    background-size: 100% auto;
+  }
+  #title .title-art {
+    width: 100%;
+    aspect-ratio: 1044 / 588;
+    min-height: 0;
+    max-height: none;
+    background: none;
   }
   .title-copy {
     text-align: center;

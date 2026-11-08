@@ -67,6 +67,14 @@ Format: error message → cause → fix
    → Fix: keep `placed < GRASS_N` equal to constructor capacity. The camp body is `base_basic_shaded.glb`. `temujin.glb` is an untextured Mixamo bind pose; scaling it needs a rebind or the skin explodes.
 
 
+20. **The game freezes on the first step.**
+   → Cause: the locomotion state machine calls `onStep(gait)` with no foot position. Dust then reads `p.x` and the exception stops the frame loop.
+   → Fix: footfalls use `player.pos` when no foot vector is passed.
+
+19. **Camp GLB terrain renders white, and 528 grass meshes stall the frame.**
+   → Cause: the steppe material exports with no `baseColorFactor` (Blender's noise color does not survive glTF), and each grass patch is its own draw.
+   → Fix: paint height vertex colors on `Rolling steppe with flat camp clearing`, and rebuild grass as `InstancedMesh`. Collide gers, fences, rocks, the cart, and pines with the existing circles. Do not raycast grass.
+
 18. **Laggy Act I (~6 fps on SwiftShader / weak iGPU).**
    → Cause: pixelRatio up to 1.75, PCFSoft shadows 1024, 3200 grass + steppeShade on every Lambert, full mist/motes/birds/dust, RoomEnvironment PMREM, spring cam overwriting unused work, no tiering.
    → Fix: `src/systems/quality.js` tiers Бага/Дунд/Өндөр (Esc menu + auto probe 2s + `createAdaptiveQuality`); low skips FX/shadows/shade; grass InstancedMesh capped; F3 FPS HUD.

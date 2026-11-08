@@ -158,8 +158,9 @@ const loco = createLocomotionFSM({
   animator: null,
   gaits: { idle: 'Idle', walk: 'Walk', jog: 'Run' },
   onStep: (_side, p) => {
+    const at = p?.isVector3 ? p : player.pos;
     stepDir.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
-    if (dust) dust.step(p, stepDir);
+    if (dust) dust.step(at, stepDir);
     audio.step?.(sceneId === 'burkhan' ? 'rock' : 'grass');
   },
 });
@@ -884,6 +885,15 @@ window.__mshPerf = () => {
     geometries: renderer.info.memory.geometries,
     textures: renderer.info.memory.textures,
   };
+};
+window.__mshPlayer = () => ({
+  x: player.pos.x, y: player.pos.y, z: player.pos.z, yaw: player.yaw, scene: sceneId, state,
+});
+window.__mshTeleport = (x, z) => {
+  const y = world?.heightAt?.(x, z) ?? 0;
+  player.pos.set(x, y, z);
+  cam.snapTo(player.pos, player.yaw, cam.view.pitch);
+  return window.__mshPlayer();
 };
 window.__mshShowPerf = (v) => { showPerf = v !== false; updatePerfHud(true); };
 window.__mshUnlockAll = () => {
