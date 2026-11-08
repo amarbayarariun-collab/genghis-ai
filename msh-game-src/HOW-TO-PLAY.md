@@ -1,13 +1,13 @@
-# Хэрхэн тоглох · МСХ Тэмүжин v1.1
+# Хэрхэн тоглох · МСХ Тэмүжин v2
 
-**Шуурхай эхлэл:** (1) `msh-game-v1.1-standalone.html`-ийг Chrome дээр давхар дарж тогло (сервер хэрэггүй). (2) Эсвэл `msh-game-v1.1.zip` задлаад `npx serve` / `npm run preview`. (3) WASD явах · чирээд харах · E ярилцах · Esc цэс.
+**Шуурхай эхлэл:** (1) `msh-game-v2-standalone.html`-ийг Chrome дээр давхар дарж тогло (сервер хэрэггүй). (2) Эсвэл `msh-game-v2.zip` задлаад `npx serve` / `npm run preview`. (3) WASD явах · чирээд харах · E ярилцах · Esc цэс.
 
 1. `npm install && npm run build && npm run preview` → http://127.0.0.1:4173/
 2. **Шинээр эхлэх** / **Үргэлжлүүлэх** / **Бүлгүүд**
-3. WASD явах · чирээд харах · E ярилцах · Esc цэс
+3. WASD явах · чирээд харах · E ярилцах · Space үсрэх · F мордох/буух (хуаранд эмээлтэй морь) · Shift давхих · M дуу · Esc цэс
 4. Тайчууд шөнө: галын гэрэлнээс хол бай (stealth)
 5. 📜 Эх сурвалж — Нууц Товчооны §
 
 Бүлэг: Өнчин → Бурхан → Тайчууд → Боорчи·Бөртэ → Мэргид·Чингис
 
-**Standalone:** `docs/msh-game-v1.1-standalone.html` — нэг файл, `file://` дээр ажиллана (`npm run build:standalone`).
+**Standalone:** `docs/msh-game-v2-standalone.html` — нэг файл, `file://` дээр ажиллана (`npm run build:standalone`).

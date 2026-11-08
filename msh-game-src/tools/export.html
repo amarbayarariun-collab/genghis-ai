@@ -1,0 +1,19 @@
+<!doctype html><html><body>
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
+new FBXLoader().load('/_tmp/character.fbx', (o) => {
+  let verts = 0;
+  o.traverse(m => { if (m.isMesh) { verts += m.geometry.attributes.position.count;
+    m.material = new THREE.MeshStandardMaterial({ name: 'Body', color: '#d9935f', roughness: 0.9 });
+    ['uv','uv1','uv2'].forEach(a => { if (a !== 'uv') m.geometry.deleteAttribute(a); });
+  }});
+  window.__verts = verts;
+  new GLTFExporter().parse(o, (buf) => {
+    const bytes = new Uint8Array(buf); let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    window.__glb = btoa(s); window.__ready = true;
+  }, (e) => { window.__err = String(e); }, { binary: true });
+}, undefined, e => { window.__err = String(e); });
+</script></body></html>

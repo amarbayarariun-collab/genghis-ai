@@ -1,0 +1,19 @@
+<!doctype html><html><body style="margin:0"><canvas id="c" width="900" height="900"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+const s = new THREE.Scene(); s.background = new THREE.Color('#999');
+s.add(new THREE.HemisphereLight('#fff', '#444', 1.5)); const d = new THREE.DirectionalLight('#fff', 2); d.position.set(2, 4, 5); s.add(d);
+const cam = new THREE.PerspectiveCamera(35, 1, 0.01, 1000);
+new FBXLoader().load('/_tmp/character.fbx', (o) => {
+  window.__fbx = o; s.add(o);
+  const box = new THREE.Box3().setFromObject(o), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  const info = { size: size.toArray(), anims: o.animations.map(a => [a.name, a.duration, a.tracks.length]), meshes: [], bones: [] };
+  o.traverse(m => { if (m.isMesh) info.meshes.push([m.name, m.type, (Array.isArray(m.material)?m.material:[m.material]).map(x=>[x.name, x.type, !!x.map, x.color && x.color.getHexString()])]); if (m.isBone) info.bones.push(m.name); });
+  window.__info = info;
+  window.shot = (yaw) => { cam.position.set(c.x + Math.sin(yaw)*size.y*2.2, c.y, c.z + Math.cos(yaw)*size.y*2.2); cam.lookAt(c); r.render(s, cam); };
+  window.shot(0); window.__ready = true;
+}, undefined, e => { window.__err = String(e); });
+</script></body></html>

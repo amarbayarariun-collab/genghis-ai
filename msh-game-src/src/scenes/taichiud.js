@@ -47,7 +47,8 @@ export function buildTaichiudCapture(scene) {
   const th = horse('#4a3028');
   th.position.set(2.2, heightAt(2.2, -2), -2);
   th.rotation.y = Math.PI * 0.5;
-  targutai.position.set(2.2, heightAt(2.2, -2) + 1.15, -2);
+  targutai.userData.sit?.();
+  targutai.position.set(2.2, heightAt(2.2, -2) + 1.0, -2);
   targutai.rotation.y = Math.PI * 0.5;
   scene.add(th, targutai);
   colliders.push({ x: 2.2, z: -2, r: 1.2 });
@@ -60,7 +61,8 @@ export function buildTaichiudCapture(scene) {
     h.position.set(hx, heightAt(hx, hz), hz);
     h.rotation.y = Math.PI * 0.55;
     const r = person({ deel: '#5a3428', hat: '#2a1810' });
-    r.position.set(hx, heightAt(hx, hz) + 1.1, hz);
+    r.userData.sit?.();
+    r.position.set(hx, heightAt(hx, hz) + 1.0, hz);
     r.rotation.y = Math.PI * 0.55;
     scene.add(h, r);
     scene.add(banner(hx - 0.3, hz - 0.8, heightAt));
@@ -272,7 +274,8 @@ export function buildTaichiudRiver(scene) {
   const sh = horse('#6a5040');
   sh.position.set(6, heightAt(6, 4), 4);
   sh.rotation.y = -0.6;
-  sorkan.position.set(6, heightAt(6, 4) + 1.12, 4);
+  sorkan.userData.sit?.();
+  sorkan.position.set(6, heightAt(6, 4) + 1.0, 4);
   sorkan.rotation.y = -0.6;
   scene.add(sh, sorkan);
   const sGlow = glowRing('#e8c37a');

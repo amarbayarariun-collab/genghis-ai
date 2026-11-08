@@ -1,5 +1,40 @@
-// Shared low-poly props for dense camps (Mongolian palette).
+// Shared props for dense camps (Mongolian palette): Blender GLB props when loaded
+// (src/assets/models), procedural low-poly fallbacks otherwise; jointed horses and
+// humanoid people from the character kit.
 import * as THREE from 'three';
+import { createHorse } from './characters/horse.js';
+import { buildHumanoid } from './characters/humanoid.js';
+import { getProp } from './assets/props.js';
+
+/** Shared wind clock for grass sway (main.js sets windU.value = t each frame). */
+export const windU = { value: 0 };
+
+/** Adds a tip-sway in the wind to an instanced grass material (roots stay put). */
+export function windSway(material, strength = 1) {
+  const prev = material.onBeforeCompile;
+  material.onBeforeCompile = (sh, r) => {
+    prev?.(sh, r);
+    sh.uniforms.uWind = windU;
+    sh.vertexShader = 'uniform float uWind;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      #ifdef USE_INSTANCING
+      vec4 ip = instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+      #else
+      vec4 ip = vec4(0.0);
+      #endif
+      float tip = clamp(position.y * 1.8 + 0.5, 0.0, 1.0);
+      float gust = 0.6 + 0.4 * sin(uWind * 0.7 + ip.x * 0.05 - ip.z * 0.03);
+      transformed.x += sin(uWind * 1.9 + ip.x * 0.35 + ip.z * 0.21) * ${(0.11 * strength).toFixed(3)} * tip * gust;
+      transformed.z += cos(uWind * 1.5 + ip.z * 0.31) * ${(0.05 * strength).toFixed(3)} * tip * gust;`);
+  };
+  material.customProgramCacheKey = () => 'windsway-' + strength;
+  material.needsUpdate = true;
+  return material;
+}
+
+function shadowed(g) {
+  g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
 
 export const flat = (color, opts = {}) =>
   new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts });
@@ -30,23 +65,56 @@ export function skyDome({ top, mid, horizon, bottom }, radius = 300) {
   return new THREE.Mesh(new THREE.SphereGeometry(radius, 28, 18), mat);
 }
 
-export function person({ deel = '#8a1a22', hat = '#3a2818', fur = '#e2d0b0', skin = '#c48a5e', tall = 1 } = {}) {
+export function person({ deel = '#8a1a22', hat = '#3a2818', fur = '#e2d0b0', skin = '#c48a5e', tall = 1, female = false } = {}) {
+  const h = buildHumanoid({
+    height: 1.72 * tall,
+    build: female ? 'female' : 'male',
+    robeLength: 0.7,
+    hat: female ? 'furCap' : 'furHat',
+    furMantle: true,
+    braids: female,
+    colors: {
+      deel, trim: '#c9a35a', inner: '#3b2a1c', belt: '#4a3020', buckle: '#b8834a',
+      pants: '#3a2418', boot: '#4a3020', skin, hair: '#1c1410', fur,
+      hat, ribbon: '#8e2a2c', eye: '#1c1410', brow: '#2a1a14', lip: '#9a5a48',
+    },
+  });
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * tall, 0.28 * tall, 0.85 * tall, 8), flat(deel));
-  body.position.y = 0.7 * tall;
-  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13 * tall, 1), flat(skin));
-  head.position.y = 1.25 * tall;
-  const h = new THREE.Mesh(new THREE.CylinderGeometry(0.1 * tall, 0.16 * tall, 0.28 * tall, 8), flat(hat));
-  h.position.y = 1.45 * tall;
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.2 * tall, 0.06 * tall, 5, 10), flat(fur));
-  collar.rotation.x = Math.PI / 2;
-  collar.position.y = 1.05 * tall;
-  g.add(body, head, h, collar);
-  g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  return g;
+  g.add(h.root);
+  h.pose(Math.random() * 6, 0, 0);
+  g.userData.rig = h.rig;
+  g.userData.update = (t) => h.pose(t, 0, 0);
+  /** Seated-on-horse pose (legs around the barrel, hands on the reins). */
+  g.userData.sit = () => {
+    h.rig.legs.forEach((l, i) => {
+      l.hip.rotation.x = -1.35;
+      l.hip.rotation.z = (i ? 1 : -1) * 0.32;
+      l.knee.rotation.x = 1.45;
+    });
+    h.rig.arms.forEach((a) => { a.shoulder.rotation.x = -0.55; a.elbow.rotation.x = -1.1; });
+    h.rig.torso.rotation.x = 0.1;
+    g.userData.update = () => {};
+    return g;
+  };
+  return shadowed(g);
+}
+
+/** Grass tuft geometry: Blender grass_clump when loaded, else a thin cone. */
+export function grassGeometry() {
+  const prop = getProp('grass_clump');
+  let geo = null;
+  prop?.traverse((o) => { if (!geo && o.isMesh) geo = o.geometry; });
+  return geo || new THREE.ConeGeometry(0.12, 0.55, 4).translate(0, 0.275, 0);
 }
 
 export function makeGer(s = 1, doorColor = '#9a2a28') {
+  const prop = getProp('ger');
+  if (prop) {
+    const g = new THREE.Group();
+    g.add(prop);
+    g.scale.setScalar(s * 0.95);
+    return shadowed(g);
+  }
   const g = new THREE.Group();
   const felt = flat('#efe6d4');
   const feltShade = flat('#d8cfc0');
@@ -67,26 +135,11 @@ export function makeGer(s = 1, doorColor = '#9a2a28') {
   return g;
 }
 
-export function horse(color = '#5a4030') {
-  const g = new THREE.Group();
-  const m = flat(color);
-  const dark = flat('#2a1c14');
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.85, 0.65), m);
-  body.position.y = 1.05;
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.38, 1.05, 0.38), m);
-  neck.position.set(0.7, 1.45, 0);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.32, 0.32), m);
-  head.position.set(1.15, 1.85, 0);
-  const mane = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.95, 0.4), dark);
-  mane.position.set(0.55, 1.55, 0);
-  [[-0.55, -0.55], [-0.55, 0.55], [0.55, -0.55], [0.55, 0.55]].forEach(([x, z]) => {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.95, 0.18), m);
-    leg.position.set(x * 0.7, 0.48, z * 0.35);
-    g.add(leg);
-  });
-  g.add(body, neck, head, mane);
-  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-  return g;
+export function horse(color = '#5a4030', { saddle = false } = {}) {
+  const g = createHorse({ coat: color, saddle });
+  // Static scenes never drive the gait; leave the horse in a grazing/idle stance.
+  g.userData.update(0.016, 0);
+  return shadowed(g);
 }
 
 export function glowRing(color = '#e8c37a') {
@@ -100,31 +153,45 @@ export function glowRing(color = '#e8c37a') {
 }
 
 export function scatterGrass(scene, heightAt, count = 1800, spread = 55, color = '#9ab04a') {
-  const tuftGeo = new THREE.ConeGeometry(0.12, 0.55, 4);
-  const mesh = new THREE.InstancedMesh(tuftGeo, flat(color), count);
+  const tuftGeo = grassGeometry();
+  const mat = windSway(new THREE.MeshLambertMaterial({ color: '#ffffff' }));
+  const mesh = new THREE.InstancedMesh(tuftGeo, mat, count);
+  const base = new THREE.Color(color);
+  const shades = [0.82, 0.92, 1, 1.08, 1.16].map((k) => base.clone().multiplyScalar(k));
   const dummy = new THREE.Object3D();
   let n = 0;
   for (let i = 0; i < count; i++) {
     const x = (Math.random() - 0.5) * spread * 2;
     const z = (Math.random() - 0.5) * spread * 2;
     if (Math.hypot(x, z) < 2.2) continue;
-    dummy.position.set(x, heightAt(x, z) + 0.22, z);
+    dummy.position.set(x, heightAt(x, z) + 0.02, z);
     dummy.rotation.y = Math.random() * Math.PI;
     dummy.scale.setScalar(0.6 + Math.random() * 1.1);
     dummy.updateMatrix();
+    mesh.setColorAt(n, shades[n % shades.length]);
     mesh.setMatrixAt(n++, dummy.matrix);
   }
   mesh.count = n;
   mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   scene.add(mesh);
   return mesh;
 }
 
 export function scatterRocks(scene, heightAt, count = 40, spread = 50) {
   const mat = flat('#6a655e');
+  const variants = ['rock_a', 'rock_b', 'rock_c'];
   for (let i = 0; i < count; i++) {
     const x = (Math.random() - 0.5) * spread * 2;
     const z = (Math.random() - 0.5) * spread * 2;
+    const prop = getProp(variants[i % variants.length]);
+    if (prop) {
+      prop.position.set(x, heightAt(x, z) - 0.05, z);
+      prop.rotation.y = Math.random() * 6;
+      prop.scale.setScalar(0.7 + Math.random() * 1.3);
+      scene.add(shadowed(prop));
+      continue;
+    }
     const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35 + Math.random() * 0.9, 0), mat);
     r.position.set(x, heightAt(x, z) + 0.08, z);
     r.rotation.set(Math.random(), Math.random(), Math.random());
@@ -174,6 +241,12 @@ export function campfire(scene, x, z, heightAt, lights = true) {
   );
   ember.position.set(x, y + 0.45, z);
   scene.add(ember);
+  const pile = getProp('woodpile');
+  if (pile) {
+    pile.position.set(x + 1.6, heightAt(x + 1.6, z + 0.6), z + 0.6);
+    pile.rotation.y = 0.6;
+    scene.add(shadowed(pile));
+  }
   let light = null;
   if (lights) {
     light = new THREE.PointLight('#ff8a40', 1.8, 14, 2);
@@ -199,4 +272,52 @@ export function moonDisc(scene, pos = [-60, 70, -40]) {
   glow.lookAt(0, 10, 0);
   scene.add(glow);
   return moon;
+}
+
+/** Blender prop placed on the terrain (null when the model is unavailable). */
+export function placeProp(scene, name, x, z, heightAt, { rot = 0, scale = 1, sink = 0 } = {}) {
+  const o = getProp(name);
+  if (!o) return null;
+  o.position.set(x, heightAt(x, z) - sink, z);
+  o.rotation.y = rot;
+  o.scale.setScalar(scale);
+  scene.add(shadowed(o));
+  return o;
+}
+
+/** Fence line from GLB panels (4.2 m each) or procedural rails. */
+export function fenceLine(scene, x0, z0, x1, z1, heightAt) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  // panels/rails are authored along local +X
+  const ang = Math.atan2(-(z1 - z0), x1 - x0);
+  const panel = getProp('fence');
+  if (panel) {
+    const n = Math.max(1, Math.round(len / 4.18));
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n;
+      const x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t;
+      const p = i === 0 ? panel : panel.clone(true);
+      p.position.set(x, heightAt(x, z) - 0.05, z);
+      p.rotation.y = ang;
+      p.scale.setScalar((len / n) / 4.18);
+      scene.add(shadowed(p));
+    }
+    return;
+  }
+  const wood = flat('#6a4a2e');
+  const midX = (x0 + x1) / 2, midZ = (z0 + z1) / 2;
+  for (const yy of [0.55, 0.9]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.12, 0.1), wood);
+    rail.position.set(midX, heightAt(midX, midZ) + yy, midZ);
+    rail.rotation.y = ang;
+    scene.add(rail);
+  }
+  const posts = Math.max(2, Math.round(len / 2));
+  for (let i = 0; i <= posts; i++) {
+    const t = i / posts;
+    const px = x0 + (x1 - x0) * t, pz = z0 + (z1 - z0) * t;
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 1.1, 5), wood);
+    post.position.set(px, heightAt(px, pz) + 0.55, pz);
+    scene.add(post);
+  }
 }

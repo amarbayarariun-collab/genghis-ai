@@ -2,7 +2,10 @@
 import * as THREE from 'three';
 import { createHoelun } from './characters/hoelun.js';
 import { createTemujin } from './characters/temujin.js';
+import { createHorse } from './characters/horse.js';
 import { steppeShade, paintedDepth } from './systems/harvest/steppe-shade.js';
+import { windSway, fenceLine, placeProp, grassGeometry } from './world-kit.js';
+import { getProp } from './assets/props.js';
 
 let _useShade = true;
 const flatMat = (color, opts = {}) => {
@@ -261,6 +264,18 @@ export function buildWorld(scene, opts = {}) {
 
   // Ger builder — white felt, wood trim, red patterned door
   function ger(x, z, s = 1, doorDetail = true) {
+    const prop = getProp('ger');
+    if (prop) {
+      const g = new THREE.Group();
+      g.add(prop);
+      g.position.set(x, heightAt(x, z) - 0.04, z);
+      g.scale.setScalar(s * 0.95);
+      g.rotation.y = Math.PI + (Math.random() - 0.5) * 0.15;
+      g.traverse((o) => { if (o.isMesh) { o.castShadow = shadowsOn; o.receiveShadow = shadowsOn; } });
+      scene.add(g);
+      colliders.push({ x, z, r: 3.1 * s });
+      return g;
+    }
     const g = new THREE.Group();
     const felt = flatMat('#efe6d4');
     const feltShade = flatMat('#d8cfc0');
@@ -301,36 +316,22 @@ export function buildWorld(scene, opts = {}) {
   ger(-8.5, -5.5, 0.88);
   ger(0.5, -5.8, 0.9);
 
-  // Wooden fence around camp
-  const fenceMat = flatMat('#6a4a2e');
-  function fenceSegment(x1, z1, x2, z2) {
-    const dx = x2 - x1, dz = z2 - z1;
-    const len = Math.hypot(dx, dz);
-    const midX = (x1 + x2) / 2, midZ = (z1 + z2) / 2;
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.12, 0.1), fenceMat);
-    rail.position.set(midX, heightAt(midX, midZ) + 0.55, midZ);
-    rail.rotation.y = Math.atan2(dx, dz);
-    scene.add(rail);
-    const rail2 = rail.clone();
-    rail2.position.y += 0.35;
-    scene.add(rail2);
-    for (let i = 0; i <= 4; i++) {
-      const t = i / 4;
-      const px = x1 + dx * t, pz = z1 + dz * t;
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 1.1, 5), fenceMat);
-      post.position.set(px, heightAt(px, pz) + 0.55, pz);
-      scene.add(post);
-    }
-  }
-  fenceSegment(-12, 1, -4, 3);
-  fenceSegment(-4, 3, 3, 4);
-  fenceSegment(3, 4, 10, 2);
-  fenceSegment(10, 2, 12, -2);
+  // Wooden fence around camp (Blender panels when loaded)
+  fenceLine(scene, -12, 1, -4, 3, heightAt);
+  fenceLine(scene, -4, 3, 3, 4, heightAt);
+  fenceLine(scene, 3, 4, 10, 2, heightAt);
+  fenceLine(scene, 10, 2, 12, -2, heightAt);
+  // Ox cart parked by the gers
+  placeProp(scene, 'cart', -11.5, -2.5, heightAt, { rot: 0.5 });
+  colliders.push({ x: -11.5, z: -2.5, r: 1.6 });
 
   // Red sulde / clan banner
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 5.5, 6), flatMat('#3a2818'));
-  pole.position.set(4.2, heightAt(4.2, -8.5) + 2.7, -8.5);
-  scene.add(pole);
+  const tug = placeProp(scene, 'tug', 4.2, -8.5, heightAt, { scale: 1.5 });
+  if (!tug) {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 5.5, 6), flatMat('#3a2818'));
+    pole.position.set(4.2, heightAt(4.2, -8.5) + 2.7, -8.5);
+    scene.add(pole);
+  }
   const bannerGeo = new THREE.PlaneGeometry(1.5, 2.0, 8, 1);
   const banner = new THREE.Mesh(bannerGeo, flatMat('#8a1a22', { side: THREE.DoubleSide }));
   banner.position.set(5.0, heightAt(4.2, -8.5) + 4.2, -8.5);
@@ -353,58 +354,49 @@ export function buildWorld(scene, opts = {}) {
     scene.add(s);
   }
 
-  // ---- Horses ----
-  function horse(x, z, color, scale = 1, grazing = true) {
-    const m = flatMat(color);
-    const dark = flatMat('#2a1810');
-    const h = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.85, 0.65), m);
-    body.position.y = 1.25;
-    const neck = new THREE.Group();
-    neck.position.set(0.85, 1.45, 0);
-    const neckMesh = new THREE.Mesh(new THREE.BoxGeometry(0.38, 1.05, 0.38), m);
-    neckMesh.position.set(0.22, 0.35, 0);
-    neckMesh.rotation.z = -0.55;
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.32, 0.32), m);
-    head.position.set(0.75, 0.7, 0);
-    const mane = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.95, 0.4), dark);
-    mane.position.set(0.1, 0.4, 0);
-    mane.rotation.z = -0.55;
-    neck.add(neckMesh, head, mane);
-    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.85, 0.16), dark);
-    tail.position.set(-1.0, 1.05, 0);
-    tail.rotation.z = 0.35;
-    h.add(body, neck, tail);
-    for (const [lx, lz] of [[0.65, 0.22], [0.65, -0.22], [-0.65, 0.22], [-0.65, -0.22]]) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.95, 0.18), m);
-      leg.position.set(lx, 0.48, lz);
-      h.add(leg);
-    }
-    h.position.set(x, heightAt(x, z), z);
-    h.scale.setScalar(scale);
-    h.rotation.y = grazing ? Math.random() * 6 : 0.4;
+  // ---- Horses: jointed, animated (characters/horse.js) ----
+  const herd = [];       // galloping loop east of camp (reference video)
+  const grazers = [];    // a few standing near the fence
+  const coats = ['#a8683a', '#8c5530', '#c08a55', '#7a4a2a', '#b47a48', '#d8c2a0', '#6a3e22'];
+  const gallopN = Math.max(4, Math.round(herdN * 0.6));
+  for (let i = 0; i < gallopN; i++) {
+    const h = createHorse({ coat: coats[i % coats.length], belly: i % 3 ? null : '#d9c4a0', mane: i % 4 ? '#2a1a12' : '#5a4636' });
+    h.scale.setScalar(0.95 + Math.random() * 0.1);
+    h.traverse((o) => { if (o.isMesh) o.castShadow = shadowsOn; });
     scene.add(h);
-    colliders.push({ x, z, r: 1.05 * scale });
-    return { neck, group: h, phase: Math.random() * 6 };
+    herd.push({ h, lag: i * 0.045 + Math.random() * 0.02, side: (Math.random() - 0.5) * 7, speed: 7.5 });
   }
-  const horses = [];
-  // Herd RIGHT — close enough to sit in default wide / cinematic view (f03)
-  const herdColors = ['#7a4a28', '#5c3820', '#8b5a34', '#6b4428', '#4a3020', '#7a5030', '#6a4028'];
-  for (let i = 0; i < herdN; i++) {
-    const hx = 8 + (i % 5) * 1.9 + Math.random() * 0.8;
-    const hz = -1 + Math.floor(i / 5) * 2.4 + Math.random() * 1.0;
-    horses.push(horse(hx, hz, herdColors[i % herdColors.length], 0.85 + Math.random() * 0.2));
+  const HERD_C = new THREE.Vector2(44, -14), HERD_R = new THREE.Vector2(22, 30);
+  const herdPos = (a, side) => {
+    const x = HERD_C.x + Math.cos(a) * (HERD_R.x + side), z = HERD_C.y + Math.sin(a) * (HERD_R.y + side);
+    return new THREE.Vector3(x, heightAt(x, z), z);
+  };
+  let herdA = 0;
+  for (let i = 0; i < Math.max(2, herdN - gallopN); i++) {
+    const hx = 9 + (i % 4) * 2.1 + Math.random() * 0.8;
+    const hz = -1 + Math.floor(i / 4) * 2.6 + Math.random() * 1.0;
+    const h = createHorse({ coat: coats[(i + 3) % coats.length] });
+    h.position.set(hx, heightAt(hx, hz), hz);
+    h.rotation.y = Math.random() * 6;
+    h.scale.setScalar(0.9 + Math.random() * 0.15);
+    h.traverse((o) => { if (o.isMesh) o.castShadow = shadowsOn; });
+    scene.add(h);
+    colliders.push({ x: hx, z: hz, r: 1.05 });
+    grazers.push(h);
   }
-  // Player horse foreground on path (aerial: small bottom-center)
-  const playerHorse = horse(-0.8, 27.5, '#6a4028', 1.05, false);
-  // saddle bags
-  const bag = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.3, 0.45), flatMat('#4a3020'));
-  bag.position.set(-0.2, 1.35, 0.4);
-  playerHorse.group.add(bag);
-  const bag2 = bag.clone();
-  bag2.position.z = -0.4;
-  playerHorse.group.add(bag2);
-  horses.push(playerHorse);
+  // Temüjin's own horse, saddled, waiting on the path (F to mount)
+  const mount = createHorse({ coat: '#6a4028', belly: '#9a7050', saddle: true });
+  mount.position.set(-1.6, heightAt(-1.6, 26), 26);
+  mount.rotation.y = Math.PI;
+  mount.traverse((o) => { if (o.isMesh) o.castShadow = shadowsOn; });
+  scene.add(mount);
+  const saddleProp = getProp('saddle');
+  if (saddleProp) {
+    // Blender saddle sits on top of the procedural seat
+    saddleProp.position.set(0, 0.28, 0.05);
+    saddleProp.scale.setScalar(0.9);
+    mount.userData.saddle.parent.add(saddleProp);
+  }
 
   // ---- Sparse rocks (video hills are soft; few stones) + grass ----
   const rockMat = flatMat('#8a8278');
@@ -421,9 +413,11 @@ export function buildWorld(scene, opts = {}) {
   }
 
   // Dense ochre-olive grass tufts — ONE InstancedMesh, frustum-culled
-  const tuftGeo = new THREE.ConeGeometry(0.16, 0.35, 4);
+  const tuftGeo = grassGeometry();
   const GRASS_N = grassN;
-  const tufts = new THREE.InstancedMesh(tuftGeo, flatMat('#c8b060'), GRASS_N);
+  const grassMat = windSway(flatMat('#ffffff'));
+  const tufts = new THREE.InstancedMesh(tuftGeo, grassMat, GRASS_N);
+  const gCols = ['#c8b060', '#d4bc6c', '#b8a850', '#a89a48', '#dcc478'].map((c) => new THREE.Color(c));
   tufts.frustumCulled = true;
   tufts.castShadow = false;
   tufts.receiveShadow = false;
@@ -437,23 +431,26 @@ export function buildWorld(scene, opts = {}) {
     const x = (Math.random() - 0.5) * 130;
     const z = (Math.random() - 0.5) * 130;
     if (Math.abs(x - riverX(z)) < 5) continue;
-    p3.set(x, heightAt(x, z) + 0.28, z);
+    p3.set(x, heightAt(x, z) + 0.02, z);
     eul.set(0, Math.random() * 6, (Math.random() - 0.5) * 0.2);
     quat.setFromEuler(eul);
     const sc = 0.7 + Math.random() * 0.9;
     scl.set(sc, sc * (0.8 + Math.random() * 0.6), sc);
     m4.compose(p3, quat, scl);
+    tufts.setColorAt(placed, gCols[placed % gCols.length]);
     tufts.setMatrixAt(placed++, m4);
   }
   tufts.count = placed;
   tufts.instanceMatrix.needsUpdate = true;
+  if (tufts.instanceColor) tufts.instanceColor.needsUpdate = true;
   tufts.computeBoundingSphere?.();
   if (!tufts.boundingSphere) tufts.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 95);
   scene.add(tufts);
 
-  // Firewood pile
+  // Firewood pile (Blender prop when loaded)
   const logMat = flatMat('#4a3220');
-  for (let i = 0; i < 6; i++) {
+  const woodpile = placeProp(scene, 'woodpile', 2.6, 0.4, heightAt, { rot: 0.4 });
+  for (let i = 0; i < (woodpile ? 0 : 6); i++) {
     const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.9, 6), logMat);
     log.rotation.z = Math.PI / 2 + (Math.random() - 0.5) * 0.3;
     log.rotation.y = Math.random();
@@ -596,9 +593,16 @@ export function buildWorld(scene, opts = {}) {
       if (c.position.x > 110) c.position.x = -110;
     });
     compass.position.y = 2.4 + Math.sin(t * 2) * 0.15;
-    horses.forEach((h) => {
-      h.neck.rotation.z = -0.85 + Math.sin(t * 0.7 + h.phase) * 0.32;
-    });
+    herdA += dt * 7.5 / ((HERD_R.x + HERD_R.y) / 2);
+    for (const hh of herd) {
+      const a = herdA - hh.lag * 6, a2 = a + 0.02;
+      const p0 = herdPos(a, hh.side), p1 = herdPos(a2, hh.side);
+      hh.h.position.copy(p0);
+      hh.h.rotation.y = Math.atan2(p1.x - p0.x, p1.z - p0.z);
+      hh.h.userData.update(dt, hh.speed);
+    }
+    for (const g of grazers) g.userData.update(dt, 0);
+    if (!mount.userData.driven) mount.userData.update(dt, 0);
     const bp = bannerGeo.attributes.position;
     for (let i = 0; i < bp.count; i++) {
       const x0 = bannerBase[i * 3];
@@ -617,6 +621,9 @@ export function buildWorld(scene, opts = {}) {
     hoelun,
     chirha,
     temujin,
+    mount,
+    riverX,
+    firePos: new THREE.Vector3(1.5, 0.35, 1.2),
     colliders,
     heightAt,
     update,
