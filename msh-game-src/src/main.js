@@ -1,16 +1,7 @@
-// МСХ · Тэмүжин v2 — chapters + Taichiud, Mixamo Temüjin, riding/jumping, procedural sound.
+// МСХ · Тэмүжин v1 — Sumiro-style chapters + Taichiud + GLB Temüjin.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { buildWorld } from './world.js';
-import { loadModels } from './assets/loadModels.js';
-import { setProps } from './assets/props.js';
-import { windU } from './world-kit.js';
-import { createAudio } from './systems/game-audio.js';
 import { buildBurkhanWorld } from './scenes/burkhan.js';
 import { buildAct2World } from './scenes/act2.js';
 import { buildAct3World } from './scenes/act3.js';
@@ -32,6 +23,7 @@ import { createMist as createHarvestMist } from './systems/harvest/fx-mist.js';
 import { createDustSteps, createStrideTrigger } from './systems/harvest/fx-dust-steps.js';
 import { createSteppeMotes } from './systems/harvest/fx-steppe-motes.js';
 import { createBirds } from './systems/harvest/fx-birds.js';
+import { createSteppeAudio } from './systems/harvest/ambient-audio.js';
 import { createLocomotionFSM } from './systems/harvest/anim-state-machine.js';
 import { createAdaptiveQuality } from './systems/harvest/lod-instancing.js';
 import { qualityPreset, pickTierFromAvgMs, applyRendererQuality, QUALITY_TIERS } from './systems/quality.js';
@@ -41,7 +33,7 @@ const $ = (id) => document.getElementById(id);
 const canvas = $('game');
 const renderer = new THREE.WebGLRenderer({
   canvas,
-  antialias: true,
+  antialias: false, // cheaper; CSS warmGrade softens edges
   powerPreference: 'high-performance',
   stencil: false,
   depth: true,
@@ -64,30 +56,6 @@ function ensureEnvMap(on) {
   }
 }
 const camera = new THREE.PerspectiveCamera(62, 1, 0.12, 420);
-
-// ---- Post-processing (med/high): soft bloom on sun/fire + warm grade + vignette ----
-const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.2, 0.55, 0.9);
-composer.addPass(bloom);
-composer.addPass(new OutputPass());
-composer.addPass(new ShaderPass({
-  uniforms: { tDiffuse: { value: null } },
-  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
-    void main(){
-      vec4 c = texture2D(tDiffuse, vUv);
-      c.rgb = mix(c.rgb, c.rgb * vec3(1.05, 0.98, 0.88) + vec3(0.025, 0.012, 0.0), 0.7);
-      float d = distance(vUv, vec2(0.5));
-      c.rgb *= mix(1.0, 0.72, smoothstep(0.35, 0.85, d));
-      gl_FragColor = c;
-    }`,
-}));
-let usePost = true;
-function render() {
-  if (usePost) composer.render();
-  else renderer.render(scene, camera);
-}
 
 // ---- Quality / adaptive ----
 let save = loadSave();
@@ -127,10 +95,6 @@ function setQuality(id, { manual = false, reloadScene = true } = {}) {
     save = writeSave({ quality: id });
   }
   applyRendererQuality(renderer, THREE, quality);
-  if (id !== 'low') renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  usePost = id !== 'low';
-  composer.setPixelRatio(renderer.getPixelRatio());
-  composer.setSize(innerWidth, innerHeight);
   ensureEnvMap(id !== 'low');
   adapt = createAdaptiveQuality(renderer, {
     targetMs: id === 'low' ? 33 : id === 'high' ? 16.7 : 20,
@@ -151,7 +115,6 @@ setQuality(qualityId, { manual: qualityManual, reloadScene: false });
 
 function resize() {
   renderer.setSize(innerWidth, innerHeight, false);
-  composer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
 }
@@ -175,25 +138,8 @@ function clearScene() {
 const player = { pos: new THREE.Vector3(0, 0, 10), yaw: 0.15, bob: 0 };
 const cam = createCameraRig(camera, { distance: 5.0, height: 1.55, minPitch: -0.35, maxPitch: 0.55 });
 const mover = createMover(player);
-const audio = createAudio();
-audio.attachUnlock();
-// ---- jump (Space) ----
-const GRAVITY = -20, JUMP_SPEED = 6.4;
-let airY = 0, velY = 0, grounded = true;
-// ---- riding (F) ----
-let riding = false;
-const RIDE_TROT = 5.5, RIDE_GALLOP = 10.5;
-const rideState = { speed: 0, heading: Math.PI };
-const saddlePos = new THREE.Vector3();
-const rFwd = new THREE.Vector3(), rRight = new THREE.Vector3(), rMove = new THREE.Vector3();
-let toastTimer = 0;
-function toast(text, secs = 2.2) {
-  const el = $('toast');
-  if (!el) return;
-  el.textContent = text;
-  el.classList.remove('hidden');
-  toastTimer = secs;
-}
+const audio = createSteppeAudio({ volume: 0.75 });
+audio.attachUnlock?.();
 const simpleCine = createSimpleCine(camera, { duration: 2.8 });
 const pathCine = createPathCine(camera, ONON_INTRO);
 let activeCine = null; // { update, active, skip? }
@@ -214,6 +160,7 @@ const loco = createLocomotionFSM({
   onStep: (_side, p) => {
     stepDir.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
     if (dust) dust.step(p, stepDir);
+    audio.step?.(sceneId === 'burkhan' ? 'rock' : 'grass');
   },
 });
 let state = 'title'; // title | chapters | cine | explore | dialogue | end | pause
@@ -308,8 +255,6 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
 
   const sp = world.startPos || new THREE.Vector3(0, 0, 10);
   player.pos.set(sp.x, sp.y, sp.z);
-  riding = false; airY = 0; velY = 0; grounded = true;
-  world.temujin?.userData.setMode?.('walk');
   // Face camp / sun (north-ish) for f03 rider framing
   player.yaw = id === 'camp' ? 0.05 : 0.15;
   mover.reset();
@@ -364,7 +309,8 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
     }
   }
 
-  audio.setMode(audioModeFor(id));
+  audio.setChapter?.(id === 'taichiud_capture' || id === 'taichiud_escape' || id === 'taichiud_river' || id === 'taichiud_ger' ? 'camp' : id);
+  audio.setMode?.(audioModeFor(id));
 
   const groundY = world.heightAt(sp.x, sp.z);
   cam.view.pitch = 0.22;
@@ -454,22 +400,10 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
   writeSave({ lastChapter: chapterId });
 }
 
-// Initial camp preload behind title — after the Blender props have been parsed
-let propsReady = false;
-const startBtnLabel = $('startBtn').textContent;
-$('startBtn').disabled = true;
-$('startBtn').textContent = 'Ачаалж байна…';
-loadModels()
-  .then((models) => setProps(models))
-  .catch((e) => console.warn('[props]', e))
-  .finally(() => {
-    propsReady = true;
-    loadScene('camp', { cinematic: false });
-    state = 'title';
-    $('hud').classList.add('hidden');
-    $('startBtn').disabled = false;
-    $('startBtn').textContent = startBtnLabel;
-  });
+// Initial camp preload behind title
+loadScene('camp', { cinematic: false });
+state = 'title';
+$('hud').classList.add('hidden');
 
 addEventListener('keydown', (e) => {
   keys[e.code] = true;
@@ -490,85 +424,7 @@ addEventListener('keydown', (e) => {
     const n = nearest();
     if (n) talk(n);
   }
-  if (e.code === 'Space' && state === 'explore' && !riding) {
-    e.preventDefault();
-    if (grounded) { velY = JUMP_SPEED; grounded = false; audio.jump(); }
-  }
-  if (e.code === 'KeyF' && state === 'explore') toggleRide();
-  if (e.code === 'KeyM') toast(audio.toggleMute() ? 'Дуу хаагдлаа (M)' : 'Дуу нээгдлээ (M)');
 });
-
-// ---- riding: F next to the saddled horse to mount / dismount ----
-function nearHorse() {
-  const m = world?.mount;
-  return !!m && m.position.distanceTo(player.pos) < 2.6;
-}
-function toggleRide() {
-  const m = world?.mount;
-  if (!m) return;
-  if (riding) {
-    riding = false;
-    m.userData.driven = false;
-    const h = m.rotation.y;
-    player.pos.set(m.position.x + Math.cos(h) * 1.2, 0, m.position.z - Math.sin(h) * 1.2);
-    player.yaw = h; cam.yaw = h;
-    mover.reset();
-    world.temujin.userData.setMode?.('walk');
-    toast('Мориноос буулаа. F: дахин мордох', 2);
-    return;
-  }
-  if (!nearHorse()) return;
-  riding = true;
-  m.userData.driven = true;
-  rideState.heading = m.rotation.y;
-  rideState.speed = 0;
-  audio.neigh();
-  toast('Мордлоо! W: явах · Shift: давхих · F: буух', 3);
-}
-// drive the horse with WASD (camera-relative); returns rider speed
-function rideStep(dt) {
-  const m = world.mount;
-  rFwd.set(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw));
-  rRight.set(-rFwd.z, 0, rFwd.x);
-  rMove.set(0, 0, 0);
-  if (keys.KeyW || keys.ArrowUp) rMove.add(rFwd);
-  if (keys.KeyS || keys.ArrowDown) rMove.sub(rFwd);
-  if (keys.KeyD || keys.ArrowRight) rMove.add(rRight);
-  if (keys.KeyA || keys.ArrowLeft) rMove.sub(rRight);
-  const want = rMove.lengthSq() > 0 ? (keys.ShiftLeft || keys.ShiftRight ? RIDE_GALLOP : RIDE_TROT) : 0;
-  if (want > 0) {
-    const target = Math.atan2(rMove.x, rMove.z);
-    const d = ((target - rideState.heading + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
-    const maxTurn = (2.6 - rideState.speed * 0.12) * dt;
-    rideState.heading += THREE.MathUtils.clamp(d, -maxTurn, maxTurn);
-  }
-  rideState.speed += (want - rideState.speed) * Math.min(1, dt * (want > rideState.speed ? 1.6 : 3));
-  const lim = 50;
-  const nx = m.position.x + Math.sin(rideState.heading) * rideState.speed * dt;
-  const nz = m.position.z + Math.cos(rideState.heading) * rideState.speed * dt;
-  if (world.riverX && Math.abs(nx - world.riverX(nz)) < 3.2) {
-    if (rideState.speed > 2) toast('Морьтой голыг гатлахгүй — эрэг дээр зогслоо.', 2.2);
-    rideState.speed = 0;
-  } else {
-    m.position.x = THREE.MathUtils.clamp(nx, -lim, lim);
-    m.position.z = THREE.MathUtils.clamp(nz, -lim, lim);
-  }
-  for (const c of world.colliders || []) {
-    const ox = m.position.x - c.x, oz = m.position.z - c.z, od = Math.hypot(ox, oz), min = c.r + 0.9;
-    if (od < min && od > 1e-3) { m.position.x = c.x + (ox / od) * min; m.position.z = c.z + (oz / od) * min; rideState.speed *= 0.6; }
-  }
-  m.position.y = world.heightAt(m.position.x, m.position.z);
-  m.rotation.y = rideState.heading;
-  const ahead = world.heightAt(m.position.x + Math.sin(rideState.heading) * 0.9, m.position.z + Math.cos(rideState.heading) * 0.9);
-  const behind = world.heightAt(m.position.x - Math.sin(rideState.heading) * 0.9, m.position.z - Math.cos(rideState.heading) * 0.9);
-  m.rotation.x = -Math.atan2(ahead - behind, 1.8);
-  m.userData.update(dt, rideState.speed);
-  m.updateMatrixWorld(true);
-  m.userData.saddle.getWorldPosition(saddlePos);
-  player.pos.set(m.position.x, m.position.y, m.position.z);
-  player.yaw = rideState.heading;
-  return rideState.speed;
-}
 
 function openPause() {
   state = 'pause';
@@ -623,7 +479,6 @@ function nearSet(r = 4.2) {
   return new Set(NPCS.filter((n) => n.obj && dist(n.obj) < r).map((n) => n.obj));
 }
 function talk(n) {
-  audio.chime();
   talkTarget = n.obj;
   startDialogue(n.node);
 }
@@ -724,7 +579,7 @@ function startDialogue(id) {
   state = 'dialogue';
   $('prompt').classList.add('hidden');
   $('dialogue').classList.remove('hidden');
-  audio.duck(0.4, 0.5);
+  audio.duck?.(0.4, 0.5);
   birds?.startle?.();
   show(id);
 }
@@ -733,7 +588,7 @@ function show(id) {
   if (id === 'intro_done') {
     $('dialogue').classList.add('hidden');
     $('chapter').textContent = world.chapterLabel || 'I бүлэг · Өнчин өдрүүд';
-    audio.duck(1, 0.8);
+    audio.duck?.(1, 0.8);
     state = 'explore';
     return;
   }
@@ -759,7 +614,7 @@ function show(id) {
   if (id === 'act3_end') return endAct3Slice();
   if (id === 'close') {
     $('dialogue').classList.add('hidden');
-    audio.duck(1, 0.8);
+    audio.duck?.(1, 0.8);
     state = 'explore';
     return;
   }
@@ -920,7 +775,7 @@ function tick() {
   if (state === 'title' || state === 'chapters' || state === 'pause' || state === 'end') {
     // Still render world under overlays when paused/explore-backed
     if (world && (state === 'pause' || state === 'end')) {
-      render();
+      renderer.render(scene, camera);
     }
     requestAnimationFrame(tick);
     return;
@@ -932,8 +787,7 @@ function tick() {
     motes?.update?.(dt, camera);
     birds?.update?.(dt, t, player.pos);
     dust?.update?.(dt, camera, renderer);
-    windU.value = t;
-    render();
+    renderer.render(scene, camera);
     requestAnimationFrame(tick);
     return;
   }
@@ -944,13 +798,7 @@ function tick() {
   }
   const { temujin, heightAt, update: updateWorld } = world;
 
-  if (state === 'explore' && riding && world.mount) {
-    moveSpeed = rideStep(dt);
-    moving = moveSpeed > 0.3;
-    const n = nearest();
-    $('prompt').classList.toggle('hidden', true);
-    void n;
-  } else if (state === 'explore') {
+  if (state === 'explore') {
     player.yaw = cam.yaw;
     const lim = sceneId === 'burkhan' ? 45 : sceneId.includes('ger') ? 8 : 50;
     const result = mover.step(
@@ -970,40 +818,25 @@ function tick() {
     checkStealth(dt);
 
     const n = nearest();
-    const hp = !n && nearHorse();
-    $('prompt').classList.toggle('hidden', !n && !hp);
+    $('prompt').classList.toggle('hidden', !n);
     if (n) $('prompt').textContent = `[E] ${n.name}`;
-    else if (hp) $('prompt').textContent = '[F] Мордох';
   } else {
     moving = false;
     moveSpeed = 0;
   }
 
-  // vertical: jump arc over the terrain
-  if (!riding && (!grounded || velY !== 0)) {
-    velY += GRAVITY * dt;
-    airY += velY * dt;
-    if (airY <= 0) { airY = 0; velY = 0; grounded = true; }
-  }
-
   const groundY = heightAt(player.pos.x, player.pos.z);
-  if (riding && world.mount) {
-    const seat = temujin.userData.seatOffset ?? 0.83;
-    player.pos.y = world.mount.position.y;
-    temujin.position.set(saddlePos.x, saddlePos.y - seat, saddlePos.z);
-    temujin.rotation.set(world.mount.rotation.x, rideState.heading, 0, 'YXZ');
-    temujin.userData.setMode?.('ride');
-  } else {
-    player.pos.y = groundY + airY;
-    temujin.position.set(player.pos.x, groundY + airY, player.pos.z);
-    temujin.rotation.set(0, cam.yaw + Math.PI, 0);
-    temujin.userData.setMode?.(grounded ? 'walk' : 'air');
-  }
+  player.pos.y = groundY;
+  temujin.position.set(player.pos.x, groundY, player.pos.z);
+  temujin.rotation.y = cam.yaw + Math.PI;
   temujin.userData.setMoving?.(moving && state === 'explore');
   temujin.userData.setSpeed?.(moveSpeed);
 
-  if (state === 'explore' && !riding && grounded) {
-    stride.update(player.pos, moving, (p, dir) => dust?.step(p, dir));
+  if (state === 'explore') {
+    stride.update(player.pos, moving, (p, dir) => {
+      dust?.step(p, dir);
+      audio.step?.(sceneId === 'burkhan' ? 'rock' : 'grass');
+    });
     loco.update?.(dt, { speed: moveSpeed, yaw: temujin.rotation.y, talking: false });
   }
 
@@ -1021,26 +854,15 @@ function tick() {
     camera.fov = world.aerialView.fov ?? 45;
     camera.updateProjectionMatrix();
   } else if (state === 'explore' || state === 'dialogue') {
-    cam.view.distance = riding ? 7.2 : state === 'dialogue' ? 4.2 : (sceneId === 'camp' ? 6.2 : 5.0);
     cam.update(dt, player.pos, { faceYaw, dialoguePull: faceYaw != null ? 3.2 : 0 });
   }
-  if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) $('toast')?.classList.add('hidden'); }
-  windU.value = t;
 
   harvestMist?.update?.(dt, camera, renderer);
   motes?.update?.(dt, camera);
   birds?.update?.(dt, t, player.pos);
   dust?.update?.(dt, camera, renderer);
   updateWorld?.(dt, t, state === 'explore' ? nearSet() : null, temujin.position, moving && state === 'explore');
-  audio.update(dt, {
-    t,
-    speed: state === 'explore' ? moveSpeed : 0,
-    riding,
-    grounded,
-    riverDist: world.riverX ? Math.abs(player.pos.x - world.riverX(player.pos.z)) : 99,
-    fireDist: world.firePos ? Math.hypot(player.pos.x - world.firePos.x, player.pos.z - world.firePos.z) : 99,
-  });
-  render();
+  renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
 tick();
@@ -1100,5 +922,3 @@ window.__mshAerial = (opts = {}) => {
   };
 };
 window.__mshUnlockAerial = () => { aerialLocked = false; };
-window.__mshRide = () => toggleRide();
-window.__mshState = () => ({ state, sceneId, riding, grounded, airY: +airY.toFixed(2), pos: player.pos.toArray().map((v) => +v.toFixed(2)), mount: world?.mount?.position.toArray().map((v) => +v.toFixed(2)) ?? null, props: propsReady });
