@@ -1,4 +1,4 @@
-// Act I Onon camp. Environment is camp-world.glb. Characters and controls stay in the game.
+// Act I Onon camp. Daylight steppe, with the camp GLB as fallback. Characters and controls stay in the game.
 import * as THREE from 'three';
 import { createHoelun } from './characters/hoelun.js';
 import { createTemujin } from './characters/temujin.js';
@@ -11,12 +11,11 @@ const FIRE_AT = { x: -4.2, z: 1.2 };
 
 export function buildWorld(scene, opts = {}) {
   const q = opts.quality || {};
-  const doDustBits = q.dustBits !== false;
   const shadowsOn = q.shadows !== false;
   const shadowMap = q.shadowMap || 1024;
 
-  scene.add(new THREE.HemisphereLight('#d5e8ff', '#6d8a48', 0.82));
-  const sun = new THREE.DirectionalLight('#fff4dd', 1.85);
+  scene.add(new THREE.HemisphereLight('#c9d8ea', '#6a624c', 0.62));
+  const sun = new THREE.DirectionalLight('#fff1dc', 1.48);
   sun.position.set(28, 46, 16);
   sun.target.position.set(0, 0, -4);
   scene.add(sun.target);
@@ -59,7 +58,7 @@ export function buildWorld(scene, opts = {}) {
     });
   }
 
-  const N = doDustBits ? 160 : 0;
+  const N = 0;
   const dGeo = new THREE.BufferGeometry();
   const arr = new Float32Array(Math.max(1, N) * 3);
   for (let i = 0; i < N; i++) {
@@ -69,7 +68,7 @@ export function buildWorld(scene, opts = {}) {
   }
   dGeo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
   if (N > 0) {
-    scene.add(new THREE.Points(dGeo, new THREE.PointsMaterial({ color: '#efe6d2', size: 0.06, transparent: true, opacity: 0.45 })));
+    scene.add(new THREE.Points(dGeo, new THREE.PointsMaterial({ color: '#d9d3c6', size: 0.035, transparent: true, opacity: 0.22 })));
   }
 
   const hoelun = createHoelun();

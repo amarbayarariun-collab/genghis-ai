@@ -29,6 +29,10 @@ html, body {
     radial-gradient(ellipse at center, transparent 52%, rgba(95, 52, 22, 0.12) 100%),
     rgba(185, 128, 68, 0.1);
 }
+#warmGrade.daylight,
+#warmGrade.daylight.proof {
+  background: none;
+}
 
 #perfHud {
   position: fixed;

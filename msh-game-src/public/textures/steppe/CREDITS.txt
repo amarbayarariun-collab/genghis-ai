@@ -1,0 +1,31 @@
+Steppe PBR textures used by the camp environment.
+
+Source: Poly Haven (https://polyhaven.com)
+License: CC0 1.0 Universal — public domain. No attribution required; recorded here for provenance.
+Format: 1K JPG, downloaded 2026-11-08 from dl.polyhaven.org.
+Normal maps are the OpenGL (nor_gl) variant.
+
+grass_ground — grass_diff.jpg, grass_nor.jpg, grass_rough.jpg, grass_ao.jpg
+  https://polyhaven.com/a/grass_ground
+  https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/grass_ground/
+
+dry_ground_01 — dry_diff.jpg, dry_nor.jpg, dry_rough.jpg, dry_ao.jpg
+  https://polyhaven.com/a/dry_ground_01
+  https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dry_ground_01/
+
+cliff_side — cliff_diff.jpg, cliff_nor.jpg, cliff_rough.jpg, cliff_ao.jpg
+  https://polyhaven.com/a/cliff_side
+  https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cliff_side/
+  The albedo is desaturated and cooled in the rock shader so distant ridges read as gray steppe rock rather than the scan's warm sandstone.
+
+dark_wooden_planks — wood_diff.jpg, wood_nor.jpg, wood_rough.jpg
+  https://polyhaven.com/a/dark_wooden_planks
+  https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dark_wooden_planks/
+  A warm color multiplier lifts the scan toward weathered door timber.
+
+hessian_230 — hess_nor.jpg, hess_rough.jpg (normal and roughness only)
+  https://polyhaven.com/a/hessian_230
+  https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/hessian_230/
+  Felt and rope use the fiber normal and roughness. The burlap albedo is not used; felt color is an off-white material tint.
+
+The five reference photographs supplied for art direction are not used as textures.

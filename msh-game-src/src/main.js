@@ -167,6 +167,7 @@ const loco = createLocomotionFSM({
 let state = 'title'; // title | chapters | cine | explore | dialogue | end | pause
 /** When true, freeze camera at aerialView (proof / cinematic hold) — spring rig must not overwrite. */
 let aerialLocked = false;
+let frameCam = null;
 let flag = null;
 let talkTarget = null;
 let dialogueId = null;
@@ -248,6 +249,7 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
   activeCine = null;
   aerialLocked = false;
   sceneId = id;
+  document.getElementById('warmGrade')?.classList.toggle('daylight', id === 'camp');
   world = buildScene(id);
   chapterId = world.chapterId || CHAPTERS.find((c) => c.scene === id)?.id || id;
   NPCS = npcsFromWorld(world, id);
@@ -265,7 +267,9 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
   if (!id.includes('ger') && quality.mist) {
     try {
       const mistOpts =
-        id === 'camp' || id === 'taichiud_river'
+        id === 'camp'
+          ? { center: [24, 0.6, -30], size: [160, 70], along: [0.15, 1], layers: 1, color: '#d5e0e8', thin: '#e6eef2', intensity: 0.1, alphaMax: 0.14, opticalDepth: 0.55 }
+          : id === 'taichiud_river'
           ? { center: [-18, 0.5, -20], size: [120, 50], along: [0.2, 1], layers: qualityId === 'high' ? 2 : 1, color: '#e8d2a8', thin: '#e0c498', intensity: 0.22, alphaMax: 0.28, opticalDepth: 1.0 }
           : id === 'burkhan'
             ? { center: [0, 1.2, -20], size: [120, 60], along: [1, 0.2], layers: 2, color: '#d8d2c4', intensity: 0.55, alphaMax: 0.45 }
@@ -276,7 +280,7 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
       harvestMist = null;
     }
   }
-  if (!id.includes('ger') && quality.motes > 0) {
+  if (!id.includes('ger') && id !== 'camp' && quality.motes > 0) {
     try {
       const base = id === 'camp' ? quality.motes : Math.max(12, (quality.motes * 0.6) | 0);
       motes = createSteppeMotes(base);
@@ -996,6 +1000,7 @@ function tick() {
   if (world.hoelun) world.hoelun.userData.talking = state === 'dialogue' && talkTarget === world.hoelun;
   temujin.userData.setMoving?.(moving && state === 'explore');
   temujin.userData.setSpeed?.(moveSpeed);
+  temujin.userData.setYaw?.(temujin.rotation.y);
 
   if (state === 'explore') {
     stride.update(player.pos, moving, (p, dir) => {
@@ -1013,7 +1018,12 @@ function tick() {
     player.yaw = faceYaw;
     cam.yaw = faceYaw;
   }
-  if (aerialLocked && world?.aerialView) {
+  if (frameCam) {
+    camera.position.copy(frameCam.eye);
+    camera.lookAt(frameCam.look);
+    camera.fov = frameCam.fov;
+    camera.updateProjectionMatrix();
+  } else if (aerialLocked && world?.aerialView) {
     camera.position.copy(world.aerialView.eye);
     camera.lookAt(world.aerialView.look);
     camera.fov = world.aerialView.fov ?? 45;
@@ -1116,4 +1126,14 @@ window.__mshAerial = (opts = {}) => {
     locked: true,
   };
 };
-window.__mshUnlockAerial = () => { aerialLocked = false; };
+window.__mshUnlockAerial = () => { aerialLocked = false; frameCam = null; };
+window.__mshPose = () => world?.temujin?.userData?.poseSample?.() ?? null;
+window.__mshFrameCamera = (eye, look, fov = 42) => {
+  aerialLocked = false;
+  frameCam = {
+    eye: new THREE.Vector3(eye[0], eye[1], eye[2]),
+    look: new THREE.Vector3(look[0], look[1], look[2]),
+    fov,
+  };
+  return true;
+};

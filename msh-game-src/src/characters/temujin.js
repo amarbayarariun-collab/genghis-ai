@@ -1,8 +1,9 @@
-// Тэмүжин — clothed Rodin sculpt. Neither this GLB nor hoelun.glb has a skeleton or clips.
-// temujin.glb is an untextured Mixamo bind pose with no animation tracks, so it is not the body.
-// Idle and walk below are a temporary whole-body motion until a rigged clip exists.
+// Тэмүжин — clothed sculpt. The file has no skeleton and no clips.
+// temujin-gait.js skins that mesh and plays authored Idle/Walk/Run on the bones.
+// Hö'elün's GLB is still a static mesh. There is no owned skeletal clip to blend.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { attachGait } from './temujin-gait.js';
 
 export const USE_TEMUJIN_GLB = true;
 export const TEMUJIN_GLB_URL = './models/base_basic_shaded.glb';
@@ -17,25 +18,11 @@ export function createTemujin() {
   group.add(placeholder.root);
   let speed = 0;
   let moving = false;
-  let slope = 0;
-  let phase = 0;
   group.userData.setMoving = (v) => { moving = !!v; };
   group.userData.setSpeed = (s) => { speed = Math.max(0, s || 0); };
-  group.userData.setSlope = (s) => { slope = s || 0; };
-  const motion = (node, dt, baseY) => {
-    const sp = moving ? speed : 0;
-    const walking = sp > 0.08;
-    const g = THREE.MathUtils.clamp(sp / 3.4, 0, 1);
-    phase += dt * (walking ? 2.6 + sp * 1.7 : 1.35);
-    const bob = walking ? Math.abs(Math.sin(phase)) * 0.14 * Math.max(g, 0.55) : Math.sin(phase) * 0.028;
-    node.position.y = baseY + bob;
-    node.rotation.z = Math.sin(phase) * (walking ? 0.22 : 0.04) * Math.max(g, walking ? 0.55 : 1);
-    const climb = THREE.MathUtils.clamp(slope / 0.7, -0.35, 0.35);
-    node.rotation.x = (walking ? 0.16 + Math.sin(phase * 2) * 0.18 * Math.max(g, 0.55) : Math.sin(phase * 0.5) * 0.035) + climb;
-  };
+  group.userData.setSlope = () => {};
   group.userData.update = (dt, t) => {
     placeholder.update(dt, t, moving ? speed : 0);
-    motion(placeholder.root, dt, 0);
   };
 
   if (!USE_TEMUJIN_GLB) return group;
@@ -55,12 +42,16 @@ export function createTemujin() {
         const s = TARGET_HEIGHT / (size.y || 1);
         raw.scale.setScalar(s);
         raw.updateMatrixWorld(true);
+        let src = null;
+        raw.traverse((o) => { if (o.isMesh && !src) src = o; });
+        const gait = attachGait(src, s);
+        src.parent.add(gait.mesh);
+        src.parent.remove(src);
         raw.traverse((o) => {
           if (!o.isMesh) return;
           o.castShadow = true;
           o.receiveShadow = true;
           o.frustumCulled = false;
-          if (o.isSkinnedMesh) o.bind(o.skeleton, o.bindMatrix);
         });
         wrap.updateMatrixWorld(true);
         const box2 = new THREE.Box3().setFromObject(wrap);
@@ -73,8 +64,9 @@ export function createTemujin() {
         group.remove(placeholder.root);
         group.add(wrap);
 
-        const baseY = wrap.position.y;
-        group.userData.update = (dt) => motion(wrap, dt, baseY);
+        group.userData.update = (dt) => gait.update(dt, moving ? speed : 0);
+        group.userData.setYaw = (y) => gait.setYaw(y);
+        group.userData.poseSample = () => gait.poseSample();
       } catch (err) {
         console.error('[temujin] GLB setup failed, procedural kept', err);
       }
