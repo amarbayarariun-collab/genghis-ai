@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-export const HOELUN_GLB_URL = null;
+export const HOELUN_GLB_URL = './models/hoelun.glb';
 const TARGET_HEIGHT = 2.15;
 
 export function createHoelun() {
