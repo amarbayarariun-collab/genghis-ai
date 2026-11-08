@@ -1,6 +1,7 @@
 // Өэлүн эх — denser placeholder (art-ref 16 boqta). GLB swap via HOELUN_GLB_URL.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
 export const HOELUN_GLB_URL = './models/hoelun.glb';
 const TARGET_HEIGHT = 2.15;
@@ -12,9 +13,14 @@ export function createHoelun() {
   group.userData.update = placeholder.update;
 
   if (HOELUN_GLB_URL) {
-    new GLTFLoader().load(
+    const draco = new DRACOLoader();
+    draco.setDecoderPath('./draco/');
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
+    loader.load(
       HOELUN_GLB_URL,
       (gltf) => {
+        draco.dispose();
         const model = gltf.scene;
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
@@ -35,7 +41,10 @@ export function createHoelun() {
         };
       },
       undefined,
-      (err) => console.warn('[hoelun] GLB failed:', err)
+      (err) => {
+        draco.dispose();
+        console.warn('[hoelun] GLB failed:', err);
+      }
     );
   }
   return group;
