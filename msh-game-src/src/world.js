@@ -3,91 +3,61 @@ import * as THREE from 'three';
 import { createHoelun } from './characters/hoelun.js';
 import { createTemujin } from './characters/temujin.js';
 import { attachCamp } from './camp-gltf.js';
+import { buildSteppeEnvironment } from './camp-environment.js';
 
 const HOELUN_AT = { x: 0.8, z: 2.8 };
-const CHIRHA_AT = { x: -7.6, z: 4.2 };
-const FIRE_AT = { x: -4.6, z: -2.6 };
+const CHIRHA_AT = { x: 7.4, z: 8.8 };
+const FIRE_AT = { x: -4.2, z: 1.2 };
 
 export function buildWorld(scene, opts = {}) {
   const q = opts.quality || {};
-  const cloudN = q.clouds ?? 8;
   const doDustBits = q.dustBits !== false;
   const shadowsOn = q.shadows !== false;
   const shadowMap = q.shadowMap || 1024;
 
-  const skyGeo = new THREE.SphereGeometry(320, 32, 20);
-  const skyMat = new THREE.ShaderMaterial({
-    uniforms: {
-      top: { value: new THREE.Color('#8ea8b4') },
-      mid: { value: new THREE.Color('#d2c09a') },
-      horizon: { value: new THREE.Color('#f3e4c4') },
-      bottom: { value: new THREE.Color('#c4b08a') },
-    },
-    vertexShader: `varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `
-      varying vec3 vPos; uniform vec3 top, mid, horizon, bottom;
-      void main(){
-        float h = normalize(vPos).y;
-        vec3 c;
-        if (h > 0.12) c = mix(mid, top, pow((h - 0.12) / 0.88, 0.55));
-        else if (h > 0.0) c = mix(horizon, mid, h / 0.12);
-        else c = mix(horizon, bottom, pow(-h, 0.45));
-        gl_FragColor = vec4(c, 1.0);
-      }`,
-    side: THREE.BackSide,
-    depthWrite: false,
-  });
-  scene.add(new THREE.Mesh(skyGeo, skyMat));
-  scene.background = new THREE.Color('#e6d7b8');
-  scene.fog = new THREE.FogExp2('#e4d4b4', 0.0048 * (q.fogDensityScale ?? 1));
-
-  scene.add(new THREE.HemisphereLight('#f4efe4', '#6d6840', 0.72));
-  const sun = new THREE.DirectionalLight('#ffe0b0', 2.35);
-  sun.position.set(18, 26, 22);
-  sun.target.position.set(0, 0, -3);
+  scene.add(new THREE.HemisphereLight('#d5e8ff', '#6d8a48', 0.82));
+  const sun = new THREE.DirectionalLight('#fff4dd', 1.85);
+  sun.position.set(28, 46, 16);
+  sun.target.position.set(0, 0, -4);
   scene.add(sun.target);
   sun.castShadow = shadowsOn;
   sun.shadow.mapSize.set(shadowMap || 512, shadowMap || 512);
   sun.shadow.camera.near = 2;
-  sun.shadow.camera.far = 90;
-  sun.shadow.camera.left = -36;
-  sun.shadow.camera.right = 36;
-  sun.shadow.camera.top = 36;
-  sun.shadow.camera.bottom = -36;
+  sun.shadow.camera.far = 120;
+  sun.shadow.camera.left = -42;
+  sun.shadow.camera.right = 42;
+  sun.shadow.camera.top = 42;
+  sun.shadow.camera.bottom = -42;
   sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = 0.035;
+  sun.shadow.normalBias = 0.04;
   scene.add(sun);
-  const rim = new THREE.DirectionalLight('#d7e4ee', 0.28);
-  rim.position.set(-28, 14, -10);
+  const rim = new THREE.DirectionalLight('#c5ddf5', 0.32);
+  rim.position.set(-24, 18, -12);
   scene.add(rim);
 
-  const sunDisc = new THREE.Mesh(
-    new THREE.CircleGeometry(16, 32),
-    new THREE.MeshBasicMaterial({ color: '#fff6dc', fog: false, depthWrite: false })
-  );
-  sunDisc.position.set(26, 18, -150);
-  sunDisc.lookAt(0, 4, 0);
-  scene.add(sunDisc);
-
-  const cloudMat = new THREE.MeshLambertMaterial({ color: '#f4efe6', flatShading: true });
-  const clouds = [];
-  for (let i = 0; i < cloudN; i++) {
-    const c = new THREE.Group();
-    const puffs = cloudN > 6 ? 4 : 3;
-    for (let j = 0; j < puffs; j++) {
-      const puff = new THREE.Mesh(new THREE.DodecahedronGeometry(3.2 + Math.random() * 2.2, 0), cloudMat);
-      puff.position.set(j * 3.2 - 5, Math.random() * 1.2, Math.random() * 1.6);
-      puff.scale.set(1 + Math.random() * 0.6, 0.45, 0.8);
-      c.add(puff);
-    }
-    c.position.set((Math.random() - 0.5) * 160, 36 + Math.random() * 14, -40 - Math.random() * 70);
-    scene.add(c);
-    clouds.push(c);
-  }
-
   const colliders = [];
-  const camp = attachCamp(scene, { shadows: shadowsOn, colliders });
-  const heightAt = (x, z) => camp.heightAt(x, z);
+  let heightAt = () => 0;
+  let envUpdate = () => {};
+  let campSource = 'steppe';
+  let fishAt = { x: 2.2, z: 15 };
+  const berryPoints = [];
+  let steppe = null;
+  try {
+    steppe = buildSteppeEnvironment(scene, { quality: q, shadows: shadowsOn });
+    heightAt = steppe.heightAt;
+    envUpdate = steppe.update;
+    colliders.push(...steppe.colliders);
+    berryPoints.push(...steppe.berries);
+    fishAt = steppe.fish;
+  } catch (err) {
+    console.warn('[camp] steppe failed, GLB fallback', err);
+    campSource = 'fallback';
+    const camp = attachCamp(scene, { shadows: shadowsOn, colliders });
+    heightAt = (x, z) => camp.heightAt(x, z);
+    camp.whenReady((info) => {
+      settlePeople({ x: 2.2, z: 15 }, info.report?.berries || []);
+    });
+  }
 
   const N = doDustBits ? 160 : 0;
   const dGeo = new THREE.BufferGeometry();
@@ -168,27 +138,38 @@ export function buildWorld(scene, opts = {}) {
   bankFlag.position.set(0.16, 1.05, 0);
   fishSpot.add(bankRing, bankPost, bankFlag);
   scene.add(fishSpot);
-  const berryPoints = [];
 
   function plant(obj, x, z, lift = 0) {
     obj.position.set(x, heightAt(x, z) + lift, z);
   }
 
-  camp.whenReady((info) => {
+  function settlePeople(fish, berries) {
     plant(hoelun, HOELUN_AT.x, HOELUN_AT.z);
     plant(chirha, CHIRHA_AT.x, CHIRHA_AT.z);
     plant(hoelunGlow, HOELUN_AT.x, HOELUN_AT.z, 0.05);
     plant(chirhaGlow, CHIRHA_AT.x, CHIRHA_AT.z, 0.05);
     plant(fire, FIRE_AT.x, FIRE_AT.z, 0.65);
     plant(ember, FIRE_AT.x, FIRE_AT.z, 0.25);
+    plant(fishSpot, fish.x, fish.z, 0);
+    if (berries) berryPoints.splice(0, berryPoints.length, ...berries);
     const gy = heightAt(0, -36);
     compassBase = gy + 4.5;
     compass.position.y = compassBase;
-    plant(fishSpot, 2.2, 15, 0);
-    berryPoints.splice(0, berryPoints.length, ...(info.report.berries || []));
-    const spawnY = heightAt(0.4, 28);
-    console.info('[camp] spawn', JSON.stringify({ x: 0.4, y: Math.round(spawnY * 100) / 100, z: 28, gers: info.report.gers }));
-  });
+    const chimneys = [[0.6, -5.6], [-16.8, 8.6], [14.6, -8.8], [FIRE_AT.x, FIRE_AT.z]];
+    chimneys.forEach((p, i) => {
+      smokeSources[i][0] = p[0];
+      smokeSources[i][1] = p[1];
+      smokeSources[i][2] = heightAt(p[0], p[1]) + (i === 3 ? 0.45 : 3.1);
+    });
+    console.info('[camp] placed', JSON.stringify({
+      source: campSource,
+      spawn: [0.4, Math.round(heightAt(0.4, 28) * 100) / 100, 28],
+      hoelun: [HOELUN_AT.x, HOELUN_AT.z],
+      chirha: [CHIRHA_AT.x, CHIRHA_AT.z],
+      fish: [fish.x, fish.z],
+      berries: berryPoints,
+    }));
+  }
 
   const SMOKE_N = 32;
   const smokeGeo = new THREE.BufferGeometry();
@@ -208,9 +189,10 @@ export function buildWorld(scene, opts = {}) {
     smokeAge[i] = Math.random();
   }
   smokeGeo.setAttribute('position', new THREE.BufferAttribute(smokeArr, 3));
+  if (steppe) settlePeople(fishAt, null);
   scene.add(new THREE.Points(
     smokeGeo,
-    new THREE.PointsMaterial({ color: '#efe6da', size: 1.35, transparent: true, opacity: 0.55, depthWrite: false, sizeAttenuation: true })
+    new THREE.PointsMaterial({ color: '#d5d2cc', size: 0.55, transparent: true, opacity: 0.35, depthWrite: false, sizeAttenuation: true })
   ));
 
   let tug = null;
@@ -274,14 +256,10 @@ export function buildWorld(scene, opts = {}) {
       tugSwing.setFromAxisAngle(tugAxis, Math.sin(t * 1.5) * 0.16);
       tug.quaternion.copy(tugBase).multiply(tugSwing);
     }
-    camp.wind?.(t);
+    envUpdate(t);
 
     fire.intensity = 1.35 + Math.sin(t * 11) * 0.28;
     ember.scale.y = 1 + Math.sin(t * 9) * 0.16;
-    clouds.forEach((c, i) => {
-      c.position.x += dt * (0.28 + (i % 3) * 0.06);
-      if (c.position.x > 90) c.position.x = -90;
-    });
     compass.position.y = compassBase + Math.sin(t * 2) * 0.15;
 
     hoelunGlow.material.opacity = THREE.MathUtils.lerp(hoelunGlow.material.opacity, nearSet?.has(hoelun) ? 0.85 : 0, 0.15);
@@ -300,12 +278,14 @@ export function buildWorld(scene, opts = {}) {
     startPos: new THREE.Vector3(0.4, 0, 28),
     chapterLabel: 'I бүлэг · Өнчин өдрүүд',
     aerialView: {
-      eye: new THREE.Vector3(16, 22, 32),
-      look: new THREE.Vector3(-1, 1.2, -4),
-      fov: 48,
+      eye: new THREE.Vector3(6, 16, 34),
+      look: new THREE.Vector3(4, 3, -80),
+      fov: 52,
     },
     fishSpot,
     berryPoints,
+    campSource,
+    envStats: steppe?.stats || null,
   };
 }
 

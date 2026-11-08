@@ -293,11 +293,11 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
         count: id === 'camp' ? 4 : (quality.birdCount || 3),
         center: id === 'camp' ? [0, 2, 2] : [0, 8, -20],
         radius: id === 'camp' ? 11 : 28,
-        height: id === 'camp' ? 3.1 : 34,
-        span: id === 'camp' ? 3.4 : 2,
-        color: id === 'camp' ? '#1a120c' : undefined,
+        height: id === 'camp' ? 11 : 34,
+        span: id === 'camp' ? 1.7 : 2,
+        color: id === 'camp' ? '#2a241c' : undefined,
         speed: id === 'camp' ? 6 : 7,
-        soar: id === 'camp' ? 0.6 : 6,
+        soar: id === 'camp' ? 2.2 : 6,
         perches: id === 'burkhan' ? [[0, 14, -30]] : [],
       });
     } catch (e) {
