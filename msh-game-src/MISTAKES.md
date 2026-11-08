@@ -64,7 +64,7 @@ Format: error message → cause → fix
 
 16. **Black spiky “vertex explosion” near player on camp.**
    → Cause: `InstancedMesh` created with count 2200 but `setMatrixAt` loop allowed `placed < 2800` (buffer overrun).
-   → Fix: keep `placed < GRASS_N` equal to constructor capacity. Also Mixamo GLB skin explode under three@0.170 — keep `USE_TEMUJIN_GLB=false` until bind/anim fix; GLB stays in `public/models/temujin.glb`.
+   → Fix: keep `placed < GRASS_N` equal to constructor capacity. The camp body is `base_basic_shaded.glb`. `temujin.glb` is an untextured Mixamo bind pose; scaling it needs a rebind or the skin explodes.
 
 
 18. **Laggy Act I (~6 fps on SwiftShader / weak iGPU).**

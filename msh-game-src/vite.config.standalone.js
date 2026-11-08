@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
 // Zero-setup file:// build: one HTML with inlined JS/CSS/images.
-// GLB stays off (USE_TEMUJIN_GLB=false) — not required to play.
+// publicDir is off, so GLB requests miss and the camp placeholders stay.
 export default defineConfig({
   base: './',
   plugins: [viteSingleFile({ removeViteModuleLoader: true })],

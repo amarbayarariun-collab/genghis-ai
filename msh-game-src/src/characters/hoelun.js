@@ -28,6 +28,11 @@ export function createHoelun() {
         const box2 = new THREE.Box3().setFromObject(model);
         const c = box2.getCenter(new THREE.Vector3());
         model.position.set(-c.x, -box2.min.y, -c.z);
+        model.traverse((o) => {
+          if (!o.isMesh) return;
+          o.castShadow = true;
+          o.receiveShadow = true;
+        });
         group.remove(placeholder.root);
         group.add(model);
         let mixer = null;

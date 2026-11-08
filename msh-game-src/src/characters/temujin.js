@@ -1,11 +1,9 @@
-// Тэмүжин — Mixamo GLB with SkeletonUtils + outer-group scale (safer on three@0.170).
+// Тэмүжин — clothed Rodin sculpt. temujin.glb is an untextured Mixamo bind pose.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
-// SkeletonUtils.clone + outer scale still giant/explode in cinematic on three@0.170.
-export const USE_TEMUJIN_GLB = false;
-export const TEMUJIN_GLB_URL = './models/temujin.glb';
+export const USE_TEMUJIN_GLB = true;
+export const TEMUJIN_GLB_URL = './models/base_basic_shaded.glb';
 export const TEMUJIN_ANIM_DIR = './anims/';
 const TARGET_HEIGHT = 1.72;
 
@@ -27,17 +25,24 @@ export function createTemujin() {
     TEMUJIN_GLB_URL,
     (gltf) => {
       try {
-        // Clone skeleton safely; scale OUTER wrapper only (never the skinned root alone)
-        const raw = cloneSkinned(gltf.scene);
+        // One instance: scale the scene, then rebind so bone matrices share that scale.
+        const raw = gltf.scene;
         const wrap = new THREE.Group();
         wrap.add(raw);
 
-        // Measure unscaled, then scale wrap
         raw.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(raw);
         const size = box.getSize(new THREE.Vector3());
         const s = TARGET_HEIGHT / (size.y || 1);
-        wrap.scale.setScalar(s);
+        raw.scale.setScalar(s);
+        raw.updateMatrixWorld(true);
+        raw.traverse((o) => {
+          if (!o.isMesh) return;
+          o.castShadow = true;
+          o.receiveShadow = true;
+          o.frustumCulled = false;
+          if (o.isSkinnedMesh) o.bind(o.skeleton, o.bindMatrix);
+        });
         wrap.updateMatrixWorld(true);
         const box2 = new THREE.Box3().setFromObject(wrap);
         wrap.position.set(
@@ -45,17 +50,6 @@ export function createTemujin() {
           -box2.min.y,
           -((box2.min.z + box2.max.z) / 2)
         );
-
-        raw.traverse((o) => {
-          if (!o.isMesh) return;
-          o.castShadow = true;
-          o.receiveShadow = true;
-          o.frustumCulled = false;
-          if (o.isSkinnedMesh) {
-            o.frustumCulled = false;
-            o.skeleton?.calculateInverses?.();
-          }
-        });
 
         group.remove(placeholder.root);
         group.add(wrap);
