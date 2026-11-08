@@ -22,6 +22,7 @@ export function attachCamp(scene, { shadows = true, colliders = [], onReady } = 
   raycaster.far = 180;
   let terrain = null;
   const waiters = [];
+  const windMats = [];
 
   function heightAt(x, z) {
     if (!terrain) return 0;
@@ -50,7 +51,7 @@ export function attachCamp(scene, { shadows = true, colliders = [], onReady } = 
         scene.add(root);
         root.updateMatrixWorld(true);
 
-        const measure = measureAndDress(root, { shadows, colliders });
+        const measure = measureAndDress(root, { shadows, colliders, windMats });
         terrain = measure.terrain;
         terrain.userData.campMeasure = measure;
         console.info('[camp] loaded', JSON.stringify(measure.report));
@@ -63,10 +64,19 @@ export function attachCamp(scene, { shadows = true, colliders = [], onReady } = 
     (err) => console.error('[camp] GLB failed', err)
   );
 
-  return { heightAt, whenReady };
+  return {
+    heightAt,
+    whenReady,
+    wind(t) {
+      for (const mat of windMats) {
+        const shader = mat.userData.windShader;
+        if (shader) shader.uniforms.uTime.value = t;
+      }
+    },
+  };
 }
 
-function measureAndDress(root, { shadows, colliders }) {
+function measureAndDress(root, { shadows, colliders, windMats }) {
   const sceneBox = new THREE.Box3().setFromObject(root);
   const sceneSize = sceneBox.getSize(new THREE.Vector3());
   const sceneCenter = sceneBox.getCenter(new THREE.Vector3());
@@ -104,7 +114,7 @@ function measureAndDress(root, { shadows, colliders }) {
     const mats = Array.isArray(mat) ? mat : [mat];
     mats.forEach(soften);
   });
-  instanceGrass(root, grasses);
+  instanceGrass(root, grasses, windMats);
 
   const gers = [];
   root.traverse((o) => {
@@ -165,7 +175,31 @@ function soften(m) {
   if ('roughness' in m && m.roughness < 0.45) m.roughness = 0.62;
 }
 
-function instanceGrass(root, grasses) {
+function swayGrass(mat, windMats) {
+  if (Array.isArray(mat)) {
+    mat.forEach((m) => swayGrass(m, windMats));
+    return;
+  }
+  if (!mat || mat.userData.windReady) return;
+  mat.userData.windReady = true;
+  windMats.push(mat);
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = { value: 0 };
+    mat.userData.windShader = shader;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uTime;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        float wind = sin(uTime * 1.7 + position.x * 2.4 + position.z * 1.7) * 0.22 * position.y;
+        transformed.x += wind;
+        transformed.z += wind * 0.35;`
+      );
+  };
+  mat.needsUpdate = true;
+}
+
+function instanceGrass(root, grasses, windMats) {
   if (grasses.length < 2) return;
   const buckets = new Map();
   for (const mesh of grasses) {
@@ -174,6 +208,7 @@ function instanceGrass(root, grasses) {
     buckets.get(key).push(mesh);
   }
   for (const group of buckets.values()) {
+    swayGrass(group[0].material, windMats);
     const inst = new THREE.InstancedMesh(group[0].geometry, group[0].material, group.length);
     inst.name = 'camp-grass';
     inst.castShadow = false;

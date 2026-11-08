@@ -103,7 +103,7 @@ export function buildWorld(scene, opts = {}) {
   }
 
   const hoelun = createHoelun();
-  hoelun.rotation.y = Math.PI * 0.92;
+  hoelun.rotation.y = 0;
   hoelun.position.set(HOELUN_AT.x, 0, HOELUN_AT.z);
   scene.add(hoelun);
   colliders.push({ x: HOELUN_AT.x, z: HOELUN_AT.z, r: 0.85, kind: 'hoelun' });
@@ -170,11 +170,49 @@ export function buildWorld(scene, opts = {}) {
     console.info('[camp] spawn', JSON.stringify({ x: 0.4, y: Math.round(spawnY * 100) / 100, z: 28, gers: info.report.gers }));
   });
 
+  const SMOKE_N = 32;
+  const smokeGeo = new THREE.BufferGeometry();
+  const smokeArr = new Float32Array(SMOKE_N * 3);
+  const smokeAge = new Float32Array(SMOKE_N);
+  const smokeSources = [
+    [FIRE_AT.x, FIRE_AT.z, 0.4],
+    [0, -5, 3.2],
+    [-8, -2, 2.8],
+    [7, -3, 2.9],
+  ];
+  for (let i = 0; i < SMOKE_N; i++) {
+    const src = smokeSources[i % smokeSources.length];
+    smokeArr[i * 3] = src[0];
+    smokeArr[i * 3 + 1] = src[2];
+    smokeArr[i * 3 + 2] = src[1];
+    smokeAge[i] = Math.random();
+  }
+  smokeGeo.setAttribute('position', new THREE.BufferAttribute(smokeArr, 3));
+  scene.add(new THREE.Points(
+    smokeGeo,
+    new THREE.PointsMaterial({ color: '#efe6da', size: 1.35, transparent: true, opacity: 0.55, depthWrite: false, sizeAttenuation: true })
+  ));
+
+  let tug = null;
+  const tugBase = new THREE.Quaternion();
+  const tugSwing = new THREE.Quaternion();
+  const tugAxis = new THREE.Vector3(0, 0, 1);
   const slopeAhead = new THREE.Vector3();
   function update(dt, t, nearSet, playerPos, playerMoving) {
     temujin.userData.setMoving?.(!!playerMoving);
     temujin.userData.update?.(dt, t);
-    hoelun.userData.update?.(t, playerPos);
+    hoelun.userData.update?.(t, playerPos, dt);
+    if (playerPos) {
+      const dx = playerPos.x - chirha.position.x;
+      const dz = playerPos.z - chirha.position.z;
+      if (dx * dx + dz * dz < 36) {
+        const want = Math.atan2(dx, dz);
+        let d = want - chirha.rotation.y;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        chirha.rotation.y += d * Math.min(1, dt * 3);
+      }
+    }
 
     if (playerPos) {
       const yaw = temujin.rotation.y;
@@ -193,6 +231,30 @@ export function buildWorld(scene, opts = {}) {
       }
       p.needsUpdate = true;
     }
+
+    const sp = smokeGeo.attributes.position;
+    for (let i = 0; i < SMOKE_N; i++) {
+      smokeAge[i] += dt * 0.28;
+      if (smokeAge[i] > 1) smokeAge[i] = 0;
+      const a = smokeAge[i];
+      const src = smokeSources[i % smokeSources.length];
+      sp.setX(i, src[0] + Math.sin(t * 1.4 + i) * 0.18 * a);
+      sp.setY(i, src[2] + a * 2.4);
+      sp.setZ(i, src[1] + Math.cos(t * 1.1 + i) * 0.18 * a);
+    }
+    sp.needsUpdate = true;
+
+    if (!tug) {
+      scene.traverse((o) => {
+        if (!tug && o.name && o.name.startsWith('tug_placement')) tug = o;
+      });
+      if (tug) tugBase.copy(tug.quaternion);
+    }
+    if (tug) {
+      tugSwing.setFromAxisAngle(tugAxis, Math.sin(t * 1.5) * 0.16);
+      tug.quaternion.copy(tugBase).multiply(tugSwing);
+    }
+    camp.wind?.(t);
 
     fire.intensity = 1.35 + Math.sin(t * 11) * 0.28;
     ember.scale.y = 1 + Math.sin(t * 9) * 0.16;

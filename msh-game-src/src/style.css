@@ -262,6 +262,20 @@ button:disabled {
   border: 1px solid rgba(201, 163, 90, 0.25);
 }
 
+#objective {
+  position: absolute;
+  top: max(48px, calc(env(safe-area-inset-top) + 36px));
+  left: 14px;
+  max-width: min(70vw, 420px);
+  font-size: 15px;
+  line-height: 1.35;
+  color: #f3e2b8;
+  background: rgba(20, 12, 6, 0.72);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(232, 195, 122, 0.55);
+}
+
 #controls {
   position: absolute;
   bottom: max(12px, env(safe-area-inset-bottom));

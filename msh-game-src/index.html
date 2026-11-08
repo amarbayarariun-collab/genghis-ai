@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="./src/style.css" />
 </head>
 <body>
-  <canvas id="game" aria-label="Тэмүжин тоглоомын талбар"></canvas>
+  <canvas id="game" tabindex="0" aria-label="Тэмүжин тоглоомын талбар"></canvas>
   <!-- Warm golden-hour grade (sepia tint + soft sun haze) -->
   <div id="warmGrade" aria-hidden="true"></div>
 
@@ -64,15 +64,20 @@
   <!-- HUD -->
   <div id="hud" class="hidden" aria-live="polite">
     <div id="chapter">I бүлэг</div>
+    <div id="objective" class="hidden"></div>
     <div id="stealthHint" class="hidden">Сүүдэр · галаас хол</div>
     <div id="controls">
       <span class="ctrl"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> явах</span>
+      <span class="sep">·</span>
+      <span class="ctrl"><kbd>←</kbd><kbd>→</kbd> эргэх</span>
       <span class="sep">·</span>
       <span class="ctrl">Чирэх: камер</span>
       <span class="sep">·</span>
       <span class="ctrl"><kbd>E</kbd> ярилцах</span>
       <span class="sep">·</span>
       <span class="ctrl"><kbd>Esc</kbd> цэс</span>
+      <span class="sep">·</span>
+      <span class="ctrl">Үсрэлтгүй · морьгүй</span>
     </div>
     <div id="prompt" class="hidden">[E] ярилцах</div>
     <button id="sourceBtn" type="button">📜 Эх сурвалж</button>

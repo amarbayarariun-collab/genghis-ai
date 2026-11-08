@@ -286,14 +286,17 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
       motes = null;
     }
   }
-  if (quality.birds && (id === 'camp' || id === 'burkhan')) {
+  if (id === 'camp' || (quality.birds && id === 'burkhan')) {
     try {
       birds = createBirds(scene, {
-        count: quality.birdCount || (id === 'camp' ? 4 : 3),
-        center: id === 'camp' ? [6, 0, -14] : [0, 8, -20],
-        radius: id === 'camp' ? 20 : 28,
-        height: id === 'camp' ? 22 : 34,
-        perches: id === 'camp' ? [[4.2, 5.3, -8.5]] : [[0, 14, -30]],
+        count: id === 'camp' ? 4 : (quality.birdCount || 3),
+        center: id === 'camp' ? [1, 3, 8] : [0, 8, -20],
+        radius: id === 'camp' ? 14 : 28,
+        height: id === 'camp' ? 6 : 34,
+        span: id === 'camp' ? 3.4 : 2,
+        color: id === 'camp' ? '#1a120c' : undefined,
+        speed: id === 'camp' ? 6 : 7,
+        perches: id === 'burkhan' ? [[0, 14, -30]] : [],
       });
     } catch (e) {
       console.warn('[harvest birds]', e);
@@ -390,7 +393,7 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
       activeCine = {
         get active() { return simpleCine.active; },
         update: (dt) => simpleCine.update(dt),
-        skip: () => { /* simple has no skip */ },
+        skip: () => simpleCine.skip?.(),
       };
     }
   } else {
@@ -407,6 +410,9 @@ state = 'title';
 $('hud').classList.add('hidden');
 
 addEventListener('keydown', (e) => {
+  if (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Space') {
+    e.preventDefault();
+  }
   keys[e.code] = true;
   if (e.code === 'F3') {
     showPerf = !showPerf;
@@ -481,6 +487,17 @@ function nearSet(r = 4.2) {
 }
 function talk(n) {
   talkTarget = n.obj;
+  if (sceneId === 'camp' && n.obj === world?.hoelun) {
+    const f = campFlags();
+    if (!f.metHoelun) return startDialogue('start');
+    if (!f.chirhaSeen) return startDialogue('camp_wait');
+    if (!campTaskDone()) return startDialogue('ask');
+    return startDialogue('after');
+  }
+  if (sceneId === 'camp' && n.obj === world?.chirha) {
+    save = writeSave({ flags: { ...campFlags(), chirhaSeen: true } });
+    updateObjective();
+  }
   startDialogue(n.node);
 }
 
@@ -576,6 +593,40 @@ $('sourceBtn').onclick = () => {
   $('source').classList.toggle('hidden');
 };
 
+function campFlags() {
+  return loadSave().flags || {};
+}
+
+function campTaskDone() {
+  const f = campFlags();
+  return !!(f.chirhaSeen && f.metHoelun && (f.food || f.family || f.oath));
+}
+
+function updateObjective() {
+  const el = $('objective');
+  if (!el) return;
+  if (sceneId !== 'camp' || state === 'title' || state === 'end') {
+    el.classList.add('hidden');
+    return;
+  }
+  const f = campFlags();
+  let text = 'Өэлүн эх дээр очиж E дар';
+  if (f.metHoelun && !f.chirhaSeen) text = 'Чирха өвгөнийг олж E дар';
+  else if (f.chirhaSeen && !campTaskDone()) text = 'Өэлүн эх дээр буцаж очоод E дар';
+  else if (campTaskDone()) text = 'Бүлэг дууслаа';
+  el.textContent = text;
+  el.classList.remove('hidden');
+}
+
+function releasePlay() {
+  state = 'explore';
+  talkTarget = null;
+  const el = document.activeElement;
+  if (el && el !== document.body && el !== canvas) el.blur();
+  canvas.focus({ preventScroll: true });
+  updateObjective();
+}
+
 function startDialogue(id) {
   state = 'dialogue';
   $('prompt').classList.add('hidden');
@@ -586,11 +637,15 @@ function startDialogue(id) {
 }
 
 function show(id) {
-  if (id === 'intro_done') {
+  if (id === 'intro_done' || id === 'camp_go') {
     $('dialogue').classList.add('hidden');
+    if (id === 'camp_go') {
+      const flags = { ...campFlags(), metHoelun: true };
+      save = writeSave({ flags });
+    }
     $('chapter').textContent = world.chapterLabel || 'I бүлэг · Өнчин өдрүүд';
     audio.duck?.(1, 0.8);
-    state = 'explore';
+    releasePlay();
     return;
   }
   if (id === 'taichiud_to_escape') {
@@ -608,7 +663,14 @@ function show(id) {
     loadScene('taichiud_ger', { cinematic: true });
     return;
   }
-  if (id === 'end') return endCampSlice();
+  if (id === 'end') {
+    if (sceneId === 'camp' && !campTaskDone()) {
+      $('dialogue').classList.remove('hidden');
+      if (state === 'explore') state = 'dialogue';
+      return show(campFlags().chirhaSeen ? 'ask' : 'camp_wait');
+    }
+    return endCampSlice();
+  }
   if (id === 'burkhan_end') return endBurkhanSlice();
   if (id === 'taichiud_end') return endTaichiudSlice();
   if (id === 'act2_end') return endAct2Slice();
@@ -616,7 +678,7 @@ function show(id) {
   if (id === 'close') {
     $('dialogue').classList.add('hidden');
     audio.duck?.(1, 0.8);
-    state = 'explore';
+    releasePlay();
     return;
   }
   const node = STORY[id];
@@ -766,7 +828,12 @@ function tick() {
       probeDone = true;
       if (!qualityManual) {
         const picked = pickTierFromAvgMs(avgMs);
-        if (picked !== qualityId) setQuality(picked, { manual: false, reloadScene: true });
+        if (picked !== qualityId) {
+          const start = world?.startPos;
+          const moved = !!(start && Math.hypot(player.pos.x - start.x, player.pos.z - start.z) > 1.2);
+          const busy = state === 'cine' || state === 'dialogue' || moved;
+          setQuality(picked, { manual: false, reloadScene: !busy });
+        }
       }
     }
   } else if (probeDone && adapt && state !== 'title' && state !== 'pause') {
@@ -800,6 +867,8 @@ function tick() {
   const { temujin, heightAt, update: updateWorld } = world;
 
   if (state === 'explore') {
+    if (keys.ArrowLeft) cam.yaw += dt * 1.8;
+    if (keys.ArrowRight) cam.yaw -= dt * 1.8;
     player.yaw = cam.yaw;
     const lim = sceneId === 'burkhan' ? 45 : sceneId.includes('ger') ? 8 : 50;
     const result = mover.step(
@@ -807,8 +876,8 @@ function tick() {
       {
         forward: !!(keys.KeyW || keys.ArrowUp),
         back: !!(keys.KeyS || keys.ArrowDown),
-        left: !!(keys.KeyA || keys.ArrowLeft),
-        right: !!(keys.KeyD || keys.ArrowRight),
+        left: !!keys.KeyA,
+        right: !!keys.KeyD,
       },
       resolveCollisions,
       { min: -lim, max: lim }
@@ -829,7 +898,14 @@ function tick() {
   const groundY = heightAt(player.pos.x, player.pos.z);
   player.pos.y = groundY;
   temujin.position.set(player.pos.x, groundY, player.pos.z);
-  temujin.rotation.y = cam.yaw + Math.PI;
+  {
+    const face = cam.yaw + Math.PI;
+    let dy = face - temujin.rotation.y;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    temujin.rotation.y += dy * Math.min(1, dt * 8);
+  }
+  if (world.hoelun) world.hoelun.userData.talking = state === 'dialogue' && talkTarget === world.hoelun;
   temujin.userData.setMoving?.(moving && state === 'explore');
   temujin.userData.setSpeed?.(moveSpeed);
 
@@ -889,9 +965,30 @@ window.__mshPerf = () => {
 window.__mshPlayer = () => ({
   x: player.pos.x, y: player.pos.y, z: player.pos.z, yaw: player.yaw, scene: sceneId, state,
 });
-window.__mshTeleport = (x, z) => {
+window.__mshMotion = () => ({
+  hoelunYaw: world?.hoelun?.rotation?.y ?? null,
+  temujinYaw: world?.temujin?.rotation?.y ?? null,
+  temujinPitch: world?.temujin?.children?.[0]?.rotation?.x ?? world?.temujin?.rotation?.x ?? null,
+  temujinRoll: world?.temujin?.children?.[0]?.rotation?.z ?? null,
+  temujinBob: world?.temujin?.children?.[0]?.position?.y ?? null,
+  objective: document.getElementById('objective')?.textContent || '',
+  objectiveHidden: document.getElementById('objective')?.classList.contains('hidden') ?? true,
+  flags: loadSave().flags || {},
+  birds: (birds?.birds || []).map((b) => ({
+    mode: b.mode,
+    x: b.root.position.x,
+    y: b.root.position.y,
+    z: b.root.position.z,
+    wing: b.wings?.[1]?.inner?.rotation?.z ?? null,
+  })),
+});
+window.__mshTeleport = (x, z, yaw) => {
   const y = world?.heightAt?.(x, z) ?? 0;
   player.pos.set(x, y, z);
+  if (typeof yaw === 'number') {
+    player.yaw = yaw;
+    cam.view.yaw = yaw;
+  }
   cam.snapTo(player.pos, player.yaw, cam.view.pitch);
   return window.__mshPlayer();
 };

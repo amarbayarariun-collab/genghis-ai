@@ -1,4 +1,6 @@
-// Тэмүжин — clothed Rodin sculpt. temujin.glb is an untextured Mixamo bind pose.
+// Тэмүжин — clothed Rodin sculpt. Neither this GLB nor hoelun.glb has a skeleton or clips.
+// temujin.glb is an untextured Mixamo bind pose with no animation tracks, so it is not the body.
+// Idle and walk below are a temporary whole-body motion until a rigged clip exists.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
@@ -25,11 +27,11 @@ export function createTemujin() {
     const walking = sp > 0.08;
     const g = THREE.MathUtils.clamp(sp / 3.4, 0, 1);
     phase += dt * (walking ? 2.6 + sp * 1.7 : 1.35);
-    const bob = walking ? Math.abs(Math.sin(phase)) * 0.05 * Math.max(g, 0.35) : Math.sin(phase) * 0.012;
+    const bob = walking ? Math.abs(Math.sin(phase)) * 0.14 * Math.max(g, 0.55) : Math.sin(phase) * 0.028;
     node.position.y = baseY + bob;
-    node.rotation.z = Math.sin(phase) * 0.045 * g;
+    node.rotation.z = Math.sin(phase) * (walking ? 0.22 : 0.04) * Math.max(g, walking ? 0.55 : 1);
     const climb = THREE.MathUtils.clamp(slope / 0.7, -0.35, 0.35);
-    node.rotation.x = (walking ? Math.sin(phase * 2) * 0.035 * g : 0) + climb;
+    node.rotation.x = (walking ? 0.16 + Math.sin(phase * 2) * 0.18 * Math.max(g, 0.55) : Math.sin(phase * 0.5) * 0.035) + climb;
   };
   group.userData.update = (dt, t) => {
     placeholder.update(dt, t, moving ? speed : 0);

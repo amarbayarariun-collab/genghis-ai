@@ -35,14 +35,42 @@ export function createHoelun() {
         });
         group.remove(placeholder.root);
         group.add(model);
+        // hoelun.glb has no skeleton and no clips. Idle is a breath; facing is the group yaw.
+        const baseScale = model.scale.x;
+        const baseY = model.position.y;
+        // Close-up check: the sculpt's face is local +Z. Yaw 0 looks down the south path.
+        const homeYaw = 0;
+        group.rotation.y = homeYaw;
         let mixer = null;
         if (gltf.animations.length) {
           mixer = new THREE.AnimationMixer(model);
           mixer.clipAction(gltf.animations[0]).play();
         }
         let last = null;
-        group.userData.update = (t) => {
-          if (mixer) { mixer.update(last === null ? 0 : t - last); last = t; }
+        group.userData.update = (t, lookAt, dt = 0.016) => {
+          if (mixer && last != null) mixer.update(Math.min(0.05, t - last));
+          last = t;
+          model.scale.set(baseScale, baseScale * (1 + Math.sin(t * 1.7) * 0.018), baseScale);
+          model.position.y = baseY + Math.sin(t * 1.5) * 0.025;
+          model.rotation.z = Math.sin(t * 1.15) * 0.035;
+          const step = Math.min(1, dt * (group.userData.talking ? 5 : 2.4));
+          if (lookAt) {
+            const dx = lookAt.x - group.position.x;
+            const dz = lookAt.z - group.position.z;
+            const near = dx * dx + dz * dz < 64;
+            if (group.userData.talking || near) {
+              let want = Math.atan2(dx, dz);
+              let d = want - group.rotation.y;
+              while (d > Math.PI) d -= Math.PI * 2;
+              while (d < -Math.PI) d += Math.PI * 2;
+              group.rotation.y += d * step;
+              return;
+            }
+          }
+          let d = homeYaw + Math.sin(t * 0.45) * 0.08 - group.rotation.y;
+          while (d > Math.PI) d -= Math.PI * 2;
+          while (d < -Math.PI) d += Math.PI * 2;
+          group.rotation.y += d * Math.min(1, dt * 1.5);
         };
       },
       undefined,
