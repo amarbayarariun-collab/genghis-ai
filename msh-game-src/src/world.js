@@ -12,8 +12,8 @@ export function buildWorld(scene, opts = {}) {
   const q = opts.quality || {};
   const cloudN = q.clouds ?? 8;
   const doDustBits = q.dustBits !== false;
-  const shadowsOn = q.shadows !== false;
-  const shadowMap = q.shadowMap || 1024;
+  const shadowsOn = q.shadows === true;
+  const shadowMap = shadowsOn ? (q.shadowMap || 512) : 0;
 
   const skyGeo = new THREE.SphereGeometry(320, 32, 20);
   const skyMat = new THREE.ShaderMaterial({

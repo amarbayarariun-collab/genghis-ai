@@ -59,12 +59,14 @@ const camera = new THREE.PerspectiveCamera(62, 1, 0.12, 420);
 
 // ---- Quality / adaptive ----
 let save = loadSave();
-let qualityId = save.quality || 'med'; // null in save → start med, auto-probe first 2s
-let quality = qualityPreset(qualityId);
-let qualityManual = !!save.quality;
+// Other players boot on the fast path: low tier, no shadows, from the first frame.
+// A saved higher tier must not turn shadows on before the scene is playable.
+let qualityId = 'low';
+let quality = qualityPreset('low');
+let qualityManual = false;
 let probeAcc = 0;
 let probeFrames = 0;
-let probeDone = qualityManual;
+let probeDone = true;
 let adapt = null;
 const stepDir = new THREE.Vector3();
 const ndc = new THREE.Vector2();
@@ -551,9 +553,9 @@ function renderChapterSelect() {
   }
 }
 
-$('startBtn').onclick = () => {
+function beginCamp({ cinematic, dialogueNode }) {
   audio.unlock();
-  writeSave({ unlocked: ['camp'], lastChapter: 'camp', flags: {} });
+  writeSave({ unlocked: ['camp'], lastChapter: 'camp', flags: {}, quality: qualityId });
   save = loadSave();
   const title = $('title');
   title.classList.add('fade-out');
@@ -561,10 +563,15 @@ $('startBtn').onclick = () => {
     title.classList.add('hidden');
     title.classList.remove('fade-out');
     $('hud').classList.remove('hidden');
-    $('chapter').textContent = '0 бүлэг · Удиртгал';
-    loadScene('camp', { cinematic: true, dialogueNode: 'intro0' });
-  }, 400);
+    $('chapter').textContent = dialogueNode ? '0 бүлэг · Удиртгал' : 'I бүлэг · Өнчин өдрүүд';
+    loadScene('camp', { cinematic, dialogueNode });
+  }, 200);
+}
+$('fastPlayBtn').onclick = () => {
+  setQuality('low', { manual: true, reloadScene: false });
+  beginCamp({ cinematic: false, dialogueNode: null });
 };
+$('startBtn').onclick = () => beginCamp({ cinematic: true, dialogueNode: 'intro0' });
 $('continueBtn').onclick = () => {
   audio.unlock();
   $('title').classList.add('hidden');
@@ -953,6 +960,7 @@ window.__mshPerf = () => {
   return {
     fps: fpsEma,
     tier: qualityId,
+    shadows: renderer.shadowMap.enabled,
     label: quality.label,
     pixelRatio: renderer.getPixelRatio(),
     calls: renderer.info.render.calls,

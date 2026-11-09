@@ -172,6 +172,7 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+#fastPlayBtn,
 #startBtn {
   align-self: flex-start;
   min-width: 140px;
@@ -430,6 +431,7 @@ button:disabled {
     text-align: center;
     align-items: center;
   }
+  #fastPlayBtn,
   #startBtn { align-self: center; }
   #controls .sep { display: none; }
   #dialogue {
