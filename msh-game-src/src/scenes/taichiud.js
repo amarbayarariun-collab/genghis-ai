@@ -19,13 +19,11 @@ function banner(x, z, heightAt, color = '#8a1a22') {
 
 /** 1 — Capture march: Targutai leads bound Temüjin at sunset. */
 export function buildTaichiudCapture(scene) {
-  scene.add(skyDome({ top: '#3a2a55', mid: '#c45a3a', horizon: '#ffb45a', bottom: '#8a4a35' }));
-  scene.fog = new THREE.FogExp2('#d88858', 0.007);
-  scene.add(new THREE.HemisphereLight('#ffd0a0', '#3a2a40', 0.55));
-  const sun = new THREE.DirectionalLight('#ffb060', 2.2);
-  sun.position.set(80, 16, -40);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
+  scene.add(skyDome({ top: '#0c1428', mid: '#24365c', horizon: '#c45a28', bottom: '#120c0a' }));
+  scene.fog = new THREE.FogExp2('#1a140e', 0.012);
+  scene.add(new THREE.HemisphereLight('#6a7898', '#1a100c', 0.32));
+  const sun = new THREE.DirectionalLight('#ff8a3a', 0.85);
+  sun.position.set(40, 8, -20);
   scene.add(sun);
 
   const heightAt = (x, z) =>
@@ -106,10 +104,10 @@ export function buildTaichiudCapture(scene) {
 
 /** 2 — Cangue night stealth escape. */
 export function buildTaichiudEscape(scene) {
-  scene.add(skyDome({ top: '#0a1228', mid: '#1a2a48', horizon: '#2a3a55', bottom: '#121820' }));
-  scene.fog = new THREE.FogExp2('#1a2438', 0.012);
-  scene.add(new THREE.HemisphereLight('#8899bb', '#0a0810', 0.35));
-  const moonLight = new THREE.DirectionalLight('#c8d4f0', 0.55);
+  scene.add(skyDome({ top: '#07101f', mid: '#15243c', horizon: '#6a3a22', bottom: '#0c1014' }));
+  scene.fog = new THREE.FogExp2('#101820', 0.015);
+  scene.add(new THREE.HemisphereLight('#7a8cb0', '#140c08', 0.28));
+  const moonLight = new THREE.DirectionalLight('#c5d4f2', 0.62);
   moonLight.position.set(-50, 60, -30);
   scene.add(moonLight);
   moonDisc(scene, [-55, 65, -35]);
@@ -208,7 +206,7 @@ export function buildTaichiudEscape(scene) {
       temujin.userData.update?.(dt, t);
       // Flicker torches
       for (const tr of torches) {
-        if (tr.light) tr.light.intensity = 1.2 + Math.sin(t * 9 + tr.x) * 0.35;
+        if (tr.light) tr.light.intensity = 1.7 + Math.sin(t * 9 + tr.x) * 0.4;
         if (tr.ember) tr.ember.scale.y = 0.9 + Math.sin(t * 11 + tr.z) * 0.15;
       }
       if (guardNpc.glow) {
@@ -221,11 +219,11 @@ export function buildTaichiudEscape(scene) {
 
 /** 3 — Onon reeds dawn; Sorkan-Shira finds Temüjin. */
 export function buildTaichiudRiver(scene) {
-  scene.add(skyDome({ top: '#6a7a98', mid: '#c8a888', horizon: '#e8c8a0', bottom: '#8a7a68' }));
-  scene.fog = new THREE.FogExp2('#c8b8a0', 0.011);
-  scene.add(new THREE.HemisphereLight('#e8d8c0', '#4a5048', 0.7));
-  const sun = new THREE.DirectionalLight('#ffe0b0', 1.4);
-  sun.position.set(-30, 25, 40);
+  scene.add(skyDome({ top: '#0a1428', mid: '#1a3050', horizon: '#8a5a38', bottom: '#101810' }));
+  scene.fog = new THREE.FogExp2('#16202c', 0.013);
+  scene.add(new THREE.HemisphereLight('#7a90b0', '#1a140e', 0.38));
+  const sun = new THREE.DirectionalLight('#c8d4ee', 0.55);
+  sun.position.set(-30, 48, 20);
   scene.add(sun);
 
   const riverZ = (x) => Math.sin(x * 0.05) * 4;
@@ -284,12 +282,13 @@ export function buildTaichiudRiver(scene) {
 
   const temujin = createTemujin();
   scene.add(temujin);
+  const npcs = [{ obj: sorkan, name: 'Сорхан-Ширатай', node: 'taichiud_river', glow: sGlow }];
 
   return {
     temujin,
     colliders: [{ x: 6, z: 4, r: 1.1 }],
     heightAt,
-    npcs: [{ obj: sorkan, name: 'Сорхан-Ширатай', node: 'taichiud_river', glow: sGlow }],
+    npcs,
     startPos: new THREE.Vector3(-3, 0, -2),
     chapterLabel: 'Ia · Онон · Зэгс',
     chapterId: 'taichiud',
@@ -297,9 +296,8 @@ export function buildTaichiudRiver(scene) {
     update(dt, t, near, _pos, moving) {
       temujin.userData.setMoving?.(moving);
       temujin.userData.update?.(dt, t);
-      // Soft mist bob
-      scene.fog.density = 0.01 + Math.sin(t * 0.4) * 0.0015;
-      for (const n of this.npcs) {
+      scene.fog.density = 0.012 + Math.sin(t * 0.4) * 0.0012;
+      for (const n of npcs) {
         if (!n.glow) continue;
         const on = near?.has(n.obj);
         n.glow.material.opacity += ((on ? 0.85 : 0) - n.glow.material.opacity) * Math.min(1, 8 * dt);

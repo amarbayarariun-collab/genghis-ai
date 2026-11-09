@@ -24,8 +24,35 @@ html, body {
   mix-blend-mode: soft-light;
   transition: background 0.45s ease;
 }
+#warmGrade.grade-burkhan {
+  background:
+    radial-gradient(ellipse 62% 42% at 50% 18%, rgba(186, 206, 224, 0.28), transparent 66%),
+    radial-gradient(ellipse at center, transparent 46%, rgba(18, 32, 48, 0.28) 100%),
+    rgba(96, 124, 150, 0.1);
+}
+#warmGrade.grade-taichiud {
+  background:
+    radial-gradient(ellipse 42% 28% at 50% 82%, rgba(255, 112, 36, 0.32), transparent 60%),
+    radial-gradient(ellipse at center, transparent 40%, rgba(4, 8, 18, 0.5) 100%),
+    rgba(10, 16, 36, 0.24);
+  mix-blend-mode: multiply;
+}
+#warmGrade.grade-act2 {
+  background:
+    radial-gradient(ellipse 48% 34% at 28% 14%, rgba(255, 246, 220, 0.3), transparent 64%),
+    radial-gradient(ellipse at center, transparent 52%, rgba(36, 72, 48, 0.16) 100%),
+    rgba(150, 186, 168, 0.08);
+}
+#warmGrade.grade-act3 {
+  background:
+    radial-gradient(ellipse 34% 26% at 46% 74%, rgba(255, 84, 28, 0.26), transparent 58%),
+    radial-gradient(ellipse at center, transparent 38%, rgba(6, 4, 12, 0.55) 100%),
+    rgba(12, 10, 24, 0.3);
+  mix-blend-mode: multiply;
+}
 #warmGrade.arriving {
-  background: rgba(92, 36, 8, 0.62);
+  background: rgba(8, 6, 10, 0.72);
+  mix-blend-mode: normal;
 }
 #warmGrade.proof {
   background:
@@ -230,6 +257,29 @@ button:disabled {
   background: rgba(40, 28, 16, 0.75);
   border-radius: 8px;
   color: #f2ead8;
+  animation: card-settle 0.62s cubic-bezier(0.16, 0.84, 0.24, 1) both;
+}
+.chapter-card:nth-child(2) { animation-delay: 0.06s; }
+.chapter-card:nth-child(3) { animation-delay: 0.12s; }
+.chapter-card:nth-child(4) { animation-delay: 0.18s; }
+.chapter-card:nth-child(5) { animation-delay: 0.24s; }
+@keyframes card-settle {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+.chapter-card.locked { animation-name: card-settle-locked; }
+@keyframes card-settle-locked {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 0.45; transform: none; }
+}
+#chapters.settling { opacity: 0; }
+#chapters.settling.settled { opacity: 1; transition: opacity 0.45s ease; }
+#title.settling { opacity: 0; }
+#title.settling.settled { opacity: 1; transition: opacity 0.5s ease; }
+.end-card { transform: translateY(18px); }
+#title.settled .end-card {
+  transform: none;
+  transition: transform 0.72s cubic-bezier(0.16, 0.84, 0.24, 1);
 }
 .chapter-card .ch-title { font-weight: 700; color: #e8c37a; font-size: 15px; }
 .chapter-card .ch-blurb { font-size: 13px; opacity: 0.85; line-height: 1.4; }

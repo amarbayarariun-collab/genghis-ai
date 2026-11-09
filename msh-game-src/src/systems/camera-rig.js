@@ -79,13 +79,16 @@ export function createCameraRig(camera, opts = {}) {
   /**
    * @param {number} dt
    * @param {THREE.Vector3} focus feet / body focus
-   * @param {{ faceYaw?: number, dialoguePull?: number, frame?: { distance: number, pitch?: number } }} [extra]
+   * @param {{ faceYaw?: number, dialoguePull?: number, frame?: { distance: number, pitch?: number, height?: number } }} [extra]
    */
   function update(dt, focus, extra = {}) {
     dt = Math.min(dt, 0.05);
 
     if (extra.frame) {
       view.distance += (extra.frame.distance - view.distance) * Math.min(1, dt * 1.3);
+      if (extra.frame.height != null) {
+        view.height += (extra.frame.height - view.height) * Math.min(1, dt * 1.1);
+      }
       const quiet = performance.now() - lookedAt > 700;
       if (quiet && extra.frame.pitch != null) {
         view.pitch += (extra.frame.pitch - view.pitch) * Math.min(1, dt * 0.7);
@@ -117,7 +120,7 @@ export function createCameraRig(camera, opts = {}) {
     offset.set(Math.sin(yaw) * cp, Math.sin(pitch) + height * 0.15, Math.cos(yaw) * cp);
     camera.position.set(
       xS.x + offset.x * dist,
-      yS.x + offset.y * dist * 0.55 + height,
+      yS.x + offset.y * dist * 0.55 + view.height,
       zS.x + offset.z * dist
     );
     // Never sink under terrain soft floor

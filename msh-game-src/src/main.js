@@ -215,9 +215,42 @@ function npcsFromWorld(w, id) {
 }
 
 function audioModeFor(id) {
-  if (id === 'taichiud_escape' || id === 'taichiud_ger') return id === 'taichiud_ger' ? 'ger' : 'night';
-  if (id === 'taichiud_river' || id === 'burkhan') return 'dawn';
+  if (id === 'taichiud_ger') return 'ger';
+  if (id === 'taichiud_escape' || id === 'taichiud_capture' || id === 'taichiud_river' || id === 'act3') return 'night';
+  if (id === 'burkhan') return 'ridge';
   return 'day';
+}
+
+function sceneLook(id, x, z) {
+  const blend = (ax, az, near, far, nearD, farD, nearP, farP, nearH, farH) => {
+    const t = THREE.MathUtils.smoothstep(Math.hypot(x - ax, z - az), near, far);
+    return {
+      distance: nearD + t * (farD - nearD),
+      pitch: nearP + t * (farP - nearP),
+      height: nearH + t * (farH - nearH),
+    };
+  };
+  if (id === 'camp') return blend(0.2, -2, 8, 30, 5.2, 8.8, 0.16, 0.3, 1.55, 1.55);
+  if (id === 'burkhan') return blend(0, -10, 7, 26, 7.4, 12.4, 0.1, 0.2, 1.85, 2.25);
+  if (id === 'taichiud_capture') return blend(0, 2, 5, 18, 4.6, 7.4, 0.08, 0.16, 1.4, 1.55);
+  if (id === 'taichiud_escape') return blend(-1, 2, 4, 16, 4.1, 6.4, 0.06, 0.12, 1.28, 1.42);
+  if (id === 'taichiud_river') return blend(0, 0, 4, 18, 5.4, 9.0, 0.08, 0.16, 1.45, 1.7);
+  if (id === 'taichiud_ger') return { distance: 4.1, pitch: 0.07, height: 1.22 };
+  if (id === 'act2') return blend(0, 0, 8, 28, 5.6, 9.6, 0.12, 0.22, 1.6, 1.9);
+  if (id === 'act3') return blend(0, 0, 5, 18, 4.3, 6.6, 0.08, 0.14, 1.35, 1.5);
+  return { distance: 5, pitch: 0.22, height: 1.55 };
+}
+
+function applyGrade(id) {
+  const grade = $('warmGrade');
+  if (!grade) return;
+  grade.classList.remove('grade-camp', 'grade-burkhan', 'grade-taichiud', 'grade-act2', 'grade-act3');
+  const name = id === 'burkhan' ? 'grade-burkhan'
+    : id.startsWith('taichiud') ? 'grade-taichiud'
+    : id === 'act2' ? 'grade-act2'
+    : id === 'act3' ? 'grade-act3'
+    : 'grade-camp';
+  grade.classList.add(name);
 }
 
 function afterCine(id, dialogueNode) {
@@ -282,7 +315,7 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
       const base = id === 'camp' ? quality.motes : Math.max(12, (quality.motes * 0.6) | 0);
       motes = createSteppeMotes(base);
       scene.add(motes.group);
-      motes.setWind?.(0.35, 0.12);
+      motes.setWind?.(id === 'burkhan' ? 1.2 : 0.35, id === 'burkhan' ? 0.46 : 0.12);
     } catch (e) {
       console.warn('[harvest motes]', e);
       motes = null;
@@ -317,13 +350,17 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
 
   audio.setChapter?.(id === 'taichiud_capture' || id === 'taichiud_escape' || id === 'taichiud_river' || id === 'taichiud_ger' ? 'camp' : id);
   audio.setMode?.(audioModeFor(id));
+  audio.setWind?.(id === 'burkhan' ? 1.45 : 1);
+  applyGrade(id);
 
   const groundY = world.heightAt(sp.x, sp.z);
-  cam.view.pitch = id === 'camp' ? 0.28 : 0.22;
-  cam.view.distance = id === 'camp' ? 8.6 : 5.0;
+  const look = sceneLook(id, sp.x, sp.z);
+  cam.view.pitch = look.pitch;
+  cam.view.distance = look.distance;
+  cam.view.height = look.height;
   camera.far = quality.camFar || 420;
   camera.updateProjectionMatrix();
-  cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, 0.22);
+  cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, look.pitch);
 
   if (cinematic) {
     state = 'cine';
@@ -519,7 +556,9 @@ function showTitle() {
   $('hud').classList.add('hidden');
   $('dialogue').classList.add('hidden');
   $('chapters').classList.add('hidden');
-  $('title').classList.remove('hidden');
+  $('chapters').classList.remove('settling', 'settled');
+  const title = $('title');
+  title.classList.remove('hidden', 'settling', 'settled', 'fade-out');
   refreshContinue();
 }
 
@@ -581,8 +620,11 @@ $('continueBtn').onclick = () => {
 };
 $('chaptersBtn').onclick = () => {
   $('title').classList.add('hidden');
-  $('chapters').classList.remove('hidden');
+  const panel = $('chapters');
+  panel.classList.remove('hidden', 'settled');
+  panel.classList.add('settling');
   renderChapterSelect();
+  requestAnimationFrame(() => panel.classList.add('settled'));
   state = 'chapters';
 };
 $('chaptersBack').onclick = () => showTitle();
@@ -750,7 +792,9 @@ function endCard({ eyebrow, title, body, button, onNext, memory }) {
         <button id="nextBtn" type="button">${button}</button>
       </div>
     </div>`;
-  o.classList.remove('hidden');
+  o.classList.remove('hidden', 'settled');
+  o.classList.add('settling');
+  requestAnimationFrame(() => o.classList.add('settled'));
   $('nextBtn').onclick = onNext;
 }
 
@@ -948,12 +992,12 @@ function tick() {
     camera.fov = world.aerialView.fov ?? 45;
     camera.updateProjectionMatrix();
   } else if (state === 'explore' || state === 'dialogue') {
-    let frame = null;
-    if (sceneId === 'camp' && state === 'explore') {
-      const far = THREE.MathUtils.smoothstep(Math.hypot(player.pos.x - 0.2, player.pos.z + 2), 8, 30);
-      frame = { distance: 5.2 + far * 3.6, pitch: 0.16 + far * 0.14 };
-    }
-    cam.update(dt, player.pos, { faceYaw, dialoguePull: faceYaw != null ? 3.2 : 0, frame });
+    const look = state === 'explore' ? sceneLook(sceneId, player.pos.x, player.pos.z) : null;
+    cam.update(dt, player.pos, {
+      faceYaw,
+      dialoguePull: faceYaw != null ? 3.2 : 0,
+      frame: look,
+    });
   }
 
   harvestMist?.update?.(dt, camera, renderer);
