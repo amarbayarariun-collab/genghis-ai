@@ -319,8 +319,8 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
   audio.setMode?.(audioModeFor(id));
 
   const groundY = world.heightAt(sp.x, sp.z);
-  cam.view.pitch = 0.22;
-  cam.view.distance = id === 'camp' ? 6.2 : 5.0;
+  cam.view.pitch = id === 'camp' ? 0.28 : 0.22;
+  cam.view.distance = id === 'camp' ? 8.6 : 5.0;
   camera.far = quality.camFar || 420;
   camera.updateProjectionMatrix();
   cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, 0.22);
@@ -540,7 +540,8 @@ function renderChapterSelect() {
     const unlocked = save.unlocked.includes(ch.id) || ch.id === 'camp';
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'chapter-card' + (unlocked ? '' : ' locked');
+    const here = save.lastChapter === ch.id;
+    b.className = 'chapter-card' + (unlocked ? '' : ' locked') + (here ? ' here' : '');
     b.disabled = !unlocked;
     b.innerHTML = `<span class="ch-title">${ch.title}</span><span class="ch-blurb">${ch.blurb}</span><span class="ch-src">${ch.source}</span>`;
     b.onclick = () => {
@@ -723,6 +724,15 @@ function btn(label, fn) {
   return b;
 }
 
+function presentChapter(card) {
+  audio.duck?.(0.35, 0.5);
+  $('warmGrade')?.classList.add('arriving');
+  setTimeout(() => {
+    $('warmGrade')?.classList.remove('arriving');
+    endCard(card);
+  }, 420);
+}
+
 function endCard({ eyebrow, title, body, button, onNext, memory }) {
   state = 'end';
   $('dialogue').classList.add('hidden');
@@ -746,7 +756,7 @@ function endCard({ eyebrow, title, body, button, onNext, memory }) {
 
 function endCampSlice() {
   save = unlockNext('camp', CHAPTER_ORDER);
-  endCard({
+  presentChapter({
     eyebrow: 'Бүлэг дууслаа',
     title: 'Өнчин өдрүүд',
     body: NEXT_TEASER,
@@ -756,7 +766,7 @@ function endCampSlice() {
 }
 function endBurkhanSlice() {
   save = unlockNext('burkhan', CHAPTER_ORDER);
-  endCard({
+  presentChapter({
     eyebrow: 'Бүлэг дууслаа',
     title: 'Бурхан халдун',
     body: TAICHIUD_TEASER,
@@ -766,7 +776,7 @@ function endBurkhanSlice() {
 }
 function endTaichiudSlice() {
   save = unlockNext('taichiud', CHAPTER_ORDER);
-  endCard({
+  presentChapter({
     eyebrow: 'Бүлэг дууслаа',
     title: 'Тайчууд · чөлөөлөлт',
     body: ACT2_TEASER,
@@ -776,7 +786,7 @@ function endTaichiudSlice() {
 }
 function endAct2Slice() {
   save = unlockNext('act2', CHAPTER_ORDER);
-  endCard({
+  presentChapter({
     eyebrow: 'Бүлэг дууслаа',
     title: 'Боорчи · Бөртэ',
     body: ACT3_TEASER,
@@ -786,7 +796,7 @@ function endAct2Slice() {
 }
 function endAct3Slice() {
   save = unlockNext('act3', CHAPTER_ORDER);
-  endCard({
+  presentChapter({
     eyebrow: 'Тоглоом дууслаа',
     title: 'Чингис',
     body: MVP_DONE,
@@ -938,7 +948,12 @@ function tick() {
     camera.fov = world.aerialView.fov ?? 45;
     camera.updateProjectionMatrix();
   } else if (state === 'explore' || state === 'dialogue') {
-    cam.update(dt, player.pos, { faceYaw, dialoguePull: faceYaw != null ? 3.2 : 0 });
+    let frame = null;
+    if (sceneId === 'camp' && state === 'explore') {
+      const far = THREE.MathUtils.smoothstep(Math.hypot(player.pos.x - 0.2, player.pos.z + 2), 8, 30);
+      frame = { distance: 5.2 + far * 3.6, pitch: 0.16 + far * 0.14 };
+    }
+    cam.update(dt, player.pos, { faceYaw, dialoguePull: faceYaw != null ? 3.2 : 0, frame });
   }
 
   harvestMist?.update?.(dt, camera, renderer);
@@ -972,6 +987,7 @@ window.__mshPerf = () => {
 };
 window.__mshPlayer = () => ({
   x: player.pos.x, y: player.pos.y, z: player.pos.z, yaw: player.yaw, scene: sceneId, state,
+  distance: cam.view.distance, pitch: cam.view.pitch,
 });
 window.__mshMotion = () => ({
   hoelunYaw: world?.hoelun?.rotation?.y ?? null,

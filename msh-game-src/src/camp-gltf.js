@@ -191,7 +191,7 @@ function swayGrass(mat, windMats) {
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-        float wind = sin(uTime * 1.7 + position.x * 2.4 + position.z * 1.7) * 0.22 * position.y;
+        float wind = sin(uTime * 1.6 + position.x * 2.1 + position.z * 1.5) * 0.34 * position.y;
         transformed.x += wind;
         transformed.z += wind * 0.35;`
       );

@@ -18,10 +18,10 @@ export function buildWorld(scene, opts = {}) {
   const skyGeo = new THREE.SphereGeometry(320, 32, 20);
   const skyMat = new THREE.ShaderMaterial({
     uniforms: {
-      top: { value: new THREE.Color('#8ea8b4') },
-      mid: { value: new THREE.Color('#d2c09a') },
-      horizon: { value: new THREE.Color('#f3e4c4') },
-      bottom: { value: new THREE.Color('#c4b08a') },
+      top: { value: new THREE.Color('#c46a48') },
+      mid: { value: new THREE.Color('#e7a15a') },
+      horizon: { value: new THREE.Color('#ffe0b0') },
+      bottom: { value: new THREE.Color('#b88858') },
     },
     vertexShader: `varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
     fragmentShader: `
@@ -38,11 +38,11 @@ export function buildWorld(scene, opts = {}) {
     depthWrite: false,
   });
   scene.add(new THREE.Mesh(skyGeo, skyMat));
-  scene.background = new THREE.Color('#e6d7b8');
-  scene.fog = new THREE.FogExp2('#e4d4b4', 0.0048 * (q.fogDensityScale ?? 1));
+  scene.background = new THREE.Color('#e7c08a');
+  scene.fog = new THREE.FogExp2('#e8c49a', 0.0054 * (q.fogDensityScale ?? 1));
 
-  scene.add(new THREE.HemisphereLight('#f4efe4', '#6d6840', 0.72));
-  const sun = new THREE.DirectionalLight('#ffe0b0', 2.35);
+  scene.add(new THREE.HemisphereLight('#ffe6c4', '#6a5430', 0.78));
+  const sun = new THREE.DirectionalLight('#ffc27a', 2.45);
   sun.position.set(18, 26, 22);
   sun.target.position.set(0, 0, -3);
   scene.add(sun.target);
@@ -89,7 +89,7 @@ export function buildWorld(scene, opts = {}) {
   const camp = attachCamp(scene, { shadows: shadowsOn, colliders });
   const heightAt = (x, z) => camp.heightAt(x, z);
 
-  const N = doDustBits ? 160 : 0;
+  const N = doDustBits ? 160 : 72;
   const dGeo = new THREE.BufferGeometry();
   const arr = new Float32Array(Math.max(1, N) * 3);
   for (let i = 0; i < N; i++) {
@@ -251,7 +251,7 @@ export function buildWorld(scene, opts = {}) {
       if (tug) tugBase.copy(tug.quaternion);
     }
     if (tug) {
-      tugSwing.setFromAxisAngle(tugAxis, Math.sin(t * 1.5) * 0.16);
+      tugSwing.setFromAxisAngle(tugAxis, Math.sin(t * 1.35) * 0.22);
       tug.quaternion.copy(tugBase).multiply(tugSwing);
     }
     camp.wind?.(t);

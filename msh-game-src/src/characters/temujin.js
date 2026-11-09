@@ -27,9 +27,9 @@ export function createTemujin() {
     const walking = sp > 0.08;
     const g = THREE.MathUtils.clamp(sp / 3.4, 0, 1);
     phase += dt * (walking ? 2.6 + sp * 1.7 : 1.35);
-    const bob = walking ? Math.abs(Math.sin(phase)) * 0.14 * Math.max(g, 0.55) : Math.sin(phase) * 0.028;
+    const bob = walking ? Math.abs(Math.sin(phase)) * 0.14 * Math.max(g, 0.55) : Math.sin(phase) * 0.04;
     node.position.y = baseY + bob;
-    node.rotation.z = Math.sin(phase) * (walking ? 0.22 : 0.04) * Math.max(g, walking ? 0.55 : 1);
+    node.rotation.z = Math.sin(phase) * (walking ? 0.22 : 0.055) * Math.max(g, walking ? 0.55 : 1);
     const climb = THREE.MathUtils.clamp(slope / 0.7, -0.35, 0.35);
     node.rotation.x = (walking ? 0.16 + Math.sin(phase * 2) * 0.18 * Math.max(g, 0.55) : Math.sin(phase * 0.5) * 0.035) + climb;
   };

@@ -54,7 +54,9 @@ export function createCameraRig(camera, opts = {}) {
   const lookAt = new THREE.Vector3();
   const offset = new THREE.Vector3();
 
+  let lookedAt = 0;
   function lookDelta(dx, dy) {
+    lookedAt = performance.now();
     view.yaw -= dx * 0.0025 * lookSens; // Walden mouse scale
     view.pitch = THREE.MathUtils.clamp(
       view.pitch + dy * 0.002 * lookSens,
@@ -77,10 +79,18 @@ export function createCameraRig(camera, opts = {}) {
   /**
    * @param {number} dt
    * @param {THREE.Vector3} focus feet / body focus
-   * @param {{ faceYaw?: number, dialoguePull?: number }} [extra]
+   * @param {{ faceYaw?: number, dialoguePull?: number, frame?: { distance: number, pitch?: number } }} [extra]
    */
   function update(dt, focus, extra = {}) {
     dt = Math.min(dt, 0.05);
+
+    if (extra.frame) {
+      view.distance += (extra.frame.distance - view.distance) * Math.min(1, dt * 1.3);
+      const quiet = performance.now() - lookedAt > 700;
+      if (quiet && extra.frame.pitch != null) {
+        view.pitch += (extra.frame.pitch - view.pitch) * Math.min(1, dt * 0.7);
+      }
+    }
 
     if (extra.faceYaw != null && extra.dialoguePull) {
       let dy = wrapPi(extra.faceYaw - view.yaw);
