@@ -8,6 +8,22 @@ const HOELUN_AT = { x: 0.8, z: 2.8 };
 const CHIRHA_AT = { x: -7.6, z: 4.2 };
 const FIRE_AT = { x: -4.6, z: -2.6 };
 
+function smokePuff() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const g = canvas.getContext('2d');
+  const grd = g.createRadialGradient(32, 32, 2, 32, 32, 30);
+  grd.addColorStop(0, 'rgba(255,248,240,0.9)');
+  grd.addColorStop(0.45, 'rgba(236,226,210,0.28)');
+  grd.addColorStop(1, 'rgba(236,226,210,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
 export function buildWorld(scene, opts = {}) {
   const q = opts.quality || {};
   const cloudN = q.clouds ?? 8;
@@ -170,30 +186,54 @@ export function buildWorld(scene, opts = {}) {
     console.info('[camp] spawn', JSON.stringify({ x: 0.4, y: Math.round(spawnY * 100) / 100, z: 28, gers: info.report.gers }));
   });
 
-  const SMOKE_N = 32;
+  const SMOKE_N = 16;
   const smokeGeo = new THREE.BufferGeometry();
   const smokeArr = new Float32Array(SMOKE_N * 3);
   const smokeAge = new Float32Array(SMOKE_N);
-  const smokeSources = [
-    [FIRE_AT.x, FIRE_AT.z, 0.4],
-    [0, -5, 3.2],
-    [-8, -2, 2.8],
-    [7, -3, 2.9],
-  ];
+  const smokeAt = [FIRE_AT.x, FIRE_AT.z, 0.45];
   for (let i = 0; i < SMOKE_N; i++) {
-    const src = smokeSources[i % smokeSources.length];
-    smokeArr[i * 3] = src[0];
-    smokeArr[i * 3 + 1] = src[2];
-    smokeArr[i * 3 + 2] = src[1];
+    smokeArr[i * 3] = smokeAt[0];
+    smokeArr[i * 3 + 1] = smokeAt[2];
+    smokeArr[i * 3 + 2] = smokeAt[1];
     smokeAge[i] = Math.random();
   }
   smokeGeo.setAttribute('position', new THREE.BufferAttribute(smokeArr, 3));
-  scene.add(new THREE.Points(
-    smokeGeo,
-    new THREE.PointsMaterial({ color: '#efe6da', size: 1.35, transparent: true, opacity: 0.55, depthWrite: false, sizeAttenuation: true })
-  ));
+  smokeGeo.setAttribute('aAge', new THREE.BufferAttribute(smokeAge, 1));
+  const smokeTex = smokePuff();
+  const smoke = new THREE.Points(smokeGeo, new THREE.ShaderMaterial({
+    uniforms: {
+      map: { value: smokeTex },
+      uColor: { value: new THREE.Color('#e7dccb') },
+    },
+    vertexShader: `
+      attribute float aAge;
+      varying float vAge;
+      void main() {
+        vAge = aAge;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = clamp(210.0 * (0.28 + aAge * 0.9) / max(0.2, -mv.z), 2.0, 42.0);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform sampler2D map;
+      uniform vec3 uColor;
+      varying float vAge;
+      void main() {
+        float puff = texture2D(map, gl_PointCoord).a;
+        float fade = sin(vAge * 3.14159);
+        if (puff * fade < 0.02) discard;
+        gl_FragColor = vec4(uColor, puff * fade * 0.42);
+      }`,
+    transparent: true,
+    depthWrite: false,
+    fog: false,
+  }));
+  smoke.frustumCulled = false;
+  smoke.renderOrder = 2;
+  scene.add(smoke);
 
   let tug = null;
+  let tugBanner = null;
   const tugBase = new THREE.Quaternion();
   const tugSwing = new THREE.Quaternion();
   const tugAxis = new THREE.Vector3(0, 0, 1);
@@ -233,26 +273,43 @@ export function buildWorld(scene, opts = {}) {
     }
 
     const sp = smokeGeo.attributes.position;
+    const ages = smokeGeo.attributes.aAge;
     for (let i = 0; i < SMOKE_N; i++) {
-      smokeAge[i] += dt * 0.28;
+      smokeAge[i] += dt * 0.22;
       if (smokeAge[i] > 1) smokeAge[i] = 0;
       const a = smokeAge[i];
-      const src = smokeSources[i % smokeSources.length];
-      sp.setX(i, src[0] + Math.sin(t * 1.4 + i) * 0.18 * a);
-      sp.setY(i, src[2] + a * 2.4);
-      sp.setZ(i, src[1] + Math.cos(t * 1.1 + i) * 0.18 * a);
+      ages.setX(i, a);
+      sp.setX(i, smokeAt[0] + Math.sin(t * 0.7 + i * 1.7) * 0.42 * a);
+      sp.setY(i, smokeAt[2] + 0.2 + a * 1.55);
+      sp.setZ(i, smokeAt[1] + Math.cos(t * 0.6 + i) * 0.32 * a);
     }
     sp.needsUpdate = true;
+    ages.needsUpdate = true;
 
     if (!tug) {
       scene.traverse((o) => {
         if (!tug && o.name && o.name.startsWith('tug_placement')) tug = o;
       });
-      if (tug) tugBase.copy(tug.quaternion);
+      if (tug) {
+        tugBase.copy(tug.quaternion);
+        tug.traverse((o) => {
+          if (!o.isMesh) return;
+          const mats = Array.isArray(o.material) ? o.material : [o.material];
+          if (mats.some((m) => /horsehair/i.test(m?.name || ''))) o.visible = false;
+        });
+        tugBanner = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.58, 0.82),
+          new THREE.MeshLambertMaterial({ color: '#8d1c24', side: THREE.DoubleSide })
+        );
+        tugBanner.name = 'tug-banner';
+        tugBanner.position.set(0.3, 2.48, 0);
+        tug.add(tugBanner);
+      }
     }
     if (tug) {
-      tugSwing.setFromAxisAngle(tugAxis, Math.sin(t * 1.35) * 0.22);
+      tugSwing.setFromAxisAngle(tugAxis, Math.sin(t * 1.1) * 0.05);
       tug.quaternion.copy(tugBase).multiply(tugSwing);
+      if (tugBanner) tugBanner.rotation.y = Math.sin(t * 1.4) * 0.22;
     }
     camp.wind?.(t);
 
