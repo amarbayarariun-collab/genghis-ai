@@ -19,15 +19,15 @@ export function skyDome({ top, mid, horizon, bottom }, radius = 300) {
       void main(){
         float h = normalize(vPos).y;
         vec3 c;
-        if (h > 0.2) c = mix(mid, top, pow((h-0.2)/0.8, 0.65));
-        else if (h > 0.0) c = mix(horizon, mid, h/0.2);
-        else c = mix(horizon, bottom, pow(-h, 0.55));
+        if (h > 0.045) c = mix(mid, top, pow(clamp((h - 0.045) / 0.35, 0.0, 1.0), 0.55));
+        else if (h > -0.01) c = mix(horizon, mid, clamp((h + 0.01) / 0.055, 0.0, 1.0));
+        else c = mix(bottom, horizon, pow(clamp((-h - 0.01) / 0.25, 0.0, 1.0), 0.8));
         gl_FragColor = vec4(c, 1.0);
       }`,
     side: THREE.BackSide,
     depthWrite: false,
   });
-  return new THREE.Mesh(new THREE.SphereGeometry(radius, 28, 18), mat);
+  return new THREE.Mesh(new THREE.SphereGeometry(Math.min(radius, 150), 28, 18), mat);
 }
 
 export function person({ deel = '#8a1a22', hat = '#3a2818', fur = '#e2d0b0', skin = '#c48a5e', tall = 1 } = {}) {
@@ -185,15 +185,15 @@ export function campfire(scene, x, z, heightAt, lights = true) {
 
 export function moonDisc(scene, pos = [-60, 70, -40]) {
   const moon = new THREE.Mesh(
-    new THREE.CircleGeometry(9, 24),
-    new THREE.MeshBasicMaterial({ color: '#e8eef8', fog: false })
+    new THREE.CircleGeometry(2.6, 24),
+    new THREE.MeshBasicMaterial({ color: '#f2f6ff', fog: false })
   );
   moon.position.set(...pos);
   moon.lookAt(0, 10, 0);
   scene.add(moon);
   const glow = new THREE.Mesh(
-    new THREE.CircleGeometry(14, 24),
-    new THREE.MeshBasicMaterial({ color: '#a8b8d8', transparent: true, opacity: 0.2, fog: false, depthWrite: false })
+    new THREE.CircleGeometry(4.2, 24),
+    new THREE.MeshBasicMaterial({ color: '#9aafd4', transparent: true, opacity: 0.16, fog: false, depthWrite: false })
   );
   glow.position.copy(moon.position);
   glow.lookAt(0, 10, 0);

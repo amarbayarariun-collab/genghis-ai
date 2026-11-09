@@ -39,7 +39,7 @@ export function buildWorld(scene, opts = {}) {
   });
   scene.add(new THREE.Mesh(skyGeo, skyMat));
   scene.background = new THREE.Color('#e7c08a');
-  scene.fog = new THREE.FogExp2('#e8c49a', 0.0054 * (q.fogDensityScale ?? 1));
+  scene.fog = new THREE.FogExp2('#f0ddc0', 0.0016 * (q.fogDensityScale ?? 1));
 
   scene.add(new THREE.HemisphereLight('#ffe6c4', '#6a5430', 0.78));
   const sun = new THREE.DirectionalLight('#ffc27a', 2.45);

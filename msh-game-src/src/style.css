@@ -18,9 +18,8 @@ html, body {
   pointer-events: none;
   z-index: 4;
   background:
-    radial-gradient(ellipse 46% 38% at 78% 18%, rgba(255, 186, 90, 0.34), transparent 62%),
-    radial-gradient(ellipse at center, transparent 48%, rgba(120, 48, 12, 0.18) 100%),
-    rgba(210, 120, 48, 0.12);
+    radial-gradient(ellipse 34% 26% at 84% 10%, rgba(255, 196, 110, 0.2), transparent 62%),
+    radial-gradient(ellipse at center, transparent 70%, rgba(90, 40, 12, 0.08) 100%);
   mix-blend-mode: soft-light;
   transition: background 0.45s ease;
 }

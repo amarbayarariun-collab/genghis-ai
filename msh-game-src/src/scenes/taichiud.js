@@ -19,6 +19,7 @@ function banner(x, z, heightAt, color = '#8a1a22') {
 
 /** 1 — Capture march: Targutai leads bound Temüjin at sunset. */
 export function buildTaichiudCapture(scene) {
+  scene.background = new THREE.Color('#0c1428');
   scene.add(skyDome({ top: '#0c1428', mid: '#24365c', horizon: '#c45a28', bottom: '#120c0a' }));
   scene.fog = new THREE.FogExp2('#1a140e', 0.012);
   scene.add(new THREE.HemisphereLight('#6a7898', '#1a100c', 0.32));
@@ -104,7 +105,8 @@ export function buildTaichiudCapture(scene) {
 
 /** 2 — Cangue night stealth escape. */
 export function buildTaichiudEscape(scene) {
-  scene.add(skyDome({ top: '#07101f', mid: '#15243c', horizon: '#6a3a22', bottom: '#0c1014' }));
+  scene.background = new THREE.Color('#050814');
+  scene.add(skyDome({ top: '#050814', mid: '#10182c', horizon: '#e08a48', bottom: '#080a10' }));
   scene.fog = new THREE.FogExp2('#101820', 0.015);
   scene.add(new THREE.HemisphereLight('#7a8cb0', '#140c08', 0.28));
   const moonLight = new THREE.DirectionalLight('#c5d4f2', 0.62);
@@ -219,6 +221,7 @@ export function buildTaichiudEscape(scene) {
 
 /** 3 — Onon reeds dawn; Sorkan-Shira finds Temüjin. */
 export function buildTaichiudRiver(scene) {
+  scene.background = new THREE.Color('#0a1428');
   scene.add(skyDome({ top: '#0a1428', mid: '#1a3050', horizon: '#8a5a38', bottom: '#101810' }));
   scene.fog = new THREE.FogExp2('#16202c', 0.013);
   scene.add(new THREE.HemisphereLight('#7a90b0', '#1a140e', 0.38));
@@ -309,6 +312,7 @@ export function buildTaichiudRiver(scene) {
 /** 4 — Inside Sorkan-Shira ger at night (wool cart beat). */
 export function buildTaichiudGer(scene) {
   // Interior-ish: dark outside dome + lit ger volume
+  scene.background = new THREE.Color('#050810');
   scene.add(skyDome({ top: '#050810', mid: '#0a1020', horizon: '#121828', bottom: '#08060a' }));
   scene.fog = new THREE.FogExp2('#0a0c12', 0.04);
   scene.add(new THREE.HemisphereLight('#332818', '#050408', 0.25));

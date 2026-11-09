@@ -142,10 +142,10 @@ function paintSteppe(terrain) {
   const geo = terrain.geometry;
   const pos = geo.attributes.position;
   const col = new Float32Array(pos.count * 3);
-  const low = new THREE.Color('#6a6e32');
-  const mid = new THREE.Color('#b7a45c');
-  const high = new THREE.Color('#d2c48a');
-  const dirt = new THREE.Color('#8d7344');
+  const low = new THREE.Color('#6f8a3c');
+  const mid = new THREE.Color('#c2a85a');
+  const high = new THREE.Color('#d8c898');
+  const dirt = new THREE.Color('#8a7040');
   const c = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
@@ -154,7 +154,7 @@ function paintSteppe(terrain) {
     const t = THREE.MathUtils.clamp(y / 16, 0, 1);
     const n = (Math.sin(x * 0.07 + z * 0.04) * Math.cos(z * 0.06) + 1) * 0.5;
     c.copy(low).lerp(mid, t * 0.65 + n * 0.2).lerp(high, t * t * 0.55);
-    if (y < 0.35) c.lerp(dirt, 0.22);
+    if (y < 0.35) c.lerp(dirt, 0.1);
     col[i * 3] = c.r;
     col[i * 3 + 1] = c.g;
     col[i * 3 + 2] = c.b;
@@ -173,6 +173,17 @@ function soften(m) {
   if (!m) return;
   if ('metalness' in m && m.metalness > 0.2) m.metalness = 0.12;
   if ('roughness' in m && m.roughness < 0.45) m.roughness = 0.62;
+}
+
+function tintGrass(mat) {
+  if (Array.isArray(mat)) {
+    mat.forEach(tintGrass);
+    return;
+  }
+  if (!mat?.color) return;
+  mat.color.set('#7d9338');
+  if (mat.emissive) mat.emissive.set('#000000');
+  mat.needsUpdate = true;
 }
 
 function swayGrass(mat, windMats) {
@@ -208,6 +219,7 @@ function instanceGrass(root, grasses, windMats) {
     buckets.get(key).push(mesh);
   }
   for (const group of buckets.values()) {
+    tintGrass(group[0].material);
     swayGrass(group[0].material, windMats);
     const inst = new THREE.InstancedMesh(group[0].geometry, group[0].material, group.length);
     inst.name = 'camp-grass';

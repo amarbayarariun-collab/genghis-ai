@@ -230,7 +230,7 @@ function sceneLook(id, x, z) {
       height: nearH + t * (farH - nearH),
     };
   };
-  if (id === 'camp') return blend(0.2, -2, 8, 30, 5.2, 8.8, 0.16, 0.3, 1.55, 1.55);
+  if (id === 'camp') return blend(0.2, -2, 6, 28, 3.6, 8.8, 0.18, 0.3, 1.32, 1.7);
   if (id === 'burkhan') return blend(0, -10, 7, 26, 7.4, 12.4, 0.1, 0.2, 1.85, 2.25);
   if (id === 'taichiud_capture') return blend(0, 2, 5, 18, 4.6, 7.4, 0.08, 0.16, 1.4, 1.55);
   if (id === 'taichiud_escape') return blend(-1, 2, 4, 16, 4.1, 6.4, 0.06, 0.12, 1.28, 1.42);
@@ -379,7 +379,13 @@ function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false }
     state = 'cine';
     $('hud').classList.remove('hidden');
     $('dialogue').classList.add('hidden');
-    const play = settlePlayCamera(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw);
+    // Wide shot still starts in the air. Control begins on the path, close to the nearest ger.
+    const standZ = 5.2;
+    const standY = world.heightAt(sp.x, standZ);
+    player.pos.set(sp.x, standY, standZ);
+    player.yaw = 0.04;
+    if (world.temujin) world.temujin.position.set(sp.x, standY, standZ);
+    const play = settlePlayCamera(player.pos, player.yaw);
     const aerial = world.aerialView;
     pathCine.setPath({
       positions: [
@@ -389,7 +395,7 @@ function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false }
       ],
       targets: [
         [aerial.look.x, aerial.look.y, aerial.look.z],
-        [sp.x, groundY + 1.6, sp.z - 14],
+        [sp.x, standY + 1.5, standZ - 6],
         [play.lookAt.x, play.lookAt.y, play.lookAt.z],
       ],
       duration: 2.4,
@@ -407,7 +413,9 @@ function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false }
       onDone: () => {
         camera.fov = 62;
         camera.updateProjectionMatrix();
-        settlePlayCamera(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw);
+        player.pos.set(sp.x, standY, standZ);
+        player.yaw = 0.04;
+        settlePlayCamera(player.pos, player.yaw);
         activeCine = null;
         state = 'explore';
       },
