@@ -36,7 +36,6 @@ export function createHoelun() {
         group.remove(placeholder.root);
         group.add(model);
         // hoelun.glb has no skeleton and no clips. Idle is a breath; facing is the group yaw.
-        const baseScale = model.scale.x;
         const baseY = model.position.y;
         // Close-up check: the sculpt's face is local +Z. Yaw 0 looks down the south path.
         const homeYaw = 0;
@@ -50,9 +49,11 @@ export function createHoelun() {
         group.userData.update = (t, lookAt, dt = 0.016) => {
           if (mixer && last != null) mixer.update(Math.min(0.05, t - last));
           last = t;
-          model.scale.set(baseScale, baseScale * (1 + Math.sin(t * 1.7) * 0.018), baseScale);
-          model.position.y = baseY + Math.sin(t * 1.5) * 0.025;
-          model.rotation.z = Math.sin(t * 1.15) * 0.035;
+          // Feet stay on the planted origin. Weight is a small lean, not a lift.
+          model.position.y = baseY;
+          model.rotation.y = 0;
+          model.rotation.x = Math.sin(t * 1.15) * (group.userData.talking ? 0.028 : 0.012);
+          model.rotation.z = Math.sin(t * 0.8) * 0.018;
           const step = Math.min(1, dt * (group.userData.talking ? 5 : 2.4));
           if (lookAt) {
             const dx = lookAt.x - group.position.x;

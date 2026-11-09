@@ -276,7 +276,20 @@ function disposeHarvestFx() {
   dust = null;
 }
 
-function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
+function settlePlayCamera(pos, yaw) {
+  const look = sceneLook(sceneId, pos.x, pos.z);
+  cam.view.pitch = look.pitch;
+  cam.view.distance = look.distance;
+  cam.view.height = look.height;
+  cam.snapTo(pos, yaw, look.pitch);
+  cam.update(1 / 30, pos, { frame: look });
+  return {
+    eye: camera.position.clone(),
+    lookAt: new THREE.Vector3(pos.x, pos.y + 1.35, pos.z),
+  };
+}
+
+function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false } = {}) {
   disposeHarvestFx();
   clearScene();
   activeCine = null;
@@ -362,7 +375,45 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
   camera.updateProjectionMatrix();
   cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, look.pitch);
 
-  if (cinematic) {
+  if (arrive && id === 'camp' && world.aerialView) {
+    state = 'cine';
+    $('hud').classList.remove('hidden');
+    $('dialogue').classList.add('hidden');
+    const play = settlePlayCamera(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw);
+    const aerial = world.aerialView;
+    pathCine.setPath({
+      positions: [
+        [aerial.eye.x, aerial.eye.y, aerial.eye.z],
+        [(aerial.eye.x + play.eye.x) * 0.5, aerial.eye.y * 0.42 + 5, (aerial.eye.z + play.eye.z) * 0.5],
+        [play.eye.x, play.eye.y, play.eye.z],
+      ],
+      targets: [
+        [aerial.look.x, aerial.look.y, aerial.look.z],
+        [sp.x, groundY + 1.6, sp.z - 14],
+        [play.lookAt.x, play.lookAt.y, play.lookAt.z],
+      ],
+      duration: 2.4,
+      fov: 50,
+      closed: false,
+      entry: 0.35,
+    });
+    camera.position.copy(aerial.eye);
+    camera.lookAt(aerial.look);
+    camera.fov = 48;
+    camera.updateProjectionMatrix();
+    pathCine.start({
+      from: aerial.eye,
+      lookingAt: aerial.look,
+      onDone: () => {
+        camera.fov = 62;
+        camera.updateProjectionMatrix();
+        settlePlayCamera(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw);
+        activeCine = null;
+        state = 'explore';
+      },
+    });
+    activeCine = pathCine;
+  } else if (cinematic) {
     state = 'cine';
     $('hud').classList.remove('hidden');
     $('dialogue').classList.add('hidden');
@@ -593,7 +644,7 @@ function renderChapterSelect() {
   }
 }
 
-function beginCamp({ cinematic, dialogueNode }) {
+function beginCamp({ cinematic, dialogueNode, arrive = false }) {
   audio.unlock();
   writeSave({ unlocked: ['camp'], lastChapter: 'camp', flags: {}, quality: qualityId });
   save = loadSave();
@@ -604,12 +655,12 @@ function beginCamp({ cinematic, dialogueNode }) {
     title.classList.remove('fade-out');
     $('hud').classList.remove('hidden');
     $('chapter').textContent = dialogueNode ? '0 бүлэг · Удиртгал' : 'I бүлэг · Өнчин өдрүүд';
-    loadScene('camp', { cinematic, dialogueNode });
+    loadScene('camp', { cinematic, dialogueNode, arrive });
   }, 200);
 }
 $('fastPlayBtn').onclick = () => {
   setQuality('low', { manual: true, reloadScene: false });
-  beginCamp({ cinematic: false, dialogueNode: null });
+  beginCamp({ cinematic: false, dialogueNode: null, arrive: true });
 };
 $('startBtn').onclick = () => beginCamp({ cinematic: true, dialogueNode: 'intro0' });
 $('continueBtn').onclick = () => {
@@ -912,6 +963,14 @@ function tick() {
 
   if (state === 'cine') {
     activeCine?.update?.(dt);
+    if (world?.update) {
+      const gy = world.heightAt?.(player.pos.x, player.pos.z);
+      if (world.temujin && gy != null) {
+        player.pos.y = gy;
+        world.temujin.position.set(player.pos.x, gy, player.pos.z);
+      }
+      world.update(dt, t, null, player.pos, false);
+    }
     harvestMist?.update?.(dt, camera, renderer);
     motes?.update?.(dt, camera);
     birds?.update?.(dt, t, player.pos);
@@ -1032,6 +1091,7 @@ window.__mshPerf = () => {
 window.__mshPlayer = () => ({
   x: player.pos.x, y: player.pos.y, z: player.pos.z, yaw: player.yaw, scene: sceneId, state,
   distance: cam.view.distance, pitch: cam.view.pitch,
+  camY: camera.position.y, camZ: camera.position.z,
 });
 window.__mshMotion = () => ({
   hoelunYaw: world?.hoelun?.rotation?.y ?? null,

@@ -26,12 +26,16 @@ export function createTemujin() {
     const sp = moving ? speed : 0;
     const walking = sp > 0.08;
     const g = THREE.MathUtils.clamp(sp / 3.4, 0, 1);
-    phase += dt * (walking ? 2.6 + sp * 1.7 : 1.35);
-    const bob = walking ? Math.abs(Math.sin(phase)) * 0.14 * Math.max(g, 0.55) : Math.sin(phase) * 0.04;
-    node.position.y = baseY + bob;
-    node.rotation.z = Math.sin(phase) * (walking ? 0.22 : 0.055) * Math.max(g, walking ? 0.55 : 1);
-    const climb = THREE.MathUtils.clamp(slope / 0.7, -0.35, 0.35);
-    node.rotation.x = (walking ? 0.16 + Math.sin(phase * 2) * 0.18 * Math.max(g, 0.55) : Math.sin(phase * 0.5) * 0.035) + climb;
+    // One sway is two steps. Pivot stays at the planted feet, so Y never leaves baseY.
+    phase += dt * (walking ? 6.2 + sp * 1.35 : 1.15);
+    const sway = Math.sin(phase);
+    const step = Math.sin(phase * 2);
+    node.position.y = baseY;
+    const lean = walking ? 0.055 * Math.max(g, 0.45) : 0.016;
+    node.rotation.z = sway * lean;
+    const climb = THREE.MathUtils.clamp(slope / 1.6, -0.1, 0.1);
+    node.rotation.x = (walking ? step * 0.04 * Math.max(g, 0.45) : Math.sin(phase * 0.5) * 0.012) + climb;
+    node.rotation.y = 0;
   };
   group.userData.update = (dt, t) => {
     placeholder.update(dt, t, moving ? speed : 0);
