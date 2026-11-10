@@ -48,11 +48,19 @@ Any OpenAI-compatible base URL works via `OPENAI_BASE_URL` (e.g. Azure OpenAI pr
 - Streaming assistant replies
 - Mock fallback without secrets
 
+## Mongolian LLM roadmap
+
+Longer-term path to an independent Mongolian model (fine-tune → continued pretraining → own model), datasets/licences, GPU cost ballparks, eval, app cutover, and MNT monetisation notes:
+
+→ [`docs/ROADMAP-mongolian-llm.md`](docs/ROADMAP-mongolian-llm.md)
+
+ML training scripts (Phase 1, run later on a rented GPU) will live under `ml/` when merged.
+
 ## Out of scope (for now)
 
 - Auth / accounts
 - Database persistence
-- File uploads, tools, voice
+- Payment integration (see roadmap monetisation section)
 - Marketing-only landing page
 
 ## Scripts
