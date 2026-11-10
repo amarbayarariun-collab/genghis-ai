@@ -2,6 +2,7 @@ import {
   resolveImageApiConfig,
   sanitizeApiError,
 } from "@/lib/api-config";
+import { trackSignedInMessage } from "@/lib/usage/track";
 
 export async function POST(request: Request) {
   let body: { prompt?: string };
@@ -18,6 +19,8 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+
+  await trackSignedInMessage();
 
   const config = resolveImageApiConfig();
   if (!config) {
