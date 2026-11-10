@@ -9,9 +9,9 @@ const SPEEDS = {
 };
 
 const TUNE = {
-  accel: 11,
+  accel: 14,
   deceler: 22,
-  grip: 18, // Sumiro ~26; slightly softer for steppe
+  grip: 22, // steppe grip: reaches the wish speed without a skate slide
   turnBlend: 14,
 };
 
