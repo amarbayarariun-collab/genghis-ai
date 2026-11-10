@@ -43,11 +43,24 @@ export function createHoelun(opts = {}) {
         // Close-up check: the sculpt's face is local +Z. Yaw 0 looks down the south path.
         const homeYaw = 0;
         group.rotation.y = homeYaw;
+        let skinned = false;
+        model.traverse((o) => {
+          if (o.isSkinnedMesh || o.isBone) skinned = true;
+        });
         let mixer = null;
-        if (gltf.animations.length) {
+        const clips = gltf.animations.length;
+        if (skinned && clips > 0) {
           mixer = new THREE.AnimationMixer(model);
           mixer.clipAction(gltf.animations[0]).play();
         }
+        group.userData.clipGate = {
+          applied: !!mixer,
+          skinned,
+          clips,
+          reason: mixer
+            ? 'Skeleton and a clip were on this mesh, so the first clip plays.'
+            : 'Hö\'elün\'s Draco mesh has no skeleton and no clips. A made-up rig would not match the robe, so the breath lean stays.',
+        };
         let last = null;
         group.userData.update = (t, lookAt, dt = 0.016) => {
           if (mixer && last != null) mixer.update(Math.min(0.05, t - last));

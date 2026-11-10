@@ -28,6 +28,11 @@ import { createLocomotionFSM } from './systems/harvest/anim-state-machine.js';
 import { createAdaptiveQuality } from './systems/harvest/lod-instancing.js';
 import { qualityPreset, pickTierFromAvgMs, applyRendererQuality, QUALITY_TIERS } from './systems/quality.js';
 import { loadSave, writeSave, unlockNext } from './save.js';
+import { createInkGrade } from './systems/sumiro/ink-grade.js';
+import { createMistField } from './systems/sumiro/mist-field.js';
+import { createFootStains } from './systems/sumiro/foot-stains.js';
+import { createEncounter } from './systems/sumiro/encounter.js';
+import { createCrows } from './systems/sumiro/crows.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -120,6 +125,52 @@ function resize() {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
 }
+
+function paint(time = 0) {
+  if (fxOn && inkGrade) inkGrade.render(scene, camera, time);
+  else renderer.render(scene, camera);
+}
+
+function clearHeavyFx() {
+  inkGrade?.dispose?.();
+  inkGrade = null;
+  mistField?.dispose?.();
+  mistField = null;
+  crowFlock?.dispose?.();
+  crowFlock = null;
+  footStains?.dispose?.();
+  footStains = null;
+}
+
+function syncHeavyFx() {
+  if (!fxOn || !world) {
+    clearHeavyFx();
+    return;
+  }
+  if (!inkGrade) {
+    try { inkGrade = createInkGrade(renderer); }
+    catch (e) { console.warn('[ink grade]', e); inkGrade = null; }
+  }
+  if (!mistField && sceneId !== 'taichiud_ger') {
+    try { mistField = createMistField(scene); }
+    catch (e) { console.warn('[mist field]', e); mistField = null; }
+  }
+  if (!crowFlock && (sceneId === 'camp' || sceneId === 'burkhan')) {
+    try { crowFlock = createCrows(scene, camera); }
+    catch (e) { console.warn('[crows]', e); crowFlock = null; }
+  }
+  if (!footStains) {
+    try { footStains = createFootStains(scene, (x, z) => world.heightAt?.(x, z) ?? 0); }
+    catch (e) { console.warn('[stains]', e); footStains = null; }
+  }
+}
+
+function setFx(on) {
+  fxOn = !!on;
+  const btn = $('fxToggle');
+  if (btn) btn.setAttribute('aria-pressed', fxOn ? 'true' : 'false');
+  syncHeavyFx();
+}
 addEventListener('resize', resize);
 resize();
 
@@ -154,6 +205,17 @@ let harvestMist = null;
 let motes = null;
 let birds = null;
 let dust = null;
+let fxOn = false;
+let inkGrade = null;
+let mistField = null;
+let crowFlock = null;
+let footStains = null;
+let encounter = null;
+let fLatch = false;
+let toastText = '';
+let promptText = '';
+let fTouch = false;
+const touchWish = { x: 0, y: 0 };
 const stride = createStrideTrigger({ strideLen: 0.72 });
 // Procedural Temüjin → animator:null FSM still fires synthetic footfalls for dust/audio
 const loco = createLocomotionFSM({
@@ -277,6 +339,9 @@ function disposeHarvestFx() {
   birds = null;
   if (dust?.points) scene.remove(dust.points);
   dust = null;
+  encounter?.dispose?.();
+  encounter = null;
+  clearHeavyFx();
 }
 
 function settlePlayCamera(pos, yaw) {
@@ -368,6 +433,11 @@ function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false }
   audio.setMode?.(audioModeFor(id));
   audio.setWind?.(id === 'burkhan' ? 1.45 : 1);
   applyGrade(id);
+  if (id === 'camp') {
+    try { encounter = createEncounter(scene, world); }
+    catch (e) { console.warn('[encounter]', e); encounter = null; }
+  }
+  if (fxOn) syncHeavyFx();
 
   const groundY = world.heightAt(sp.x, sp.z);
   const look = sceneLook(id, sp.x, sp.z);
@@ -515,6 +585,7 @@ addEventListener('keydown', (e) => {
     e.preventDefault();
   }
   keys[e.code] = true;
+  if (e.code === 'KeyF' && !e.repeat) fTouch = true;
   if (e.code === 'F3') {
     showPerf = !showPerf;
     updatePerfHud(true);
@@ -532,6 +603,17 @@ addEventListener('keydown', (e) => {
     const n = nearest();
     if (n) talk(n);
   }
+});
+$('fxToggle')?.addEventListener('click', () => setFx(!fxOn));
+$('touchTalk')?.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  if (state !== 'explore') return;
+  const n = nearest();
+  if (n) talk(n);
+});
+$('touchBrace')?.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  fTouch = true;
 });
 
 function openPause() {
@@ -563,11 +645,46 @@ let dragging = false, lx = 0, ly = 0;
 canvas.addEventListener('pointerdown', (e) => { dragging = true; lx = e.clientX; ly = e.clientY; });
 addEventListener('pointerup', () => { dragging = false; });
 addEventListener('pointermove', (e) => {
+  if (e.pointerType === 'touch') return;
   if (!dragging || state !== 'explore') return;
   cam.lookDelta(e.clientX - lx, e.clientY - ly);
   player.yaw = cam.yaw;
   lx = e.clientX; ly = e.clientY;
 });
+
+const touchPoints = new Map();
+canvas.addEventListener('touchstart', (e) => {
+  for (const t of e.changedTouches) {
+    const role = t.clientX < innerWidth * 0.46 ? 'move' : 'look';
+    touchPoints.set(t.identifier, { role, x0: t.clientX, y0: t.clientY, x: t.clientX, y: t.clientY });
+  }
+}, { passive: true });
+canvas.addEventListener('touchmove', (e) => {
+  if (state !== 'explore') return;
+  for (const t of e.changedTouches) {
+    const k = touchPoints.get(t.identifier);
+    if (!k) continue;
+    if (k.role === 'look') {
+      cam.lookDelta((t.clientX - k.x) * 1.4, (t.clientY - k.y) * 1.4);
+      player.yaw = cam.yaw;
+    }
+    k.x = t.clientX;
+    k.y = t.clientY;
+    if (k.role === 'move') {
+      touchWish.x = Math.max(-1, Math.min(1, (k.x - k.x0) / 72));
+      touchWish.y = Math.max(-1, Math.min(1, -(k.y - k.y0) / 72));
+    }
+  }
+}, { passive: true });
+const endTouch = (e) => {
+  for (const t of e.changedTouches) {
+    const k = touchPoints.get(t.identifier);
+    if (k?.role === 'move') touchWish.x = touchWish.y = 0;
+    touchPoints.delete(t.identifier);
+  }
+};
+canvas.addEventListener('touchend', endTouch);
+canvas.addEventListener('touchcancel', endTouch);
 
 const ray = new THREE.Raycaster();
 canvas.addEventListener('click', (e) => {
@@ -741,6 +858,7 @@ function releasePlay() {
 
 function startDialogue(id) {
   state = 'dialogue';
+  promptText = '';
   $('prompt').classList.add('hidden');
   $('dialogue').classList.remove('hidden');
   audio.duck?.(0.4, 0.5);
@@ -966,7 +1084,7 @@ function tick() {
   if (state === 'title' || state === 'chapters' || state === 'pause' || state === 'end') {
     // Still render world under overlays when paused/explore-backed
     if (world && (state === 'pause' || state === 'end')) {
-      renderer.render(scene, camera);
+      paint(t);
     }
     requestAnimationFrame(tick);
     return;
@@ -986,7 +1104,11 @@ function tick() {
     motes?.update?.(dt, camera);
     birds?.update?.(dt, t, player.pos);
     dust?.update?.(dt, camera, renderer);
-    renderer.render(scene, camera);
+    if (fxOn) {
+      mistField?.update?.(t);
+      crowFlock?.update?.(dt, t, player.pos);
+    }
+    paint(t);
     requestAnimationFrame(tick);
     return;
   }
@@ -1005,10 +1127,10 @@ function tick() {
     const result = mover.step(
       dt,
       {
-        forward: !!(keys.KeyW || keys.ArrowUp),
-        back: !!(keys.KeyS || keys.ArrowDown),
-        left: !!keys.KeyA,
-        right: !!keys.KeyD,
+        forward: !!(keys.KeyW || keys.ArrowUp) || touchWish.y > 0.28,
+        back: !!(keys.KeyS || keys.ArrowDown) || touchWish.y < -0.28,
+        left: !!keys.KeyA || touchWish.x < -0.28,
+        right: !!keys.KeyD || touchWish.x > 0.28,
       },
       resolveCollisions,
       { min: -lim, max: lim }
@@ -1018,9 +1140,33 @@ function tick() {
     player.bob += dt * (moving ? 8.5 : 1.6);
     checkStealth(dt);
 
+    const fDown = !!(keys.KeyF || fTouch);
+    const fEdge = fDown && !fLatch;
+    fLatch = fDown;
+    fTouch = false;
+    const watchDx = player.pos.x - 9.2;
+    const watchDz = player.pos.z - 16.4;
+    const enc = (encounter && (fEdge || watchDx * watchDx + watchDz * watchDz < 196))
+      ? encounter.update(dt, player.pos, fEdge)
+      : null;
+    if (enc?.resolved) audio.cue?.('drumFar', -6, false);
+    if ((enc?.toast || '') !== toastText) {
+      toastText = enc?.toast || '';
+      const toast = $('toast');
+      if (toast) {
+        toast.textContent = toastText;
+        toast.classList.toggle('hidden', !toastText);
+      }
+    }
+
     const n = nearest();
-    $('prompt').classList.toggle('hidden', !n);
-    if (n) $('prompt').textContent = `[E] ${n.name}`;
+    const nextPrompt = n ? `[E] ${n.name}` : (enc?.prompt || '');
+    if (nextPrompt !== promptText) {
+      promptText = nextPrompt;
+      const prompt = $('prompt');
+      prompt.textContent = nextPrompt;
+      prompt.classList.toggle('hidden', !nextPrompt);
+    }
   } else {
     moving = false;
     moveSpeed = 0;
@@ -1043,6 +1189,7 @@ function tick() {
   if (state === 'explore') {
     stride.update(player.pos, moving, (p, dir) => {
       dust?.step(p, dir);
+      if (fxOn) footStains?.stamp(p, player.yaw);
       audio.step?.(sceneId === 'burkhan' ? 'rock' : 'grass');
     });
     loco.update?.(dt, { speed: moveSpeed, yaw: temujin.rotation.y, talking: false });
@@ -1075,8 +1222,16 @@ function tick() {
   motes?.update?.(dt, camera);
   birds?.update?.(dt, t, player.pos);
   dust?.update?.(dt, camera, renderer);
+  if (fxOn) {
+    mistField?.update?.(t);
+    crowFlock?.update?.(dt, t, player.pos);
+    footStains?.update?.(dt);
+    if (crowFlock && t > 0 && Math.floor(t) % 9 === 0 && Math.floor(t - dt) % 9 !== 0) {
+      audio.cue?.('eagleCry', -10, true);
+    }
+  }
   updateWorld?.(dt, t, state === 'explore' ? nearSet() : null, temujin.position, moving && state === 'explore');
-  renderer.render(scene, camera);
+  paint(t);
   requestAnimationFrame(tick);
 }
 tick();
@@ -1085,6 +1240,11 @@ window.__mshLoadScene = (id) => loadScene(id, { cinematic: false });
 window.__mshShow = show;
 window.__mshStartDialogue = startDialogue;
 window.__mshSetQuality = (id) => setQuality(id, { manual: true, reloadScene: true });
+window.__mshFx = (on) => { setFx(!!on); return fxOn; };
+window.__mshClipGate = () => ({
+  temujin: world?.temujin?.userData?.clipGate || null,
+  hoelun: world?.hoelun?.userData?.clipGate || null,
+});
 window.__mshPerf = () => {
   renderer.render(scene, camera);
   return {

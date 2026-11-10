@@ -66,13 +66,18 @@ export function createTemujin(opts = {}) {
         const s = TARGET_HEIGHT / (size.y || 1);
         raw.scale.setScalar(s);
         raw.updateMatrixWorld(true);
+        let skinned = false;
         raw.traverse((o) => {
+          if (o.isBone) skinned = true;
           if (!o.isMesh) return;
           o.castShadow = shadows;
           o.receiveShadow = shadows;
           o.geometry?.computeBoundingSphere?.();
           o.frustumCulled = true;
-          if (o.isSkinnedMesh) o.bind(o.skeleton, o.bindMatrix);
+          if (o.isSkinnedMesh) {
+            skinned = true;
+            o.bind(o.skeleton, o.bindMatrix);
+          }
         });
         wrap.updateMatrixWorld(true);
         const box2 = new THREE.Box3().setFromObject(wrap);
@@ -86,7 +91,27 @@ export function createTemujin(opts = {}) {
         group.add(wrap);
 
         const baseY = wrap.position.y;
-        group.userData.update = (dt) => motion(wrap, dt, baseY);
+        const clips = gltf.animations?.length || 0;
+        // Play a clip only when this mesh already has both a skeleton and tracks.
+        // The clothed Draco file has neither. Inventing a Mixamo rig for it would
+        // miss the sculpt, so the whole-body lean stays.
+        let mixer = null;
+        if (skinned && clips > 0) {
+          mixer = new THREE.AnimationMixer(raw);
+          mixer.clipAction(gltf.animations[0]).play();
+        }
+        group.userData.clipGate = {
+          applied: !!mixer,
+          skinned,
+          clips,
+          reason: mixer
+            ? 'Skeleton and a clip were on this mesh, so the first clip plays.'
+            : 'The clothed Draco mesh has no skeleton and no clips. temujin.glb is a Mixamo bind with no tracks and is not this body. A made-up rig would not match the sculpt.',
+        };
+        group.userData.update = (dt) => {
+          if (mixer) mixer.update(dt);
+          else motion(wrap, dt, baseY);
+        };
       } catch (err) {
         console.error('[temujin] GLB setup failed, procedural kept', err);
       }
