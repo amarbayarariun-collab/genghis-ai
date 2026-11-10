@@ -78,7 +78,7 @@ let adapt = null;
 const stepDir = new THREE.Vector3();
 const ndc = new THREE.Vector2();
 let showPerf = false;
-let fpsEma = 60;
+let fpsEma = 0;
 let fpsFrames = 0;
 let fpsWindowT = 0;
 
@@ -92,7 +92,8 @@ function updatePerfHud(force) {
   el.classList.remove('hidden');
   if (!force && fpsFrames < 8) return;
   const info = renderer.info;
-  el.textContent = `${fpsEma.toFixed(0)} fps · ${quality.label} · draw ${info.render.calls} · tri ${info.render.triangles} · pr ${renderer.getPixelRatio().toFixed(2)}`;
+  const fpsText = fpsEma > 0 ? `${Math.round(fpsEma)} fps` : '-- fps';
+  el.textContent = `${fpsText} · ${quality.label} · draw ${info.render.calls} · tri ${info.render.triangles} · pr ${renderer.getPixelRatio().toFixed(2)}`;
 }
 
 function setQuality(id, { manual = false, reloadScene = true } = {}) {
@@ -1060,14 +1061,15 @@ function checkStealth(dt) {
 }
 
 function tick() {
-  const dt = Math.min(clock.getDelta(), 0.05);
+  const frameDt = clock.getDelta();
+  const dt = Math.min(frameDt, 0.05);
   const t = clock.elapsedTime;
 
-  // FPS + adaptive probe (single rAF loop only)
+  // The 50 ms cap is only for simulation. The meter counts real frames.
   fpsFrames++;
-  fpsWindowT += dt;
-  if (dt > 0) fpsEma = fpsEma * 0.9 + (1 / dt) * 0.1;
-  if (fpsWindowT >= 0.5) {
+  fpsWindowT += frameDt;
+  if (fpsWindowT >= 0.5 && fpsFrames > 0) {
+    fpsEma = fpsFrames / fpsWindowT;
     updatePerfHud(true);
     fpsWindowT = 0;
     fpsFrames = 0;
