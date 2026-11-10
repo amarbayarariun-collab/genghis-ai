@@ -3,6 +3,7 @@
 // Idle and walk below are a temporary whole-body motion until a rigged clip exists.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
 export const USE_TEMUJIN_GLB = true;
 export const TEMUJIN_GLB_URL = './models/base_basic_shaded.glb';
@@ -45,9 +46,14 @@ export function createTemujin(opts = {}) {
 
   if (!USE_TEMUJIN_GLB) return group;
 
-  new GLTFLoader().load(
+  const draco = new DRACOLoader();
+  draco.setDecoderPath('./draco/');
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(draco);
+  loader.load(
     TEMUJIN_GLB_URL,
     (gltf) => {
+      draco.dispose();
       try {
         // One instance: scale the scene, then rebind so bone matrices share that scale.
         const raw = gltf.scene;
@@ -86,7 +92,10 @@ export function createTemujin(opts = {}) {
       }
     },
     undefined,
-    (err) => console.warn('[temujin] GLB failed:', err)
+    (err) => {
+      draco.dispose();
+      console.warn('[temujin] GLB failed:', err);
+    }
   );
 
   return group;
