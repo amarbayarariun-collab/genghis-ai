@@ -809,6 +809,12 @@ function bindTap(el, fn) {
     last = now;
     fn();
   };
+  // pointerdown so a phone tap starts the game even when pointerup never arrives.
+  el.addEventListener('pointerdown', (ev) => {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    ev.stopPropagation();
+    run();
+  });
   el.addEventListener('pointerup', (ev) => {
     if (ev.pointerType === 'mouse' && ev.button !== 0) return;
     ev.stopPropagation();

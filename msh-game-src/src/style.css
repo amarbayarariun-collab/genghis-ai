@@ -256,7 +256,7 @@ body.in-play #game:active { cursor: grabbing; }
   position: absolute;
   inset: 0;
   z-index: 2;
-  pointer-events: none;
+  pointer-events: auto;
 }
 #title .title-screen .title-actions button {
   position: absolute;
@@ -267,9 +267,11 @@ body.in-play #game:active { cursor: grabbing; }
   padding: 0 10px;
   font-size: clamp(13px, 1.45vw, 18px);
   line-height: 1.15;
-  min-height: 0;
+  min-height: 44px;
   white-space: normal;
   text-align: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 #title .title-screen #fastPlayBtn {
   left: 62.4%;
@@ -302,6 +304,13 @@ body.in-play #game:active { cursor: grabbing; }
   border-radius: 12px;
   font-weight: 600;
 }
+/* Keep the first phone tap. A hover change makes iOS treat it as a hover, not a press. */
+#title .title-screen #fastPlayBtn:hover {
+  background: linear-gradient(#8d2432, #5c1219);
+}
+#title .title-screen button.ghost:hover {
+  background: #16110d;
+}
 #title .title-tools {
   position: absolute;
   left: 62.2%;
@@ -310,7 +319,7 @@ body.in-play #game:active { cursor: grabbing; }
   height: 7.4%;
   display: flex;
   gap: 3.4%;
-  pointer-events: none;
+  pointer-events: auto;
 }
 #title .title-screen .title-tools button {
   position: relative;
