@@ -135,19 +135,51 @@ export function createSteppeAudio(opts = {}) {
   const volume = opts.volume ?? 0.8;
 
   function init() {
-    if (ctx) return;
-    ctx = new Ctx();
-    master = ctx.createGain(); master.gain.value = volume;
-    comp = ctx.createDynamicsCompressor();
-    master.connect(comp).connect(ctx.destination);
-    busAmb = ctx.createGain(); busFx = ctx.createGain(); busMusic = ctx.createGain();
-    for (const b of [busAmb, busFx, busMusic]) b.connect(master);
-    reverb = ctx.createConvolver(); revGain = ctx.createGain(); revGain.gain.value = 0.3;
-    reverb.connect(revGain).connect(master);
-    noises = { white: makeNoise(ctx, 'white'), pink: makeNoise(ctx, 'pink'), brown: makeNoise(ctx, 'brown') };
-    document.addEventListener('visibilitychange', () => { if (!ctx) return; document.hidden ? ctx.suspend() : (!muted && ctx.resume()); });
-    timer = setInterval(schedule, 300);
-    if (chapter) applyChapter(chapter);
+    if (ctx) return true;
+    try {
+      ctx = new Ctx();
+      master = ctx.createGain(); master.gain.value = volume;
+      comp = ctx.createDynamicsCompressor();
+      master.connect(comp).connect(ctx.destination);
+      busAmb = ctx.createGain(); busFx = ctx.createGain(); busMusic = ctx.createGain();
+      for (const b of [busAmb, busFx, busMusic]) b.connect(master);
+      reverb = ctx.createConvolver(); revGain = ctx.createGain(); revGain.gain.value = 0.3;
+      reverb.connect(revGain).connect(master);
+      noises = { white: makeNoise(ctx, 'white'), pink: makeNoise(ctx, 'pink'), brown: makeNoise(ctx, 'brown') };
+      document.addEventListener('visibilitychange', () => {
+        if (!ctx) return;
+        try {
+          if (document.hidden) {
+            const pending = ctx.suspend();
+            if (pending && pending.catch) pending.catch(() => {});
+          } else if (!muted) resumeAndPlay();
+        } catch (err) { console.warn('[audio]', err); }
+      });
+      timer = setInterval(() => { try { schedule(); } catch (err) { console.warn('[audio]', err); } }, 300);
+      return true;
+    } catch (err) {
+      console.warn('[audio] init', err);
+      ctx = null;
+      return false;
+    }
+  }
+
+  // iPad Safari 16–17 throws InvalidStateError from resume() when the audio
+  // device will not start. That throw used to escape the tap handler and the
+  // camp never opened. Play the scene either way; start nodes only after a
+  // running context.
+  function resumeAndPlay() {
+    if (!ctx || muted) return;
+    const play = () => {
+      if (!ctx || ctx.state !== 'running' || !chapter) return;
+      try { applyChapter(chapter); }
+      catch (err) { console.warn('[audio]', err); }
+    };
+    let pending;
+    try { pending = ctx.resume(); }
+    catch (err) { console.warn('[audio] resume', err); return; }
+    if (pending && typeof pending.then === 'function') pending.then(play, (err) => console.warn('[audio] resume', err));
+    else play();
   }
 
   // ---------- primitives (Walden-style) ----------
@@ -308,33 +340,55 @@ export function createSteppeAudio(opts = {}) {
     get ready() { return !!ctx; },
     /** Browsers need a gesture: call once; the first pointerdown/keydown/touchend starts the context. */
     attachUnlock() {
-      const once = () => { api.unlock(); for (const ev of EVS) removeEventListener(ev, once); };
+      const once = () => {
+        try { api.unlock(); }
+        catch (err) { console.warn('[audio]', err); }
+        for (const ev of EVS) removeEventListener(ev, once);
+      };
       const EVS = ['pointerdown', 'keydown', 'touchend'];
       for (const ev of EVS) addEventListener(ev, once);
     },
-    unlock() { init(); if (!muted) ctx.resume(); },
-    setChapter(id) { chapter = id; if (ctx) applyChapter(id); },
+    unlock() { if (init()) resumeAndPlay(); },
+    setChapter(id) {
+      chapter = id;
+      if (!ctx || ctx.state !== 'running') return;
+      try { applyChapter(id); }
+      catch (err) { console.warn('[audio]', err); }
+    },
     /** Footstep on a surface: 'grass' | 'rock' | 'snow' | 'wood'. */
     step(surface = 'grass', heavy = 1) {
       if (!ctx) return;
-      const k = 0.5 + 0.5 * heavy;
-      if (surface === 'rock') { noiseBurst({ f0: 1600, f1: 500, q: 0.9, dur: 0.05, peak: 0.12 * k, attack: 0.002 }); tone({ f0: 180, f1: 90, dur: 0.05, peak: 0.03 * k, attack: 0.002 }); }
-      else if (surface === 'snow') noiseBurst({ kind: 'pink', f0: 900, f1: 300, q: 0.6, dur: 0.12, peak: 0.1 * k, type: 'lowpass', attack: 0.01 });
-      else if (surface === 'wood') { noiseBurst({ kind: 'brown', f0: 500, f1: 200, q: 0.8, dur: 0.07, peak: 0.2 * k, type: 'lowpass', attack: 0.003 }); tone({ f0: 140, f1: 90, dur: 0.08, peak: 0.05 * k, attack: 0.003 }); }
-      else noiseBurst({ kind: 'pink', f0: 700, f1: 250, q: 0.8, dur: 0.07, peak: 0.1 * k, type: 'lowpass', attack: 0.004 });
+      try {
+        const k = 0.5 + 0.5 * heavy;
+        if (surface === 'rock') { noiseBurst({ f0: 1600, f1: 500, q: 0.9, dur: 0.05, peak: 0.12 * k, attack: 0.002 }); tone({ f0: 180, f1: 90, dur: 0.05, peak: 0.03 * k, attack: 0.002 }); }
+        else if (surface === 'snow') noiseBurst({ kind: 'pink', f0: 900, f1: 300, q: 0.6, dur: 0.12, peak: 0.1 * k, type: 'lowpass', attack: 0.01 });
+        else if (surface === 'wood') { noiseBurst({ kind: 'brown', f0: 500, f1: 200, q: 0.8, dur: 0.07, peak: 0.2 * k, type: 'lowpass', attack: 0.003 }); tone({ f0: 140, f1: 90, dur: 0.08, peak: 0.05 * k, attack: 0.003 }); }
+        else noiseBurst({ kind: 'pink', f0: 700, f1: 250, q: 0.8, dur: 0.07, peak: 0.1 * k, type: 'lowpass', attack: 0.004 });
+      } catch (err) { console.warn('[audio]', err); }
     },
     /** Trigger a kit sound by name now (e.g. audio.cue('horseNeigh')). */
-    cue(name, level = 0, far = false) { if (ctx) KIT[name]?.(db(level), far); },
+    cue(name, level = 0, far = false) {
+      if (!ctx) return;
+      try { KIT[name]?.(db(level), far); }
+      catch (err) { console.warn('[audio]', err); }
+    },
     /** Lower everything but effects (dialogue): duck(0.35, 0.6); restore: duck(1, 1.2). */
     duck(amount = 0.4, seconds = 0.6) {
       if (!ctx) return;
-      const t = ctx.currentTime;
-      for (const b of [busAmb, busMusic]) { b.gain.cancelScheduledValues(t); b.gain.setValueAtTime(b.gain.value, t); b.gain.linearRampToValueAtTime(amount, t + seconds); }
+      try {
+        const t = ctx.currentTime;
+        for (const b of [busAmb, busMusic]) { b.gain.cancelScheduledValues(t); b.gain.setValueAtTime(b.gain.value, t); b.gain.linearRampToValueAtTime(amount, t + seconds); }
+      } catch (err) { console.warn('[audio]', err); }
     },
     setWind(k) { windK = k; },
     toggleMute() {
       muted = !muted;
-      if (ctx) { const t = ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(master.gain.value, t); master.gain.linearRampToValueAtTime(muted ? 0 : volume, t + 0.6); if (!muted) ctx.resume(); }
+      if (ctx) {
+        try {
+          const t = ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(master.gain.value, t); master.gain.linearRampToValueAtTime(muted ? 0 : volume, t + 0.6);
+          if (!muted) resumeAndPlay();
+        } catch (err) { console.warn('[audio]', err); }
+      }
       return muted;
     },
     dispose() { if (!ctx) return; clearInterval(timer); stopBeds(0.1); stopDrone(0.1); ctx.close(); ctx = null; },

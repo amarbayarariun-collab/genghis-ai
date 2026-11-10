@@ -765,7 +765,7 @@ function renderChapterSelect() {
     b.onclick = () => {
       $('chapters').classList.add('hidden');
       $('title').classList.add('hidden');
-      audio.unlock();
+      try { audio.unlock(); } catch (err) { console.warn('[audio]', err); }
       loadScene(ch.scene, { cinematic: true });
     };
     list.append(b);
@@ -773,7 +773,9 @@ function renderChapterSelect() {
 }
 
 function beginCamp({ cinematic, dialogueNode, arrive = false }) {
-  audio.unlock();
+  // Audio must not be able to cancel the tap. iPad Safari throws from resume().
+  try { audio.unlock(); }
+  catch (err) { console.warn('[audio]', err); }
   writeSave({ unlocked: ['camp'], lastChapter: 'camp', flags: {}, quality: qualityId });
   save = loadSave();
   const title = $('title');
@@ -792,7 +794,7 @@ $('fastPlayBtn').onclick = () => {
 };
 $('startBtn').onclick = () => beginCamp({ cinematic: true, dialogueNode: 'intro0' });
 $('continueBtn').onclick = () => {
-  audio.unlock();
+  try { audio.unlock(); } catch (err) { console.warn('[audio]', err); }
   $('title').classList.add('hidden');
   const ch = CHAPTERS.find((c) => c.id === save.lastChapter) || CHAPTERS[0];
   loadScene(ch.scene, { cinematic: true });
