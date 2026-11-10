@@ -1,0 +1,41 @@
+# Copy / edit on the GPU box. Example for Qwen2.5-7B-Instruct QLoRA.
+# Do not start paid runs until the owner approves budget.
+
+model_name_or_path: Qwen/Qwen2.5-7B-Instruct
+
+# Quantization
+load_in_4bit: true
+bnb_4bit_compute_dtype: bfloat16
+bnb_4bit_quant_type: nf4
+
+# LoRA
+lora_r: 32
+lora_alpha: 16
+lora_dropout: 0.05
+target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+
+# Training
+num_train_epochs: 2
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 8
+learning_rate: 1.5e-4
+warmup_ratio: 0.03
+logging_steps: 10
+save_steps: 100
+max_seq_length: 2048
+lr_scheduler_type: cosine
+optim: paged_adamw_8bit
+bf16: true
+gradient_checkpointing: true
+
+# Output
+output_dir: outputs/genghis-mn-qlora
+report_to: none
+seed: 42

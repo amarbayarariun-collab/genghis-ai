@@ -1,0 +1,16 @@
+# Install on the GPU machine when ready to train/eval.
+# Pin loosely so rented images can resolve; tighten before a production run.
+torch>=2.2.0
+transformers>=4.44.0
+datasets>=2.20.0
+accelerate>=0.33.0
+peft>=0.12.0
+trl>=0.9.0
+bitsandbytes>=0.43.0
+sentencepiece>=0.2.0
+protobuf>=4.25.0
+pyyaml>=6.0
+tqdm>=4.66.0
+requests>=2.31.0
+# Optional for serving locally after train:
+# vllm>=0.5.0
