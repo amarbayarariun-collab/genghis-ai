@@ -39,9 +39,11 @@ const canvas = $('game');
 const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: false, // cheaper; CSS warmGrade softens edges
-  powerPreference: 'high-performance',
+  // iPad Safari runs much slower with high-performance, and sometimes refuses the context.
+  powerPreference: 'default',
   stencil: false,
   depth: true,
+  failIfMajorPerformanceCaveat: false,
 });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.info.autoReset = true;
@@ -108,7 +110,7 @@ function setQuality(id, { manual = false, reloadScene = true } = {}) {
     min: id === 'low' ? 0.5 : 0.75,
     max: quality.pixelRatioCap,
     every: id === 'low' ? 0.7 : 2,
-    steps: id === 'low' ? [0.5, 0.75, 1] : id === 'med' ? [0.75, 1, 1.25] : [1, 1.25, 1.5],
+    steps: id === 'low' ? [0.5, 0.75, 1] : id === 'med' ? [0.75, 1, 1.25] : [1, 1.25],
   });
   document.querySelectorAll('[data-quality]').forEach((b) => {
     b.classList.toggle('active', b.getAttribute('data-quality') === id);
@@ -588,6 +590,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyF' && !e.repeat) fTouch = true;
   if (e.code === 'F3') {
     showPerf = !showPerf;
+    $('fpsToggle')?.setAttribute('aria-pressed', showPerf ? 'true' : 'false');
     updatePerfHud(true);
     e.preventDefault();
   }
@@ -605,6 +608,12 @@ addEventListener('keydown', (e) => {
   }
 });
 $('fxToggle')?.addEventListener('click', () => setFx(!fxOn));
+$('fpsToggle')?.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  showPerf = !showPerf;
+  $('fpsToggle').setAttribute('aria-pressed', showPerf ? 'true' : 'false');
+  updatePerfHud(true);
+});
 $('touchTalk')?.addEventListener('click', (ev) => {
   ev.stopPropagation();
   if (state !== 'explore') return;

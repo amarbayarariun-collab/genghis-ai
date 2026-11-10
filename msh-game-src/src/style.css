@@ -60,10 +60,25 @@ html, body {
     rgba(185, 128, 68, 0.1);
 }
 
+#fpsToggle {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 46;
+  min-width: 3.4rem;
+  min-height: 2.5rem;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+#fpsToggle[aria-pressed="true"] {
+  outline: 2px solid #e8c070;
+  background: rgba(120, 80, 30, 0.95);
+}
 #perfHud {
   position: fixed;
-  top: 10px;
-  right: 12px;
+  top: max(52px, calc(env(safe-area-inset-top) + 46px));
+  right: max(12px, env(safe-area-inset-right));
   z-index: 40;
   font: 600 12px/1.35 ui-monospace, Menlo, Consolas, monospace;
   color: #f2ead8;
@@ -423,7 +438,7 @@ button:disabled {
 #sourceBtn {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
-  right: 14px;
+  right: 78px;
   pointer-events: auto;
   font-size: 13px;
   padding: 7px 12px;
