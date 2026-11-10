@@ -6,7 +6,7 @@
   <title>Монголын Нууц Товчоо · Тэмүжин</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&family=Noto+Serif:wght@700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./src/style.css" />
 </head>
 <body>
@@ -16,23 +16,26 @@
 
   <!-- Title -->
   <div id="title" class="overlay" role="dialog" aria-labelledby="titleHeading">
-    <div class="title-card">
-      <div class="title-art" aria-hidden="true"></div>
+    <div class="title-card title-screen">
+      <img class="title-painting" src="./title-screen.webp" alt="" />
       <div class="title-copy">
-        <p class="eyebrow">Playable Legacy · Бүтэн тоглоом v1</p>
-        <h1 id="titleHeading">Монголын Нууц Товчоо · Тэмүжин</h1>
-        <p class="sub">Нууц Товчооноос суралц</p>
-        <p class="body">Удиртгал → Өнчин → Бурхан → Тайчууд → Боорчи · Бөртэ → Мэргид · Чингис.</p>
-        <div class="title-actions">
-          <button id="fastPlayBtn" type="button">Хурдан тоглох</button>
-          <button id="startBtn" type="button" class="ghost">Шинээр эхлэх</button>
-          <button id="continueBtn" type="button" class="ghost hidden">Үргэлжлүүлэх</button>
-          <button id="chaptersBtn" type="button" class="ghost">Бүлгүүд</button>
-          <button id="creditsBtn" type="button" class="ghost">Зохиогчид</button>
-        </div>
-        <p class="hint">Хурдан тоглох · бага чанар, сүүдэргүй, шууд хөдөлнө</p>
-        <p class="hint">WASD явах · чирээд харах · E ярилцах · галын гэрэлнээс хол (шөнө)</p>
+        <p class="eyebrow">V1.0</p>
+        <h1 id="titleHeading">Монголын<br>Нууц Товчоо</h1>
+        <p class="body">Удиртгал → Өнчин → Бурхан → Тайчууд →<br>Боорчи → Бөртэ → Мэргид → Чингис хаан</p>
       </div>
+      <div class="title-actions">
+        <button id="fastPlayBtn" type="button">Хурдан тоглох</button>
+        <button id="startBtn" type="button" class="ghost">Шинээр эхлэх</button>
+        <button id="continueBtn" type="button" class="ghost">Үргэлжлүүлэх</button>
+        <div class="title-tools">
+          <button id="chaptersBtn" type="button" class="ghost"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2 4h6.2A3.8 3.8 0 0 1 12 7.2V20a3 3 0 0 0-2.6-1.4H2V4zm20 0h-6.2A3.8 3.8 0 0 0 12 7.2V20a3 3 0 0 1 2.6-1.4H22V4z"/></svg>Бүлгүүд</button>
+          <button id="creditsBtn" type="button" class="ghost"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10.2 1.5h3.6l.5 2.2c.5.2 1 .4 1.4.8l2-.9 1.8 1.8-.9 2c.3.4.6.9.8 1.4l2.2.5v3.6l-2.2.5c-.2.5-.5 1-.8 1.4l.9 2-1.8 1.8-2-.9c-.4.3-.9.6-1.4.8l-.5 2.2h-3.6l-.5-2.2a6 6 0 0 1-1.4-.8l-2 .9-1.8-1.8.9-2a6 6 0 0 1-.8-1.4l-2.2-.5V9.8l2.2-.5c.2-.5.5-1 .8-1.4l-.9-2 1.8-1.8 2 .9c.4-.3.9-.6 1.4-.8l.5-2.2z"/><circle cx="12" cy="12" r="2.6" fill="#16110d"/></svg>Зохиогчид</button>
+        </div>
+      </div>
+      <ul class="title-hints">
+        <li>Хурдан тоглох · бага чанар, сүүдэргүй, шууд хөдөлнө</li>
+        <li>WASD явах · чирээд харах · E ярилцах · галын гэрэлнээс хол (шөнө)</li>
+      </ul>
     </div>
   </div>
 

@@ -753,10 +753,12 @@ function showTitle() {
 
 function refreshContinue() {
   const btn = $('continueBtn');
+  btn.classList.remove('hidden');
   if (save.lastChapter) {
-    btn.classList.remove('hidden');
     btn.textContent = `Үргэлжлүүлэх · ${CHAPTERS.find((c) => c.id === save.lastChapter)?.title || ''}`;
-  } else btn.classList.add('hidden');
+  } else {
+    btn.textContent = 'Үргэлжлүүлэх';
+  }
 }
 refreshContinue();
 
