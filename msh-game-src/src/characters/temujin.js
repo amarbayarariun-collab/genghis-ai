@@ -11,7 +11,8 @@ const TARGET_HEIGHT = 1.72;
 
 const mat = (hex) => new THREE.MeshLambertMaterial({ color: hex, flatShading: true });
 
-export function createTemujin() {
+export function createTemujin(opts = {}) {
+  const shadows = opts.shadows === true;
   const group = new THREE.Group();
   const placeholder = buildPlaceholder();
   group.add(placeholder.root);
@@ -61,9 +62,10 @@ export function createTemujin() {
         raw.updateMatrixWorld(true);
         raw.traverse((o) => {
           if (!o.isMesh) return;
-          o.castShadow = true;
-          o.receiveShadow = true;
-          o.frustumCulled = false;
+          o.castShadow = shadows;
+          o.receiveShadow = shadows;
+          o.geometry?.computeBoundingSphere?.();
+          o.frustumCulled = true;
           if (o.isSkinnedMesh) o.bind(o.skeleton, o.bindMatrix);
         });
         wrap.updateMatrixWorld(true);

@@ -99,11 +99,11 @@ function setQuality(id, { manual = false, reloadScene = true } = {}) {
   applyRendererQuality(renderer, THREE, quality);
   ensureEnvMap(id !== 'low');
   adapt = createAdaptiveQuality(renderer, {
-    targetMs: id === 'low' ? 33 : id === 'high' ? 16.7 : 20,
-    min: id === 'low' ? 0.75 : 0.85,
+    targetMs: id === 'low' ? 33 : id === 'high' ? 16.7 : 22,
+    min: id === 'low' ? 0.5 : 0.75,
     max: quality.pixelRatioCap,
-    every: 2,
-    steps: id === 'low' ? [0.75, 1] : id === 'med' ? [0.85, 1, 1.25] : [1, 1.25, 1.5],
+    every: id === 'low' ? 0.7 : 2,
+    steps: id === 'low' ? [0.5, 0.75, 1] : id === 'med' ? [0.75, 1, 1.25] : [1, 1.25, 1.5],
   });
   document.querySelectorAll('[data-quality]').forEach((b) => {
     b.classList.toggle('active', b.getAttribute('data-quality') === id);
@@ -177,14 +177,17 @@ const PLAYER_RADIUS = 0.3;
 const CHAPTER_ORDER = CHAPTERS.map((c) => c.id);
 
 function resolveCollisions(p) {
-  for (const c of world?.colliders || []) {
-    const dx = p.x - c.x, dz = p.z - c.z;
-    const d = Math.hypot(dx, dz);
-    const min = c.r + PLAYER_RADIUS;
-    if (d < min && d > 1e-4) {
-      p.x += (dx / d) * (min - d);
-      p.z += (dz / d) * (min - d);
-    } else if (d < 1e-5) p.x += min;
+  const list = world?.colliders || [];
+  for (let pass = 0; pass < 2; pass++) {
+    for (const c of list) {
+      const dx = p.x - c.x, dz = p.z - c.z;
+      const d = Math.hypot(dx, dz);
+      const min = c.r + PLAYER_RADIUS;
+      if (d < min && d > 1e-4) {
+        p.x += (dx / d) * (min - d);
+        p.z += (dz / d) * (min - d);
+      } else if (d < 1e-5) p.x += min;
+    }
   }
 }
 
@@ -337,11 +340,11 @@ function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false }
   if (id === 'camp' || (quality.birds && id === 'burkhan')) {
     try {
       birds = createBirds(scene, {
-        count: id === 'camp' ? 4 : (quality.birdCount || 3),
+        count: id === 'camp' ? (quality.birds ? 4 : 2) : (quality.birdCount || 3),
         center: id === 'camp' ? [1, 3, 8] : [0, 8, -20],
-        radius: id === 'camp' ? 14 : 28,
-        height: id === 'camp' ? 6 : 34,
-        span: id === 'camp' ? 3.4 : 2,
+        radius: id === 'camp' ? 16 : 28,
+        height: id === 'camp' ? (quality.birds ? 9 : 16) : 34,
+        span: id === 'camp' ? (quality.birds ? 2.2 : 1.35) : 2,
         color: id === 'camp' ? '#1a120c' : undefined,
         speed: id === 'camp' ? 6 : 7,
         perches: id === 'burkhan' ? [[0, 14, -30]] : [],
@@ -1064,6 +1067,7 @@ function tick() {
       faceYaw,
       dialoguePull: faceYaw != null ? 3.2 : 0,
       frame: look,
+      blockers: world.colliders,
     });
   }
 
@@ -1127,6 +1131,11 @@ window.__mshTeleport = (x, z, yaw) => {
   }
   cam.snapTo(player.pos, player.yaw, cam.view.pitch);
   return window.__mshPlayer();
+};
+window.__mshPixelRatio = (v) => {
+  renderer.setPixelRatio(v);
+  resize();
+  return renderer.getPixelRatio();
 };
 window.__mshShowPerf = (v) => { showPerf = v !== false; updatePerfHud(true); };
 window.__mshUnlockAll = () => {

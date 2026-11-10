@@ -6,7 +6,8 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 export const HOELUN_GLB_URL = './models/hoelun.glb';
 const TARGET_HEIGHT = 2.15;
 
-export function createHoelun() {
+export function createHoelun(opts = {}) {
+  const shadows = opts.shadows === true;
   const group = new THREE.Group();
   const placeholder = buildPlaceholder();
   group.add(placeholder.root);
@@ -30,8 +31,10 @@ export function createHoelun() {
         model.position.set(-c.x, -box2.min.y, -c.z);
         model.traverse((o) => {
           if (!o.isMesh) return;
-          o.castShadow = true;
-          o.receiveShadow = true;
+          o.castShadow = shadows;
+          o.receiveShadow = shadows;
+          o.geometry?.computeBoundingSphere?.();
+          o.frustumCulled = true;
         });
         group.remove(placeholder.root);
         group.add(model);

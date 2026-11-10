@@ -102,10 +102,10 @@ export function buildWorld(scene, opts = {}) {
   }
 
   const colliders = [];
-  const camp = attachCamp(scene, { shadows: shadowsOn, colliders });
+  const camp = attachCamp(scene, { shadows: shadowsOn, colliders, grassCap: q.grass || 280 });
   const heightAt = (x, z) => camp.heightAt(x, z);
 
-  const N = doDustBits ? 160 : 72;
+  const N = doDustBits ? 160 : 0;
   const dGeo = new THREE.BufferGeometry();
   const arr = new Float32Array(Math.max(1, N) * 3);
   for (let i = 0; i < N; i++) {
@@ -118,7 +118,7 @@ export function buildWorld(scene, opts = {}) {
     scene.add(new THREE.Points(dGeo, new THREE.PointsMaterial({ color: '#efe6d2', size: 0.06, transparent: true, opacity: 0.45 })));
   }
 
-  const hoelun = createHoelun();
+  const hoelun = createHoelun({ shadows: shadowsOn });
   hoelun.rotation.y = 0;
   hoelun.position.set(HOELUN_AT.x, 0, HOELUN_AT.z);
   scene.add(hoelun);
@@ -145,7 +145,7 @@ export function buildWorld(scene, opts = {}) {
   chirhaGlow.position.set(CHIRHA_AT.x, 0.05, CHIRHA_AT.z);
   scene.add(chirhaGlow);
 
-  const temujin = createTemujin();
+  const temujin = createTemujin({ shadows: shadowsOn });
   temujin.position.set(0.4, 0, 28);
   scene.add(temujin);
 

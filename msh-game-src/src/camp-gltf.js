@@ -17,19 +17,18 @@ const _dummy = new THREE.Object3D();
  * Solid colliders (ger, fence, rock, cart, pine) are pushed into `colliders`.
  * Grass, paths, bushes, the saddle, and the woodpile stay visual.
  */
-export function attachCamp(scene, { shadows = true, colliders = [], onReady } = {}) {
+export function attachCamp(scene, { shadows = true, colliders = [], onReady, grassCap = 0 } = {}) {
   const raycaster = new THREE.Raycaster();
   raycaster.far = 180;
   let terrain = null;
+  let grid = null;
   const waiters = [];
   const windMats = [];
 
   function heightAt(x, z) {
+    if (grid) return sampleGrid(grid, x, z);
     if (!terrain) return 0;
-    _origin.set(x, 80, z);
-    raycaster.set(_origin, _down);
-    const hit = raycaster.intersectObject(terrain, false)[0];
-    return hit ? hit.point.y : 0;
+    return rayHeight(raycaster, terrain, x, z);
   }
 
   function whenReady(fn) {
@@ -51,8 +50,10 @@ export function attachCamp(scene, { shadows = true, colliders = [], onReady } = 
         scene.add(root);
         root.updateMatrixWorld(true);
 
-        const measure = measureAndDress(root, { shadows, colliders, windMats });
+        const measure = measureAndDress(root, { shadows, colliders, windMats, grassCap });
         terrain = measure.terrain;
+        grid = bakeHeightGrid(raycaster, terrain);
+        freezeStaticCamp(root);
         terrain.userData.campMeasure = measure;
         console.info('[camp] loaded', JSON.stringify(measure.report));
         waiters.splice(0).forEach((fn) => fn(measure));
@@ -76,7 +77,57 @@ export function attachCamp(scene, { shadows = true, colliders = [], onReady } = 
   };
 }
 
-function measureAndDress(root, { shadows, colliders, windMats }) {
+function rayHeight(raycaster, terrain, x, z) {
+  _origin.set(x, 80, z);
+  raycaster.set(_origin, _down);
+  const hit = raycaster.intersectObject(terrain, false)[0];
+  return hit ? hit.point.y : 0;
+}
+
+function bakeHeightGrid(raycaster, terrain, n = 72) {
+  const box = new THREE.Box3().setFromObject(terrain);
+  const data = new Float32Array((n + 1) * (n + 1));
+  for (let iz = 0; iz <= n; iz++) {
+    const z = THREE.MathUtils.lerp(box.min.z, box.max.z, iz / n);
+    for (let ix = 0; ix <= n; ix++) {
+      const x = THREE.MathUtils.lerp(box.min.x, box.max.x, ix / n);
+      data[iz * (n + 1) + ix] = rayHeight(raycaster, terrain, x, z);
+    }
+  }
+  return { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, n, data };
+}
+
+function sampleGrid(grid, x, z) {
+  const { minX, maxX, minZ, maxZ, n, data } = grid;
+  const fx = THREE.MathUtils.clamp((x - minX) / (maxX - minX), 0, 1) * n;
+  const fz = THREE.MathUtils.clamp((z - minZ) / (maxZ - minZ), 0, 1) * n;
+  const x0 = Math.floor(fx);
+  const z0 = Math.floor(fz);
+  const x1 = Math.min(n, x0 + 1);
+  const z1 = Math.min(n, z0 + 1);
+  const tx = fx - x0;
+  const tz = fz - z0;
+  const w = n + 1;
+  const y00 = data[z0 * w + x0];
+  const y10 = data[z0 * w + x1];
+  const y01 = data[z1 * w + x0];
+  const y11 = data[z1 * w + x1];
+  return THREE.MathUtils.lerp(THREE.MathUtils.lerp(y00, y10, tx), THREE.MathUtils.lerp(y01, y11, tx), tz);
+}
+
+function freezeStaticCamp(root) {
+  root.traverse((o) => {
+    let p = o;
+    while (p) {
+      if (p.name && String(p.name).startsWith('tug')) return;
+      p = p.parent;
+    }
+    o.matrixAutoUpdate = false;
+  });
+  root.updateMatrixWorld(true);
+}
+
+function measureAndDress(root, { shadows, colliders, windMats, grassCap }) {
   const sceneBox = new THREE.Box3().setFromObject(root);
   const sceneSize = sceneBox.getSize(new THREE.Vector3());
   const sceneCenter = sceneBox.getCenter(new THREE.Vector3());
@@ -114,7 +165,7 @@ function measureAndDress(root, { shadows, colliders, windMats }) {
     const mats = Array.isArray(mat) ? mat : [mat];
     mats.forEach(soften);
   });
-  instanceGrass(root, grasses, windMats);
+  instanceGrass(root, keepNearest(grasses, grassCap), windMats, shadows);
 
   const gers = [];
   root.traverse((o) => {
@@ -210,7 +261,18 @@ function swayGrass(mat, windMats) {
   mat.needsUpdate = true;
 }
 
-function instanceGrass(root, grasses, windMats) {
+function keepNearest(meshes, cap) {
+  if (!cap || meshes.length <= cap) return meshes;
+  const ranked = meshes.map((mesh) => {
+    const p = new THREE.Vector3().setFromMatrixPosition(mesh.matrixWorld);
+    return { mesh, d: p.x * p.x + p.z * p.z };
+  });
+  ranked.sort((a, b) => a.d - b.d);
+  for (let i = cap; i < ranked.length; i++) ranked[i].mesh.removeFromParent();
+  return ranked.slice(0, cap).map((row) => row.mesh);
+}
+
+function instanceGrass(root, grasses, windMats, shadows) {
   if (grasses.length < 2) return;
   const buckets = new Map();
   for (const mesh of grasses) {
@@ -224,7 +286,7 @@ function instanceGrass(root, grasses, windMats) {
     const inst = new THREE.InstancedMesh(group[0].geometry, group[0].material, group.length);
     inst.name = 'camp-grass';
     inst.castShadow = false;
-    inst.receiveShadow = true;
+    inst.receiveShadow = !!shadows;
     inst.frustumCulled = true;
     group.forEach((mesh, i) => {
       _dummy.matrix.copy(mesh.matrixWorld);
