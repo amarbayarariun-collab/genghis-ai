@@ -1,4 +1,4 @@
-// МСХ · Тэмүжин v1 — Sumiro-style chapters + Taichiud + GLB Temüjin.
+// Монголын Нууц Товчоо · Тэмүжин v1 — Sumiro-style chapters + Taichiud + GLB Temüjin.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { buildWorld } from './world.js';
@@ -798,18 +798,47 @@ function beginCamp({ cinematic, dialogueNode, arrive = false }) {
     loadScene('camp', { cinematic, dialogueNode, arrive });
   }, 200);
 }
-$('fastPlayBtn').onclick = () => {
+function bindTap(el, fn) {
+  if (!el) return;
+  let last = 0;
+  const run = () => {
+    const now = performance.now();
+    if (now - last < 450) return;
+    last = now;
+    fn();
+  };
+  el.addEventListener('pointerup', (ev) => {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    ev.stopPropagation();
+    run();
+  });
+  el.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    run();
+  });
+}
+// iPad Chrome can deliver the touch to the canvas even when a button is painted on top.
+addEventListener('touchend', (ev) => {
+  if (document.body.classList.contains('in-play')) return;
+  const t = ev.changedTouches?.[0];
+  if (!t) return;
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  const btn = el?.closest?.('button');
+  if (!btn || btn.disabled || btn.contains(ev.target)) return;
+  btn.dispatchEvent(new Event('pointerup', { bubbles: true }));
+}, { passive: true });
+bindTap($('fastPlayBtn'), () => {
   setQuality('low', { manual: true, reloadScene: false });
   beginCamp({ cinematic: false, dialogueNode: null, arrive: true });
-};
-$('startBtn').onclick = () => beginCamp({ cinematic: true, dialogueNode: 'intro0' });
-$('continueBtn').onclick = () => {
+});
+bindTap($('startBtn'), () => beginCamp({ cinematic: true, dialogueNode: 'intro0' }));
+bindTap($('continueBtn'), () => {
   try { audio.unlock(); } catch (err) { console.warn('[audio]', err); }
   $('title').classList.add('hidden');
   const ch = CHAPTERS.find((c) => c.id === save.lastChapter) || CHAPTERS[0];
   loadScene(ch.scene, { cinematic: true });
-};
-$('chaptersBtn').onclick = () => {
+});
+bindTap($('chaptersBtn'), () => {
   $('title').classList.add('hidden');
   const panel = $('chapters');
   panel.classList.remove('hidden', 'settled');
@@ -817,18 +846,18 @@ $('chaptersBtn').onclick = () => {
   renderChapterSelect();
   requestAnimationFrame(() => panel.classList.add('settled'));
   state = 'chapters';
-};
-$('chaptersBack').onclick = () => showTitle();
-$('creditsBtn').onclick = () => {
+});
+bindTap($('chaptersBack'), () => showTitle());
+bindTap($('creditsBtn'), () => {
   endCard({
     eyebrow: 'Зохиогчид',
-    title: 'МСХ · Тэмүжин',
+    title: 'Монголын Нууц Товчоо · Тэмүжин',
     body: CREDITS.replace(/\n/g, '<br>'),
     button: 'Нүүр рүү',
     onNext: () => showTitle(),
     memory: '',
   });
-};
+});
 $('sourceBtn').onclick = () => {
   renderSource();
   $('source').classList.toggle('hidden');
@@ -1064,6 +1093,7 @@ function tick() {
   const frameDt = clock.getDelta();
   const dt = Math.min(frameDt, 0.05);
   const t = clock.elapsedTime;
+  document.body.classList.toggle('in-play', state === 'explore' || state === 'cine');
 
   // The 50 ms cap is only for simulation. The meter counts real frames.
   fpsFrames++;

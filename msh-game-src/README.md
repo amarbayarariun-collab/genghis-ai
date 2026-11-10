@@ -1,4 +1,4 @@
-# МСХ · Тэмүжин (Playable Legacy) v1
+# Монголын Нууц Товчоо · Тэмүжин (Playable Legacy) v1
 
 Бүтэн Act 0–III + Тайчууд олзлолт. Дэлхийн харагдах байдал: `media/refs/step1-reference-video.mp4`.
 

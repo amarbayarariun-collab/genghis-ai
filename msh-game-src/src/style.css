@@ -7,8 +7,19 @@ html, body {
   font-family: "Noto Sans", "Segoe UI", system-ui, sans-serif;
   color: #f2ead8;
 }
-#game { display: block; width: 100vw; height: 100vh; cursor: grab; touch-action: none; }
-#game:active { cursor: grabbing; }
+/* The canvas covers the viewport. On iPad it must not take taps while a menu is up. */
+#game {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  touch-action: manipulation;
+}
+body.in-play #game { pointer-events: auto; touch-action: none; cursor: grab; }
+body.in-play #game:active { cursor: grabbing; }
 .hidden { display: none !important; }
 
 /* Full-screen warm grade: sepia tint + soft sun bloom haze (f03 look) */
@@ -150,6 +161,8 @@ html, body {
   align-items: center;
   justify-content: center;
   z-index: 20;
+  transform: translateZ(0);
+  touch-action: manipulation;
   text-align: center;
   padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
   background:
@@ -241,6 +254,7 @@ html, body {
 button {
   font: inherit;
   cursor: pointer;
+  touch-action: manipulation;
   border: 1px solid #c9a35a;
   background: rgba(60, 44, 22, 0.85);
   color: #f6e7c4;

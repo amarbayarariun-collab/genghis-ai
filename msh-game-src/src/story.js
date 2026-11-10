@@ -608,7 +608,7 @@ export const TAICHIUD_TEASER = 'Ia бүлэг: Тайчууд олзлолт —
 export const ACT2_TEASER = 'II бүлэг: Боорчи · Бөртэ · анда холбоо.';
 export const ACT3_TEASER = 'III бүлэг: Мэргид хямрал · эвсэл · анхны Чингис цол.';
 export const MVP_DONE = 'Бүтэн тоглоом Act 0–III дууслаа: өнчин өдрүүд → Тайчууд → Боорчи/Бөртэ → Чингис. Дараа: Жамухатай зөрчил.';
-export const CREDITS = `МСХ · Тэмүжин
+export const CREDITS = `Монголын Нууц Товчоо · Тэмүжин
 Нууц Товчоо (Ц. Дамдинсүрэн)
 Playable Legacy · Sumiro-inspired feel
 Уран: Amgaa · Тоглоом: Cursor агент
