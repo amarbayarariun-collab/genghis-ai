@@ -48,12 +48,28 @@ Any OpenAI-compatible base URL works via `OPENAI_BASE_URL` (e.g. Azure OpenAI pr
 - Streaming assistant replies
 - Mock fallback without secrets
 
+## Mongolian LLM (Phase 1 scripts)
+
+Roadmap (datasets, GPU cost bands, eval, monetisation): [`docs/ROADMAP-mongolian-llm.md`](docs/ROADMAP-mongolian-llm.md) (see also the docs PR if not on `main` yet).
+
+Runnable-later fine-tune toolkit (no paid runs from this README):
+
+```bash
+cd ml
+python data/prepare_corpus.py --fixture-only --out data/work/cleaned.jsonl
+python data/build_sft_jsonl.py --pairs data/fixtures/sft_pairs.jsonl --cleaned data/work/cleaned.jsonl --out data/work/sft.jsonl
+python train/train_qlora.py --config train/config.example.yaml --data data/work/sft.jsonl --dry-run
+python eval/run_eval.py --set eval/sets/mn_v0.jsonl --lint-only
+```
+
+Full GPU instructions: [`ml/README.md`](ml/README.md).
+
 ## Out of scope (for now)
 
 - Auth / accounts
 - Database persistence
-- File uploads, tools, voice
-- Marketing-only landing page
+- Payment integration
+- Paid GPU training in CI
 
 ## Scripts
 

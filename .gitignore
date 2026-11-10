@@ -40,3 +40,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ML Phase 1 working data / checkpoints (keep fixtures + scripts)
+/ml/data/work/
+/ml/eval/work/
+/ml/outputs/
+/ml/**/.venv/
+/ml/**/__pycache__/
+*.pt
+*.bin
+*.safetensors
+/ml/data/work/**/*.xml
+/ml/data/work/**/*.bz2
