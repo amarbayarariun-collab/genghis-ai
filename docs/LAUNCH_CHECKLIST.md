@@ -38,7 +38,7 @@ Linear launch stack (base → tip):
 **Cleaner options (pick one):**
 
 1. **Preferred for image fix first:** merge #42 → `main`, then rebase/restack #38…#49 (+ legal) onto updated `main` (resolve once at the stack base that touches image).
-2. **Preferred for launch path first:** merge #38→#49 (+ legal) → `main`, then rebase #42 onto `main` and resolve the four files above (keep GPT Image primary + xAI fallback from #42; keep plan quotas / tracking from the stack).
+2. **Preferred for launch path first:** merge #38→#49 (+ legal) → `main`, then rebase #42 onto `main` and resolve the four files above (keep xAI Imagine `grok-imagine-image` primary + OpenAI GPT Image opt-in from #42; keep plan quotas / tracking from the stack).
 
 Do **not** merge #42 into the middle of the stack without a rebase plan — overlapping image route will conflict.
 
@@ -64,8 +64,8 @@ Do these after merges you accept; agents do not set production secrets or deploy
 | `AUTH_SECRET` | Session signing |
 | `AUTH_URL` | Canonical site URL (OAuth callbacks) |
 | `ADMIN_SECRET` | `/admin` gate |
-| `OPENAI_API_KEY` or `AP` | xAI chat key (`xai-…` → `https://api.x.ai/v1`) |
-| `OPENAI_IMAGE_API_KEY` | OpenAI Images (after #42) |
+| `OPENAI_API_KEY` or `AP` | xAI chat + default image key (`xai-…` → `https://api.x.ai/v1`, `grok-imagine-image`) |
+| `OPENAI_IMAGE_API_KEY` | Opt-in OpenAI GPT Image only (after #42; leave unset for xAI primary) |
 | Optional | `CHAT_*`, `CHAT_HISTORY_LIMIT`, `CHAT_MAX_TOKENS`, `ATTACH_TEXT_LIMIT`, `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_QUALITY`, `IMAGE_PROVIDER` |
 
 Enable Vercel Web Analytics on the project if desired (`@vercel/analytics` already wired).

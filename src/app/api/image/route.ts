@@ -20,7 +20,7 @@ function missingKeyError(
   if (preference === "openai") {
     return "Зураг үүсгэхэд OpenAI image түлхүүр хэрэгтэй. Vercel дээр OPENAI_IMAGE_API_KEY (эсвэл жинхэнэ OpenAI OPENAI_API_KEY, xai- биш) тохируулаад Production Redeploy хийнэ үү.";
   }
-  return "Зураг үүсгэхэд API түлхүүр хэрэгтэй. Гол зам: OPENAI_IMAGE_API_KEY. Нөөц: xAI AP / OPENAI_API_KEY (xai-…). Production Redeploy хийнэ үү.";
+  return "Зураг үүсгэхэд API түлхүүр хэрэгтэй. Гол зам: xAI AP / OPENAI_API_KEY (xai-…). OpenAI нөөц: OPENAI_IMAGE_API_KEY + IMAGE_PROVIDER=openai. Production Redeploy хийнэ үү.";
 }
 
 function looksLikeCreditsIssue(detail: string): boolean {
@@ -34,16 +34,16 @@ function allFailedError(configs: ImageApiConfig[], detail: string): string {
 
   if (triedXai && triedOpenAI) {
     return credits
-      ? "Зураг үүсгэж чадсангүй. OpenAI image credits/billing дууссан эсвэл хүрэлцэхгүй байна; xAI нөөц (grok-imagine-image) ч амжилтгүй. OpenAI prepaid credits цэнэглээд Redeploy хийнэ үү, эсвэл IMAGE_PROVIDER=xai туршина уу."
-      : "Зураг үүсгэж чадсангүй. OpenAI GPT Image болон xAI нөөц (grok-imagine-image) аль аль нь амжилтгүй. OPENAI_IMAGE_API_KEY, OPENAI_IMAGE_MODEL=gpt-image-2.5-flare (quality=low, size=1024x1024) шалгаад Redeploy хийнэ үү.";
+      ? "Зураг үүсгэж чадсангүй. xAI (grok-imagine-image) амжилтгүй; OpenAI нөөц credits/billing ч хүрэлцэхгүй. xAI AP эрхээ шалгаад Redeploy хийнэ үү, эсвэл OpenAI prepaid credits цэнэглэнэ үү."
+      : "Зураг үүсгэж чадсангүй. xAI (grok-imagine-image) болон OpenAI GPT Image нөөц аль аль нь амжилтгүй. AP / OPENAI_API_KEY (xai-…) болон OPENAI_IMAGE_API_KEY шалгаад Redeploy хийнэ үү.";
   }
   if (triedXai) {
-    return "Зураг үүсгэж чадсангүй. OPENAI_IMAGE_API_KEY байхгүй тул xAI (grok-imagine-image) ашигласан боловч амжилтгүй. OPENAI_IMAGE_API_KEY нэмэх эсвэл xAI AP / OPENAI_API_KEY (xai-…) эрхээ шалгана уу.";
+    return "Зураг үүсгэж чадсангүй. xAI (grok-imagine-image) амжилтгүй. AP / OPENAI_API_KEY (xai-…) эрхээ шалгана уу. OpenAI нөөцөд OPENAI_IMAGE_API_KEY нэмээд IMAGE_PROVIDER=openai туршина уу.";
   }
   if (credits) {
-    return "Зураг үүсгэж чадсангүй. OpenAI image credits/billing хүрэлцэхгүй байна. Prepaid credits цэнэглээд Production Redeploy хийнэ үү. Түр xAI нөөцөд IMAGE_PROVIDER=auto үлдээж AP (xai-…) байлгана уу.";
+    return "Зураг үүсгэж чадсангүй. OpenAI image credits/billing хүрэлцэхгүй байна. Prepaid credits цэнэглээд Production Redeploy хийнэ үү. Үндсэн замд IMAGE_PROVIDER unset / auto үлдээж AP (xai-…) ашиглана уу.";
   }
-  return "Зураг үүсгэж чадсангүй. OpenAI image model эсвэл түлхүүр буруу байна. dall-e-3 / gpt-image-1 retired — OPENAI_IMAGE_MODEL=gpt-image-2.5-flare, OPENAI_IMAGE_QUALITY=low, OPENAI_IMAGE_SIZE=1024x1024 тавина уу.";
+  return "Зураг үүсгэж чадсангүй. OpenAI image model эсвэл түлхүүр буруу байна. dall-e-3 / gpt-image-1 retired — OPENAI_IMAGE_MODEL=gpt-image-2.5-flare, OPENAI_IMAGE_QUALITY=low, OPENAI_IMAGE_SIZE=1024x1024 тавина уу. Эсвэл IMAGE_PROVIDER unset үлдээж xAI ашиглана уу.";
 }
 
 async function tryGenerateWithConfig(

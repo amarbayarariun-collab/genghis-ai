@@ -42,10 +42,13 @@ OPENAI_API_KEY=sk-...   # or AP= for xAI (xai-… keys auto-route to api.x.ai)
 # CHAT_BASE_URL=http://127.0.0.1:8000/v1
 # CHAT_MODEL=genghis-mn
 
-# image provider: auto (default) | openai | xai
+# image provider: auto (default when unset) | openai | xai
 # IMAGE_PROVIDER=auto
 
-# PRIMARY: OpenAI GPT Image (chat can stay on xAI AP)
+# PRIMARY (default): xAI Imagine via chat key AP / OPENAI_API_KEY (xai-…)
+# model grok-imagine-image (~$0.02)
+
+# OPT-IN: OpenAI GPT Image (only when IMAGE_PROVIDER=openai or key set as auto fallback)
 # OPENAI_IMAGE_API_KEY=sk-...
 # OPENAI_IMAGE_MODEL=gpt-image-2.5-flare
 # OPENAI_IMAGE_QUALITY=low
@@ -54,10 +57,11 @@ OPENAI_API_KEY=sk-...   # or AP= for xAI (xai-… keys auto-route to api.x.ai)
 
 Restart the dev server. The chat route (`/api/chat`) uses `resolveChatProvider()` (`src/lib/chat-provider.ts`): `CHAT_*` first, then legacy `OPENAI_*` / `AP`. Without a configured backend, Genghis AI answers in **демо горим**.
 
-`/api/image` stays separate from chat cutover and is controlled by `IMAGE_PROVIDER` (default `auto`):
+`/api/image` stays separate from chat cutover and is controlled by `IMAGE_PROVIDER` (default `auto` when unset):
 
-- **Primary — OpenAI GPT Image:** `OPENAI_IMAGE_API_KEY` on `https://api.openai.com/v1` (models `OPENAI_IMAGE_MODEL` → `gpt-image-2.5-flare` → `gpt-image-2` → `gpt-image-1.5` → `gpt-image-1-mini`; retired `dall-e-3` / `gpt-image-1` skipped). Defaults `OPENAI_IMAGE_QUALITY=low`, `OPENAI_IMAGE_SIZE=1024x1024`. If `OPENAI_IMAGE_API_KEY` is unset, a real OpenAI `OPENAI_API_KEY` (`sk-…`, not `xai-`) may be used; the xAI key mapped into `OPENAI_API_KEY` / `AP` is never treated as OpenAI.
-- **Fallback — xAI Imagine:** when OpenAI key is missing, fails, or is out of credits, use the xAI chat key on `https://api.x.ai/v1` with `grok-imagine-image` ($0.02; not retired `grok-2-image*`).
+
+- **Primary — xAI Imagine:** chat key `OPENAI_API_KEY` / `AP` (`xai-…`) on `https://api.x.ai/v1` with `grok-imagine-image` ($0.02; retired `grok-2-image*` skipped). This is the default when `IMAGE_PROVIDER` is unset.
+- **Opt-in — OpenAI GPT Image:** set `IMAGE_PROVIDER=openai`, or leave `auto` and set `OPENAI_IMAGE_API_KEY` (models `OPENAI_IMAGE_MODEL` → `gpt-image-2.5-flare` → `gpt-image-2` → `gpt-image-1.5` → `gpt-image-1-mini`; retired `dall-e-3` / `gpt-image-1` skipped). Defaults `OPENAI_IMAGE_QUALITY=low`, `OPENAI_IMAGE_SIZE=1024x1024`. A real OpenAI `OPENAI_API_KEY` (`sk-…`, not `xai-`) may also opt in; the xAI key mapped into `OPENAI_API_KEY` / `AP` is never treated as OpenAI.
 - `IMAGE_PROVIDER=openai` / `xai` forces a single provider.
 - Each successful generation logs `provider`, `model`, and estimated `$` cost (`[genghis-image-usage]`). Paid **10 images/month** quota is enforced by plan limits (#44).
 
