@@ -2,7 +2,7 @@
 const STEPS = [
   { id: 'move', text: 'Яв · W A S D, эсвэл жолоо' },
   { id: 'mount', text: 'Морь · F, эсвэл Морь' },
-  { id: 'gallop', text: 'Давхи · Shift дарж барь' },
+  { id: 'gallop', text: 'Давхи · Shift, эсвэл жолоогоо үзүүр хүртэл' },
   { id: 'shoot', text: 'Нум · Q, эсвэл Нум' },
   { id: 'talk', text: 'Ярь · E, эсвэл Ярих' },
 ];
@@ -15,12 +15,12 @@ export function createCoach(root) {
 
   function paint() {
     if (!root) return;
+    const next = STEPS.find((step) => !done.has(step.id));
     root.replaceChildren();
-    for (const step of STEPS) {
-      const line = document.createElement('div');
-      line.textContent = done.has(step.id) ? `✓ ${step.text}` : step.text;
-      root.append(line);
-    }
+    if (!next) return;
+    const line = document.createElement('div');
+    line.textContent = next.text;
+    root.append(line);
     root.classList.remove('hidden');
   }
 

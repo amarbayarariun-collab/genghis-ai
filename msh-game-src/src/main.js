@@ -214,6 +214,7 @@ let activeCine = null; // { update, active, skip? }
 const keys = {};
 let world = null;
 let sceneId = 'camp';
+let primedCamp = false;
 let chapterId = 'camp';
 let NPCS = [];
 let harvestMist = null;
@@ -399,7 +400,56 @@ function clearMount() {
   }
 }
 
+function playCampArrival() {
+  const sp = world.startPos || new THREE.Vector3(0, 0, 10);
+  state = 'cine';
+  $('hud')?.classList.remove('hidden');
+  $('dialogue')?.classList.add('hidden');
+  const standZ = 5.2;
+  const standY = world.heightAt(sp.x, standZ);
+  player.pos.set(sp.x, standY, standZ);
+  player.yaw = 0.04;
+  if (world.temujin) world.temujin.position.set(sp.x, standY, standZ);
+  const play = settlePlayCamera(player.pos, player.yaw);
+  const aerial = world.aerialView;
+  pathCine.setPath({
+    positions: [
+      [aerial.eye.x, aerial.eye.y, aerial.eye.z],
+      [(aerial.eye.x + play.eye.x) * 0.5, aerial.eye.y * 0.42 + 5, (aerial.eye.z + play.eye.z) * 0.5],
+      [play.eye.x, play.eye.y, play.eye.z],
+    ],
+    targets: [
+      [aerial.look.x, aerial.look.y, aerial.look.z],
+      [sp.x, standY + 1.5, standZ - 6],
+      [play.lookAt.x, play.lookAt.y, play.lookAt.z],
+    ],
+    duration: 2.4,
+    fov: 50,
+    closed: false,
+    entry: 0.35,
+  });
+  camera.position.copy(aerial.eye);
+  camera.lookAt(aerial.look);
+  camera.fov = 48;
+  camera.updateProjectionMatrix();
+  pathCine.start({
+    from: aerial.eye,
+    lookingAt: aerial.look,
+    onDone: () => {
+      camera.fov = 62;
+      camera.updateProjectionMatrix();
+      player.pos.set(sp.x, standY, standZ);
+      player.yaw = 0.04;
+      settlePlayCamera(player.pos, player.yaw);
+      activeCine = null;
+      state = 'explore';
+    },
+  });
+  activeCine = pathCine;
+}
+
 function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false, resume = null } = {}) {
+  primedCamp = false;
   fieldTasks?.dispose();
   fieldTasks = null;
   horsesChimed = false;
@@ -501,51 +551,7 @@ function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false, 
   cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, look.pitch);
 
   if (arrive && id === 'camp' && world.aerialView) {
-    state = 'cine';
-    $('hud').classList.remove('hidden');
-    $('dialogue').classList.add('hidden');
-    // Wide shot still starts in the air. Control begins on the path, close to the nearest ger.
-    const standZ = 5.2;
-    const standY = world.heightAt(sp.x, standZ);
-    player.pos.set(sp.x, standY, standZ);
-    player.yaw = 0.04;
-    if (world.temujin) world.temujin.position.set(sp.x, standY, standZ);
-    const play = settlePlayCamera(player.pos, player.yaw);
-    const aerial = world.aerialView;
-    pathCine.setPath({
-      positions: [
-        [aerial.eye.x, aerial.eye.y, aerial.eye.z],
-        [(aerial.eye.x + play.eye.x) * 0.5, aerial.eye.y * 0.42 + 5, (aerial.eye.z + play.eye.z) * 0.5],
-        [play.eye.x, play.eye.y, play.eye.z],
-      ],
-      targets: [
-        [aerial.look.x, aerial.look.y, aerial.look.z],
-        [sp.x, standY + 1.5, standZ - 6],
-        [play.lookAt.x, play.lookAt.y, play.lookAt.z],
-      ],
-      duration: 2.4,
-      fov: 50,
-      closed: false,
-      entry: 0.35,
-    });
-    camera.position.copy(aerial.eye);
-    camera.lookAt(aerial.look);
-    camera.fov = 48;
-    camera.updateProjectionMatrix();
-    pathCine.start({
-      from: aerial.eye,
-      lookingAt: aerial.look,
-      onDone: () => {
-        camera.fov = 62;
-        camera.updateProjectionMatrix();
-        player.pos.set(sp.x, standY, standZ);
-        player.yaw = 0.04;
-        settlePlayCamera(player.pos, player.yaw);
-        activeCine = null;
-        state = 'explore';
-      },
-    });
-    activeCine = pathCine;
+    playCampArrival();
   } else if (cinematic) {
     state = 'cine';
     $('hud').classList.remove('hidden');
@@ -627,8 +633,9 @@ function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false, 
   writeSave({ lastChapter: chapterId });
 }
 
-// Initial camp preload behind title
+// Initial camp preload behind title. The first fast start reuses it.
 loadScene('camp', { cinematic: false });
+primedCamp = true;
 state = 'title';
 $('end')?.classList.add('hidden');
 $('hud').classList.add('hidden');
@@ -981,11 +988,17 @@ function beginCamp({ cinematic, dialogueNode, arrive = false }) {
   save = loadSave();
   const title = $('title');
   title.classList.add('fade-out');
+  const reuse = arrive && !cinematic && !dialogueNode && primedCamp && sceneId === 'camp' && !!world?.aerialView;
+  if (reuse) primedCamp = false;
   setTimeout(() => {
     title.classList.add('hidden');
     title.classList.remove('fade-out');
     $('hud').classList.remove('hidden');
     $('chapter').textContent = dialogueNode ? '0 бүлэг · Удиртгал' : 'I бүлэг · Өнчин өдрүүд';
+    if (reuse) {
+      playCampArrival();
+      return;
+    }
     loadScene('camp', { cinematic, dialogueNode, arrive });
   }, 200);
 }
@@ -1027,13 +1040,14 @@ addEventListener('touchend', (ev) => {
 bindTap($('mountBtn'), () => setMounted(!mounted));
 const muteBtn = $('muteBtn');
 if (muteBtn) {
-  muteBtn.textContent = theme.muted ? 'Дуу хаагдсан' : 'Дуу';
-  muteBtn.setAttribute('aria-pressed', theme.muted ? 'true' : 'false');
-  bindTap(muteBtn, () => {
-    const muted = theme.toggleMute();
-    muteBtn.textContent = muted ? 'Дуу хаагдсан' : 'Дуу';
+  const paintMute = (muted) => {
+    muteBtn.textContent = 'Дуу';
+    muteBtn.classList.toggle('is-off', muted);
     muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
-  });
+    muteBtn.setAttribute('aria-label', muted ? 'Дуу хаагдсан' : 'Дуу');
+  };
+  paintMute(theme.muted);
+  bindTap(muteBtn, () => paintMute(theme.toggleMute()));
 }
 bindTap($('fastPlayBtn'), () => {
   setQuality('low', { manual: true, reloadScene: false });
@@ -1379,7 +1393,8 @@ function tick() {
     if (keys.ArrowRight) cam.yaw -= dt * 1.8;
     player.yaw = cam.yaw;
     const lim = sceneId === 'burkhan' ? 45 : sceneId.includes('ger') ? 8 : 50;
-    const sprint = !!(keys.ShiftLeft || keys.ShiftRight);
+    const stickMag = Math.hypot(touchWish.x, touchWish.y);
+    const sprint = !!(keys.ShiftLeft || keys.ShiftRight) || stickMag > 0.85;
     const result = mover.step(
       dt,
       {
@@ -1513,7 +1528,7 @@ function tick() {
   }
   const pace = $('pace');
   if (pace) {
-    const sprint = !!(keys.ShiftLeft || keys.ShiftRight);
+    const sprint = !!(keys.ShiftLeft || keys.ShiftRight) || Math.hypot(touchWish.x, touchWish.y) > 0.85;
     const gaitName = {
       idle: 'Зогсоо', walk: 'Алхаа', trot: 'Жороо', canter: 'Шогшоо', gallop: 'Давхилт',
     }[playerHorse?.userData?.gait];

@@ -182,19 +182,35 @@ body.touch-ui.in-play #stick { display: block; }
 }
 .touch-pad { display: none; }
 @media (pointer: coarse) {
+  /* Keyboard hints sit on the stick. The thumb buttons replace them. */
+  #controls { display: none; }
   .touch-pad {
     display: flex;
+    flex-direction: column;
     position: fixed;
     right: max(12px, env(safe-area-inset-right));
-    bottom: max(148px, calc(env(safe-area-inset-bottom) + 132px));
+    bottom: max(18px, env(safe-area-inset-bottom));
     z-index: 18;
     gap: 8px;
+    width: auto;
   }
   .touch-pad button {
     min-width: 4.6rem;
     min-height: 2.8rem;
     font-size: 15px;
   }
+  #coach {
+    bottom: auto;
+    top: max(148px, calc(env(safe-area-inset-top) + 136px));
+    max-width: min(68vw, 260px);
+  }
+}
+/* Dialogue must keep Цааш. The stick and thumb buttons paint above it otherwise. */
+body:has(#dialogue:not(.hidden)) #touchPad,
+body:has(#dialogue:not(.hidden)) #stick,
+body:has(#dialogue:not(.hidden)) #coach {
+  visibility: hidden;
+  pointer-events: none;
 }
 .pause-panel .hint { margin-top: 0.75rem; opacity: 0.75; font-size: 0.85rem; }
 
@@ -694,6 +710,11 @@ button:disabled {
   font-size: 13px;
   padding: 7px 12px;
 }
+#muteBtn.is-off {
+  background: #3a2418;
+  color: #c4b39a;
+  text-decoration: line-through;
+}
 #sourceBtn {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
@@ -772,6 +793,30 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  #chapter {
+    max-width: calc(100vw - 86px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #muteBtn,
+  #sourceBtn {
+    top: max(50px, calc(env(safe-area-inset-top) + 44px));
+  }
+  #muteBtn { right: auto; left: 14px; }
+  #sourceBtn { right: auto; left: 78px; }
+  #objective { top: max(140px, calc(env(safe-area-inset-top) + 128px)); }
+  #fieldTasks {
+    top: max(196px, calc(env(safe-area-inset-top) + 184px));
+    max-width: 62vw;
+  }
+  #perfHud {
+    top: max(92px, calc(env(safe-area-inset-top) + 84px));
+    left: 14px;
+    right: auto;
+    max-width: calc(100vw - 100px);
+  }
+
   .title-card:not(.title-screen) {
     grid-template-columns: 1fr;
     max-height: min(92vh, 820px);
@@ -798,6 +843,10 @@ button:disabled {
 @media (max-width: 420px) {
   #chapter { font-size: 12px; max-width: 48vw; }
   #sourceBtn { font-size: 12px; padding: 6px 10px; }
+}
+
+@media (pointer: coarse) {
+  #controls { display: none; }
 }
 
 
