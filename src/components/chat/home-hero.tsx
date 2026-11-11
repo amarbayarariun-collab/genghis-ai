@@ -14,9 +14,11 @@ import { LiveHeroBackdrop } from "@/components/chat/live-hero-backdrop";
 import { LocaleToggle } from "@/components/chat/locale-toggle";
 import { ThemeToggle } from "@/components/chat/theme-toggle";
 import { WallpaperPickerButton } from "@/components/chat/wallpaper-picker";
+import Link from "next/link";
 import { useLocale } from "@/components/locale-provider";
 import { useWallpaper } from "@/hooks/use-wallpaper";
 import { greetingForNow } from "@/lib/greeting";
+import { examplePrompts } from "@/lib/locale";
 import type { ChatAttachment, ToolMode } from "@/lib/types";
 
 type HomeHeroProps = {
@@ -55,6 +57,7 @@ export function HomeHero({
     () => greetingForNow(new Date(), locale),
     [locale]
   );
+  const prompts = useMemo(() => examplePrompts(locale), [locale]);
 
   const quickPills = useMemo(
     () =>
@@ -121,22 +124,34 @@ export function HomeHero({
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center px-4 pt-10 pb-4 md:px-8 md:pt-6">
+        <div className="flex flex-1 flex-col items-center justify-center px-3 pt-14 pb-3 sm:px-4 sm:pt-10 md:px-8 md:pt-6">
           <div className="animate-fade-up mx-auto w-full max-w-3xl text-center">
-            <h1 className="text-5xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-6xl md:text-7xl">
+            <h1 className="text-[2.45rem] font-semibold leading-tight tracking-tight text-white drop-shadow-sm sm:text-6xl md:text-7xl">
               {greeting || (
                 <span className="invisible" aria-hidden>
                   {t("greetingAfternoon")}
                 </span>
               )}
             </h1>
-            <p className="mt-3 text-sm text-white/75 sm:text-base">
+            <p className="mt-2 text-sm font-medium text-white/80 sm:mt-3 sm:text-base">
               {t("tagline")}
+            </p>
+            <p className="mx-auto mt-2 max-w-xl text-[13px] leading-relaxed text-white/65 sm:text-sm">
+              {t("valueProp")}
+            </p>
+            <p className="mx-auto mt-2 max-w-xl text-[12px] leading-relaxed text-white/55 sm:text-[13px]">
+              {t("pricingHero")}{" "}
+              <Link
+                href="/pricing"
+                className="underline underline-offset-2 hover:text-white"
+              >
+                {t("pricingLink")}
+              </Link>
             </p>
           </div>
 
           <div
-            className="animate-fade-up mx-auto mt-8 w-full max-w-2xl"
+            className="animate-fade-up mx-auto mt-6 w-full max-w-2xl sm:mt-8"
             style={{ animationDelay: "80ms" }}
           >
             <ChatComposer
@@ -155,7 +170,31 @@ export function HomeHero({
           </div>
 
           <div
-            className="animate-fade-up mt-4 flex max-w-3xl flex-wrap items-center justify-center gap-2"
+            className="animate-fade-up mt-3 w-full max-w-2xl sm:mt-4"
+            style={{ animationDelay: "110ms" }}
+          >
+            <p className="mb-2 text-center text-[11px] tracking-wide text-white/55 uppercase sm:text-xs">
+              {t("tryExamples")}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {prompts.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  disabled={disabled || isLoading}
+                  onClick={() =>
+                    onSubmit(prompt, { mode: "chat", attachments: [] })
+                  }
+                  className="max-w-full rounded-full border border-white/20 bg-ink/40 px-3 py-1.5 text-left text-[12px] leading-snug text-white/90 backdrop-blur-md transition hover:bg-ink/55 disabled:opacity-60 sm:text-[13px]"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div
+            className="animate-fade-up mt-3 flex max-w-3xl flex-wrap items-center justify-center gap-2 sm:mt-4"
             style={{ animationDelay: "140ms" }}
           >
             {quickPills.map((pill) => (

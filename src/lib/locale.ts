@@ -28,6 +28,12 @@ export function applyLocaleToDocument(locale: Locale) {
 export const UI = {
   mn: {
     tagline: "Монголоос дэлхийтэй холбогд",
+    valueProp:
+      "Монгол хэлээр асуу, сур, бич, бүтээ. Genghis AI таны өдөр тутмын AI туслах.",
+    tryExamples: "Жишээ асуултууд",
+    pricingLink: "Багц / үнэ",
+    pricingHero:
+      "Үнэгүй: сард 30 мессеж. Pro: 72,000₮/сар (~$20) · 500 мессеж + 10 зураг.",
     newChat: "Шинэ чат",
     more: "Илүү их",
     recentChats: "Сүүлд чатласан",
@@ -122,7 +128,13 @@ export const UI = {
       "Хавсралтын текст хэт урт тул хязгаарлагдана (тохиргооны тэмдэгтийн хязгаар).",
   },
   en: {
-    tagline: "From Mongolia to the world",
+    tagline: "Монголоос дэлхийтэй холбогд",
+    valueProp:
+      "Ask, learn, write, and create in Mongolian. Genghis AI is your everyday AI assistant.",
+    tryExamples: "Try an example",
+    pricingLink: "Plans / pricing",
+    pricingHero:
+      "Free: 30 messages/month. Pro: 72,000₮/mo (~$20) · 500 messages + 10 images.",
     newChat: "New chat",
     more: "More",
     recentChats: "Recent chats",
@@ -220,8 +232,28 @@ export const UI = {
 
 export type UiKey = keyof typeof UI.mn;
 
+/** First-run example prompts on the empty home hero. */
+export const EXAMPLE_PROMPTS: Record<Locale, readonly string[]> = {
+  mn: [
+    "Сайн уу, чи юу хийж чадах вэ?",
+    "Хуушуурын жор товчхон хэлж өгөөч",
+    "Энэ и-мэйлийг албан ёсны монголоор засаад өг",
+    "Python-оор энгийн тоолуур бичиж өгнө үү",
+  ],
+  en: [
+    "Hi, what can you help me with?",
+    "Give me a short khuushuur recipe",
+    "Rewrite this email in formal Mongolian",
+    "Write a simple counter in Python",
+  ],
+} as const;
+
 export function t(locale: Locale, key: UiKey): string {
   return UI[locale][key] ?? UI.mn[key];
+}
+
+export function examplePrompts(locale: Locale): readonly string[] {
+  return EXAMPLE_PROMPTS[locale] ?? EXAMPLE_PROMPTS.mn;
 }
 
 export function toolLabel(locale: Locale, mode: string): string {
