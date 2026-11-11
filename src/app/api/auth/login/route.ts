@@ -10,14 +10,14 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "Invalid JSON." }, { status: 400 });
+    return Response.json({ error: "Буруу JSON илгээлээ." }, { status: 400 });
   }
 
   const email = body.email?.trim() || "";
   const password = body.password || "";
   if (!validateEmail(email) || !password) {
     return Response.json(
-      { error: "Email and password required." },
+      { error: "И-мэйл болон нууц үг шаардлагатай." },
       { status: 400 }
     );
   }
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
   const user = await findUserByEmail(email);
   if (!user?.passwordHash) {
     return Response.json(
-      { error: "Invalid email or password." },
+      { error: "И-мэйл эсвэл нууц үг буруу байна." },
       { status: 401 }
     );
   }
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) {
     return Response.json(
-      { error: "Invalid email or password." },
+      { error: "И-мэйл эсвэл нууц үг буруу байна." },
       { status: 401 }
     );
   }

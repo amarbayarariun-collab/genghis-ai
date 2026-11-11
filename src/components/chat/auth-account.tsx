@@ -238,7 +238,7 @@ export function AuthAccount() {
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="email@example.com"
+                placeholder={t("authEmail")}
                 type="email"
                 required
                 className="w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-950"
@@ -278,7 +278,7 @@ export function AuthAccount() {
                   href="/api/auth/google"
                   className="block w-full rounded-lg border border-zinc-200 px-2.5 py-1.5 text-center text-sm text-ink/80 hover:bg-white dark:border-zinc-700 dark:hover:bg-zinc-950"
                 >
-                  {locale === "en" ? "Continue with Google" : "Google-ээр нэвтрэх"}
+                  {t("authGoogle")}
                 </a>
               ) : null}
             </form>

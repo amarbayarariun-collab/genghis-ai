@@ -7,17 +7,20 @@ import { readSession } from "@/lib/usage/session";
 export async function GET(request: Request) {
   const session = await readSession();
   if (!session?.sub) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return Response.json({ error: "Нэвтрээгүй байна." }, { status: 401 });
   }
 
   const invoiceId = new URL(request.url).searchParams.get("invoiceId")?.trim();
   if (!invoiceId) {
-    return Response.json({ error: "invoiceId required" }, { status: 400 });
+    return Response.json(
+      { error: "Нэхэмжлэхийн дугаар (invoiceId) шаардлагатай." },
+      { status: 400 }
+    );
   }
 
   const invoice = await findInvoiceById(invoiceId);
   if (!invoice || invoice.userId !== session.sub) {
-    return Response.json({ error: "Not found" }, { status: 404 });
+    return Response.json({ error: "Нэхэмжлэх олдсонгүй." }, { status: 404 });
   }
 
   const config = resolveQPayConfig(request);

@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     return Response.json(
       {
         error:
-          "Live QPay credentials are set. Mock complete is disabled.",
+          "Жинхэнэ QPay тохируулсан тул mock төлбөрийг ашиглах боломжгүй.",
         code: "LIVE_QPAY",
       },
       { status: 403 }
@@ -22,28 +22,31 @@ export async function POST(request: Request) {
 
   const session = await readSession();
   if (!session?.sub) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return Response.json({ error: "Нэвтрээгүй байна." }, { status: 401 });
   }
 
   let body: { invoiceId?: string };
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "Буруу JSON" }, { status: 400 });
+    return Response.json({ error: "Буруу JSON илгээлээ." }, { status: 400 });
   }
 
   const invoiceId = body.invoiceId?.trim();
   if (!invoiceId) {
-    return Response.json({ error: "invoiceId required" }, { status: 400 });
+    return Response.json(
+      { error: "Нэхэмжлэхийн дугаар (invoiceId) шаардлагатай." },
+      { status: 400 }
+    );
   }
 
   const invoice = await findInvoiceById(invoiceId);
   if (!invoice || invoice.userId !== session.sub) {
-    return Response.json({ error: "Not found" }, { status: 404 });
+    return Response.json({ error: "Нэхэмжлэх олдсонгүй." }, { status: 404 });
   }
   if (!invoice.mock) {
     return Response.json(
-      { error: "Only mock invoices can use mock-complete." },
+      { error: "Зөвхөн mock нэхэмжлэхийг mock-complete-ээр дуусгана." },
       { status: 400 }
     );
   }
@@ -54,6 +57,6 @@ export async function POST(request: Request) {
     mock: true,
     alreadyPaid: fulfilled?.alreadyPaid || false,
     paidUntil: fulfilled?.user?.paidUntil || null,
-    notice: "Mock payment only. No real QPay charge.",
+    notice: "Mock төлбөр амжилттай. Жинхэнэ QPay төлбөр аваагүй.",
   });
 }

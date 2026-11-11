@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return Response.json({ error: "Invalid JSON." }, { status: 400 });
+    return Response.json({ error: "Буруу JSON илгээлээ." }, { status: 400 });
   }
 
   const email = body.email?.trim() || "";
@@ -22,7 +22,10 @@ export async function POST(request: Request) {
   const name = body.name?.trim() || null;
 
   if (!validateEmail(email)) {
-    return Response.json({ error: "Enter a valid email." }, { status: 400 });
+    return Response.json(
+      { error: "Зөв и-мэйл хаяг оруулна уу." },
+      { status: 400 }
+    );
   }
   const passwordError = validatePassword(password);
   if (passwordError) {
@@ -50,11 +53,12 @@ export async function POST(request: Request) {
   } catch (err) {
     if (err instanceof Error && err.message === "EMAIL_TAKEN") {
       return Response.json(
-        { error: "That email is already registered. Log in instead." },
+        { error: "Энэ и-мэйл бүртгэлтэй байна. Нэвтэрнэ үү." },
         { status: 409 }
       );
     }
-    const message = err instanceof Error ? err.message : "Signup failed.";
+    const message =
+      err instanceof Error ? err.message : "Бүртгэл амжилтгүй боллоо.";
     return Response.json({ error: message }, { status: 500 });
   }
 }
