@@ -4,6 +4,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { buildWorld } from './world.js';
 import { buildBurkhanWorld } from './scenes/burkhan.js';
 import { buildAct2World } from './scenes/act2.js';
+import { buildHorsesWorld } from './scenes/horses.js';
 import { buildAct3World } from './scenes/act3.js';
 import {
   buildTaichiudCapture,
@@ -227,6 +228,7 @@ let footStains = null;
 let encounter = null;
 let fLatch = false;
 let toastText = '';
+let horsesChimed = false;
 let promptText = '';
 let fTouch = false;
 let qTouch = false;
@@ -276,6 +278,7 @@ function buildScene(id) {
   const qOpts = { quality };
   if (id === 'burkhan') return buildBurkhanWorld(scene);
   if (id === 'act2') return buildAct2World(scene);
+  if (id === 'horses') return buildHorsesWorld(scene);
   if (id === 'act3') return buildAct3World(scene);
   if (id === 'taichiud_capture') return buildTaichiudCapture(scene);
   if (id === 'taichiud_escape') return buildTaichiudEscape(scene);
@@ -321,6 +324,7 @@ function sceneLook(id, x, z) {
   if (id === 'taichiud_river') return blend(0, 0, 4, 18, 5.4, 9.0, 0.08, 0.16, 1.45, 1.7);
   if (id === 'taichiud_ger') return { distance: 4.1, pitch: 0.07, height: 1.22 };
   if (id === 'act2') return blend(0, 0, 8, 28, 5.6, 9.6, 0.12, 0.22, 1.6, 1.9);
+  if (id === 'horses') return blend(0, 4, 6, 24, 5.2, 9.2, 0.12, 0.22, 1.5, 1.85);
   if (id === 'act3') return blend(0, 0, 5, 18, 4.3, 6.6, 0.08, 0.14, 1.35, 1.5);
   return { distance: 5, pitch: 0.22, height: 1.55 };
 }
@@ -331,7 +335,7 @@ function applyGrade(id) {
   grade.classList.remove('grade-camp', 'grade-burkhan', 'grade-taichiud', 'grade-act2', 'grade-act3');
   const name = id === 'burkhan' ? 'grade-burkhan'
     : id.startsWith('taichiud') ? 'grade-taichiud'
-    : id === 'act2' ? 'grade-act2'
+    : id === 'act2' || id === 'horses' ? 'grade-act2'
     : id === 'act3' ? 'grade-act3'
     : 'grade-camp';
   grade.classList.add(name);
@@ -340,7 +344,7 @@ function applyGrade(id) {
 function afterCine(id, dialogueNode) {
   if (dialogueNode) startDialogue(dialogueNode);
   else if (id === 'burkhan') startDialogue('burkhan_start');
-  else if (id === 'act2') state = 'explore';
+  else if (id === 'act2' || id === 'horses') state = 'explore';
   else if (id === 'act3') startDialogue('mergen_start');
   else if (id === 'taichiud_capture') startDialogue('taichiud_capture');
   else if (id === 'taichiud_escape') state = 'explore';
@@ -398,6 +402,7 @@ function clearMount() {
 function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false, resume = null } = {}) {
   fieldTasks?.dispose();
   fieldTasks = null;
+  horsesChimed = false;
   clearMount();
   $('end')?.classList.add('hidden');
   disposeHarvestFx();
@@ -832,6 +837,16 @@ function nearSet(r = 4.2) {
 }
 function talk(n) {
   talkTarget = n.obj;
+  if (sceneId === 'horses') {
+    const text = world?.blurb?.() || '';
+    toastText = text;
+    const toast = $('toast');
+    if (toast) {
+      toast.textContent = text;
+      toast.classList.remove('hidden');
+    }
+    return;
+  }
   if (sceneId === 'camp' && n.obj === world?.hoelun) {
     const f = campFlags();
     if (!f.metHoelun) return startDialogue('start');
@@ -941,7 +956,7 @@ function renderChapterSelect() {
   list.innerHTML = '';
   save = loadSave();
   for (const ch of CHAPTERS) {
-    const unlocked = save.unlocked.includes(ch.id) || ch.id === 'camp';
+    const unlocked = save.unlocked.includes(ch.id) || ch.id === 'camp' || ch.id === 'horses';
     const b = document.createElement('button');
     b.type = 'button';
     const here = save.lastChapter === ch.id;
@@ -1424,6 +1439,24 @@ function tick() {
           flashSfx(sfx.chime());
         }
       }
+    } else if (sceneId === 'horses' && world?.taskLine) {
+      const taskEl = $('fieldTasks');
+      const line = world.taskLine();
+      if (taskEl && state === 'explore') {
+        taskEl.textContent = line;
+        taskEl.classList.remove('hidden');
+      }
+      const status = world.herdStatus?.();
+      if (status?.done && !horsesChimed) {
+        horsesChimed = true;
+        toastText = line;
+        const toast = $('toast');
+        if (toast) {
+          toast.textContent = line;
+          toast.classList.remove('hidden');
+        }
+        if (!theme.muted) flashSfx(sfx.chime());
+      }
     } else {
       $('fieldTasks')?.classList.add('hidden');
     }
@@ -1433,7 +1466,7 @@ function tick() {
       ? encounter.update(dt, player.pos, fEdge)
       : null;
     if (enc?.resolved) audio.cue?.('drumFar', -6, false);
-    if ((enc?.toast || '') !== toastText) {
+    if (encounter && (enc?.toast || '') !== toastText) {
       toastText = enc?.toast || '';
       const toast = $('toast');
       if (toast) {
@@ -1541,7 +1574,7 @@ function tick() {
       audio.cue?.('eagleCry', -10, true);
     }
   }
-  updateWorld?.(dt, t, state === 'explore' ? nearSet() : null, temujin.position, moving && state === 'explore');
+  updateWorld?.(dt, t, state === 'explore' ? nearSet() : null, player.pos, moving && state === 'explore');
   paint(t);
   requestAnimationFrame(tick);
 }
@@ -1688,6 +1721,7 @@ window.__mshPos = () => ({ x: Math.round(player.pos.x * 10) / 10, z: Math.round(
 window.__mshSave = () => loadSave();
 window.__mshContinue = () => { continueFromTitle(); return { state, endHidden: $('end')?.classList.contains('hidden'), titleHidden: $('title')?.classList.contains('hidden'), x: player.pos.x, z: player.pos.z }; };
 window.__mshField = () => fieldTasks?.status() || null;
+window.__mshHerd = () => world?.herdStatus?.() || null;
 window.__mshAim = () => {
   if (!fieldTasks) return null;
   const spot = fieldTasks.status().spots.shoot;
