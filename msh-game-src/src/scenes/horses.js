@@ -39,19 +39,24 @@ export function buildHorsesWorld(scene) {
   scene.add(new THREE.Mesh(flat, new THREE.MeshLambertMaterial({ color: '#7f9a48', flatShading: true })));
 
   const wood = new THREE.MeshLambertMaterial({ color: '#6a4428', flatShading: true });
-  const hitch = new THREE.Group();
-  hitch.position.set(0, heightAt(0, 4), 4);
-  const postL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.4, 6), wood);
-  postL.position.set(0, 0.7, -1.2);
-  const postR = postL.clone();
-  postR.position.z = 1.2;
-  const rail = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 2.6), wood);
-  rail.position.y = 1.15;
-  hitch.add(postL, postR, rail);
-  scene.add(hitch);
+  // Posts stand on their own ground, sunk a little so the feet stay planted on the slope.
+  const postH = 1.15;
+  const sink = 0.16;
+  const postAt = (x, z) => {
+    const ground = heightAt(x, z);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, postH, 6), wood);
+    post.position.set(x, ground - sink + postH / 2, z);
+    scene.add(post);
+    return ground - sink + postH;
+  };
+  const topL = postAt(-1.15, 4);
+  const topR = postAt(1.15, 4);
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(2.55, 0.1, 0.12), wood);
+  rail.position.set(0, Math.min(topL, topR) - 0.02, 4);
+  scene.add(rail);
 
   const boorchi = person({ deel: '#5a4a32', hat: '#3a2a1c', fur: '#cbb896' });
-  boorchi.position.set(-1.6, heightAt(-1.6, 4), 4);
+  boorchi.position.set(-2.6, heightAt(-2.6, 4), 4);
   boorchi.rotation.y = 0.4;
   scene.add(boorchi);
 
@@ -61,7 +66,7 @@ export function buildHorsesWorld(scene) {
 
   const spots = [[16, -2], [20, 1], [18, 4]];
   const herd = spots.map(([x, z], i) => {
-    const h = horse(i === 1 ? '#c4a06a' : '#5c3a28');
+    const h = horse(i === 1 ? '#c4a06a' : '#5c3a28', { saddle: false });
     h.position.set(x, heightAt(x, z), z);
     h.rotation.y = Math.PI;
     scene.add(h);
@@ -114,7 +119,7 @@ export function buildHorsesWorld(scene) {
   return {
     temujin,
     boorchi,
-    colliders: [{ x: -1.6, z: 4, r: 0.7 }],
+    colliders: [{ x: -2.6, z: 4, r: 0.7 }],
     heightAt,
     update,
     startPos: new THREE.Vector3(0, 0, 12),
