@@ -34,13 +34,13 @@ export function skyDome({ top, mid, horizon, bottom }, radius = 300) {
 function curledBrimGeometry(tall) {
   // Lip is the outer edge and stays below the crown, the same height all around.
   const profile = [
-    [0.078, 1.292],
-    [0.098, 1.310],
-    [0.118, 1.338],
-    [0.134, 1.368],
-    [0.144, 1.392],
-    [0.142, 1.404],
-    [0.134, 1.410],
+    [0.072, 1.300],
+    [0.086, 1.318],
+    [0.098, 1.348],
+    [0.108, 1.378],
+    [0.114, 1.400],
+    [0.110, 1.412],
+    [0.100, 1.418],
   ];
   const pts = [];
   for (const [r, y] of profile) pts.push(new THREE.Vector2(r * tall, y * tall));
@@ -62,8 +62,8 @@ export function mongolHat(tall = 1) {
     new THREE.SphereGeometry(0.10 * tall, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5),
     hide
   );
-  crown.scale.set(0.9, 1.55, 0.9);
-  crown.position.y = 1.32 * tall;
+  crown.scale.set(1.0, 1.95, 1.08);
+  crown.position.y = 1.30 * tall;
   // One even roll. No ear boards in front of the eyes.
   const brim = new THREE.Mesh(curledBrimGeometry(tall), fur);
   g.add(brim, crown);

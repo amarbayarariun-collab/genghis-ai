@@ -100,7 +100,7 @@ export function createTemujin(opts = {}) {
         group.add(wrap);
         const malgai = mongolHat(1);
         // Local 1.33 meets the cut. Sit the roll on the brow so it stays above both eyes.
-        malgai.position.y = HEAD_CUT * s - 1.33 + 0.02;
+        malgai.position.y = HEAD_CUT * s - 1.33 - 0.02;
         malgai.rotation.y = Math.PI / 2;
         group.add(malgai);
 
@@ -224,7 +224,12 @@ function hideSculptHat(root) {
       const leftTemple = cx < -0.09 && cx > -0.2 && cy > 1.705 && cy < 1.78 && cz > 0.06 && cz < 0.2;
       // Dark hair card on the viewer's right, in front of that eye. Keep the face itself.
       const sideCard = cx > 0.09 && cx < 0.17 && cy > 1.60 && cy < 1.76 && cz < 0.10 && cz > -0.06;
-      if ((!face && hood && (white || orange)) || tallCollar || templeFur || leftTemple || sideCard) { furDropped += 1; continue; }
+      // Pale sculpt fur beside either ear, including the piece that sits above the brim.
+      const earFur = Math.abs(cx) > 0.055 && Math.abs(cx) < 0.22 && cy > 1.64 && cy < 1.78 && cz < 0.17 && cz > -0.18
+        && !(cz > 0.10 && Math.abs(cx) < 0.07 && cy < 1.70);
+      // The old hat's back still rises above the brim.
+      const backCap = cz < -0.04 && cy > 1.66 && cy < 1.80 && Math.abs(cx) < 0.18;
+      if ((!face && hood && (white || orange)) || tallCollar || templeFur || leftTemple || sideCard || earFur || backCap) { furDropped += 1; continue; }
       kept.push(a, b, c);
     }
     o.userData.furDropped = furDropped;
