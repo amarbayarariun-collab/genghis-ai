@@ -6,6 +6,7 @@ import {
   Brain,
   FileIcon,
   Globe,
+  Languages,
   Mic,
   Plus,
   Square,
@@ -14,6 +15,12 @@ import {
 import { useLocale } from "@/components/locale-provider";
 import { fileToAttachment } from "@/lib/attachments";
 import { toolLabel } from "@/lib/locale";
+import {
+  hasLatinForTranslit,
+  latinToCyrillicMn,
+  readStoredTranslitEnabled,
+  writeStoredTranslitEnabled,
+} from "@/lib/transliterate-mn";
 import type { ChatAttachment, ToolMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -70,11 +77,14 @@ export function ChatComposer({
   const [attachError, setAttachError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [micSupported, setMicSupported] = useState(false);
+  const [translitOn, setTranslitOn] = useState(false);
   const recognitionRef = useRef<SpeechRec | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- detect SpeechRecognition once
     setMicSupported(Boolean(getSpeechRecognition()));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate translit pref from localStorage
+    setTranslitOn(readStoredTranslitEnabled());
   }, []);
 
   useEffect(() => {
@@ -84,9 +94,28 @@ export function ChatComposer({
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, [value]);
 
+  const preview =
+    translitOn && hasLatinForTranslit(value)
+      ? latinToCyrillicMn(value)
+      : null;
+
+  const setTranslit = (next: boolean) => {
+    setTranslitOn(next);
+    writeStoredTranslitEnabled(next);
+  };
+
+  const applyTranslit = () => {
+    if (!preview || preview === value) return;
+    onChange(preview);
+  };
+
   const submit = () => {
     if (disabled || isLoading) return;
-    const text = (ref.current?.value ?? value).trim();
+    let text = (ref.current?.value ?? value).trim();
+    if (translitOn && text && hasLatinForTranslit(text)) {
+      text = latinToCyrillicMn(text).trim();
+      onChange(text);
+    }
     if (!text && attachments.length === 0) return;
     onSubmit(text || (attachments.length ? t("viewAttachments") : ""), {
       mode,
@@ -181,11 +210,11 @@ export function ChatComposer({
               </span>
               <button
                 type="button"
-                className="absolute -top-1.5 -right-1.5 inline-flex size-5 items-center justify-center rounded-full bg-[#0B0D0F] text-white"
+                className="absolute -top-2 -right-2 inline-flex size-8 items-center justify-center rounded-full bg-[#0B0D0F] text-white"
                 aria-label={t("removeAttachment")}
                 onClick={() => removeAttachment(att.id)}
               >
-                <X className="size-3" />
+                <X className="size-3.5" />
               </button>
             </div>
           ))}
@@ -199,7 +228,7 @@ export function ChatComposer({
           </span>
           <button
             type="button"
-            className="text-[11px] text-[#5C584F] underline"
+            className="inline-flex min-h-11 items-center text-[12px] text-[#5C584F] underline sm:min-h-0 sm:text-[11px]"
             onClick={() => onModeChange?.("chat")}
           >
             {t("cancel")}
@@ -209,7 +238,7 @@ export function ChatComposer({
 
       <div
         className={cn(
-          "flex w-full items-center gap-1 border border-[#E8E4DC] bg-white px-2 py-1.5",
+          "flex w-full items-end gap-0.5 border border-[#E8E4DC] bg-white px-1.5 py-1.5 sm:items-center sm:gap-1 sm:px-2",
           attachments.length || mode !== "chat" ? "rounded-3xl" : "rounded-full",
           "shadow-[0_10px_40px_-18px_rgba(11,13,15,0.45)]",
           variant === "hero" && "shadow-[0_14px_48px_-16px_rgba(11,13,15,0.55)]"
@@ -226,7 +255,7 @@ export function ChatComposer({
 
         <button
           type="button"
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-[#0B0D0F] transition hover:bg-[#F3F0EA]"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-[#0B0D0F] transition hover:bg-[#F3F0EA] sm:size-9"
           aria-label={t("attach")}
           disabled={disabled || isLoading}
           onClick={() => fileRef.current?.click()}
@@ -234,7 +263,7 @@ export function ChatComposer({
           <Plus className="size-5 stroke-[2.25]" />
         </button>
 
-        <span className="mr-1 h-5 w-px shrink-0 bg-[#D9D3C7]" aria-hidden />
+        <span className="mb-3 mr-0.5 hidden h-5 w-px shrink-0 bg-[#D9D3C7] sm:mb-0 sm:mr-1 sm:block" aria-hidden />
 
         <textarea
           ref={ref}
@@ -250,7 +279,7 @@ export function ChatComposer({
           disabled={disabled}
           rows={1}
           className={cn(
-            "max-h-36 min-h-10 flex-1 resize-none bg-transparent py-2.5 text-[15px] outline-none",
+            "max-h-36 min-h-11 flex-1 resize-none bg-transparent py-2.5 text-[16px] outline-none sm:min-h-10 sm:text-[15px]",
             "text-[#0B0D0F] caret-[#0B0D0F]",
             "placeholder:text-[#8A8580] placeholder:opacity-100",
             "disabled:cursor-not-allowed disabled:opacity-60"
@@ -270,9 +299,26 @@ export function ChatComposer({
         <div className="hidden items-center gap-0.5 sm:flex">
           <button
             type="button"
+            onClick={() => setTranslit(!translitOn)}
+            className={cn(
+              "inline-flex min-h-9 items-center gap-1 rounded-full px-2.5 py-1.5 text-[13px] transition-colors",
+              translitOn
+                ? "bg-[#C9A36B]/25 text-[#0B0D0F]"
+                : "text-[#5C584F] hover:bg-[#F3F0EA] hover:text-[#0B0D0F]"
+            )}
+            aria-pressed={translitOn}
+            aria-label={t("translitToggle")}
+            title={t("translitToggle")}
+          >
+            <Languages className="size-4 stroke-[1.75]" />
+            <span className="max-w-[7.5rem] truncate">{t("translitToggle")}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => toggleMode("think")}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[13px] transition-colors",
+              "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13px] transition-colors",
               mode === "think"
                 ? "bg-[#0B0D0F] text-white"
                 : "text-[#5C584F] hover:bg-[#F3F0EA] hover:text-[#0B0D0F]"
@@ -288,7 +334,7 @@ export function ChatComposer({
             type="button"
             onClick={() => toggleMode("web")}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-1.5 text-[13px] transition-colors",
+              "inline-flex min-h-9 items-center gap-1 rounded-full px-2.5 py-1.5 text-[13px] transition-colors",
               mode === "web"
                 ? "bg-[#0B0D0F] text-white"
                 : "text-[#5C584F] hover:bg-[#F3F0EA] hover:text-[#0B0D0F]"
@@ -304,7 +350,24 @@ export function ChatComposer({
         <button
           type="button"
           className={cn(
-            "inline-flex size-9 shrink-0 items-center justify-center rounded-full transition",
+            "inline-flex size-11 shrink-0 items-center justify-center rounded-full transition sm:hidden sm:size-9",
+            translitOn
+              ? "bg-[#C9A36B]/25 text-[#0B0D0F]"
+              : "text-[#0B0D0F] hover:bg-[#F3F0EA]"
+          )}
+          aria-pressed={translitOn}
+          aria-label={t("translitToggle")}
+          title={t("translitToggle")}
+          disabled={disabled}
+          onClick={() => setTranslit(!translitOn)}
+        >
+          <Languages className="size-[18px] stroke-[1.75]" />
+        </button>
+
+        <button
+          type="button"
+          className={cn(
+            "inline-flex size-11 shrink-0 items-center justify-center rounded-full transition sm:size-9",
             listening
               ? "bg-[#C9A36B] text-white"
               : "text-[#0B0D0F] hover:bg-[#F3F0EA]",
@@ -338,7 +401,7 @@ export function ChatComposer({
           disabled={disabled || (!isLoading && !canSend)}
           aria-label={isLoading ? t("stop") : t("send")}
           className={cn(
-            "inline-flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
+            "inline-flex size-11 shrink-0 items-center justify-center rounded-full transition-colors sm:size-9",
             "disabled:pointer-events-none disabled:opacity-45",
             isLoading
               ? "bg-[#0B0D0F] text-white"
@@ -352,6 +415,24 @@ export function ChatComposer({
           )}
         </button>
       </div>
+
+      {preview && preview !== value ? (
+        <div className="mt-1.5 flex items-start gap-2 px-1">
+          <p className="min-w-0 flex-1 text-[12px] leading-snug text-[#5C584F]">
+            <span className="mr-1 font-medium text-[#0B0D0F]">
+              {t("translitPreview")}:
+            </span>
+            {preview}
+          </p>
+          <button
+            type="button"
+            className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-[#E8E4DC] bg-white px-3 text-[12px] text-[#0B0D0F] sm:min-h-0 sm:px-2.5 sm:py-1 sm:text-[11px]"
+            onClick={applyTranslit}
+          >
+            {t("translitConvert")}
+          </button>
+        </div>
+      ) : null}
 
       {attachError ? (
         <p className="mt-1.5 px-1 text-[12px] text-[#B33B2E]">{attachError}</p>

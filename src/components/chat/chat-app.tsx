@@ -5,10 +5,17 @@ import { Menu } from "lucide-react";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { HomeHero } from "@/components/chat/home-hero";
+import { LimitUpgradeDialog } from "@/components/chat/limit-upgrade-dialog";
 import { LocaleToggle } from "@/components/chat/locale-toggle";
 import { MessageList } from "@/components/chat/message-list";
 import { ThemeToggle } from "@/components/chat/theme-toggle";
 import { useLocale } from "@/components/locale-provider";
+import { useVisualViewport } from "@/hooks/use-visual-viewport";
+import {
+  prepareEditResend,
+  prepareRegenerate,
+  renameSession,
+} from "@/lib/chat-actions";
 import { createId } from "@/lib/id";
 import { toolLabel, type Locale } from "@/lib/locale";
 import type {
@@ -61,6 +68,7 @@ type SubmitMeta = { mode: ToolMode; attachments: ChatAttachment[] };
 
 export function ChatApp() {
   const { locale, t } = useLocale();
+  useVisualViewport();
   const localeRef = useRef(locale);
   const [sessions, setSessions] = useState<ChatSession[]>([BOOTSTRAP_SESSION]);
   const [activeId, setActiveId] = useState(BOOTSTRAP_SESSION_ID);
@@ -70,6 +78,7 @@ export function ChatApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [limitPrompt, setLimitPrompt] = useState<string | null>(null);
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -141,71 +150,24 @@ export function ChatApp() {
     setStreamingId(null);
   }, []);
 
-  const sendMessage = useCallback(
-    async (raw: string, meta?: SubmitMeta) => {
-      const content = raw.trim();
-      const activeMode = meta?.mode || mode;
-      const activeAttachments = meta?.attachments ?? attachments;
-      if (
-        (!content && activeAttachments.length === 0) ||
-        loadingRef.current ||
-        !hydrated
-      ) {
-        return;
-      }
-
-      const currentId = activeIdRef.current;
-      if (!currentId || currentId === BOOTSTRAP_SESSION_ID) return;
-      const current =
-        sessionsRef.current.find((s) => s.id === currentId) ??
-        sessionsRef.current[0];
-      if (!current || current.id === BOOTSTRAP_SESSION_ID) return;
-
-      setError(null);
-      setInput("");
-      setAttachments([]);
-      setMode("chat");
-
-      const uiLocale = localeRef.current;
-      const userMessage: ChatMessage = {
-        id: createId("msg"),
-        role: "user",
-        content:
-          content ||
-          (activeAttachments.length
-            ? uiLocale === "en"
-              ? "Please review the attachments."
-              : "Хавсралтыг үзэж өгнө үү."
-            : ""),
-        attachments: activeAttachments.length ? activeAttachments : undefined,
-        tool: activeMode,
-      };
-      const assistantId = createId("msg");
-      const assistantMessage: ChatMessage = {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        tool: activeMode,
-      };
-
-      const nextMessages = [
-        ...current.messages,
-        userMessage,
-        assistantMessage,
-      ];
-
+  const streamTurn = useCallback(
+    async (
+      currentId: string,
+      nextMessages: ChatMessage[],
+      assistantId: string,
+      userMessage: ChatMessage,
+      activeMode: ToolMode,
+      activeAttachments: ChatAttachment[],
+      titleIfEmpty?: string
+    ) => {
       setSessions((prev) =>
         prev.map((s) =>
           s.id === currentId
             ? {
                 ...s,
                 title:
-                  s.messages.length === 0
-                    ? titleFromPrompt(
-                        userMessage.content,
-                        activeMode,
-                        uiLocale
-                      )
+                  titleIfEmpty && s.messages.length === 0
+                    ? titleIfEmpty
                     : s.title,
                 messages: nextMessages,
                 updatedAt: Date.now(),
@@ -237,21 +199,33 @@ export function ChatApp() {
         );
       };
 
+      const uiLocale = localeRef.current;
+
       try {
         if (activeMode === "image") {
           const response = await fetch("/api/image", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: userMessage.content }),
+            body: JSON.stringify({
+              prompt: userMessage.content,
+              locale: uiLocale,
+            }),
             signal: controller.signal,
           });
           const data = (await response.json().catch(() => null)) as {
             imageUrl?: string;
             error?: string;
             model?: string;
+            upgradePath?: string;
           } | null;
           if (!response.ok || !data?.imageUrl) {
-            throw new Error(data?.error || t("imageFail"));
+            const base = data?.error || t("imageFail");
+            if (data?.upgradePath) {
+              setLimitPrompt(base);
+              patchAssistant({ content: base });
+              return;
+            }
+            throw new Error(base);
           }
           patchAssistant({
             content: `${t("imageOk")}${data.model ? ` (${data.model})` : ""}.`,
@@ -299,6 +273,7 @@ export function ChatApp() {
             messages: history,
             mode: activeMode,
             locale: uiLocale,
+            conversationId: currentId,
             attachments: activeAttachments.map((a) => ({
               name: a.name,
               mime: a.mime,
@@ -314,10 +289,16 @@ export function ChatApp() {
         if (!response.ok) {
           const data = (await response.json().catch(() => null)) as {
             error?: string;
+            upgradePath?: string;
           } | null;
-          throw new Error(
-            data?.error || `${t("errorPrefix")} (${response.status})`
-          );
+          const base =
+            data?.error || `${t("errorPrefix")} (${response.status})`;
+          if (data?.upgradePath) {
+            setLimitPrompt(base);
+            patchAssistant({ content: base });
+            return;
+          }
+          throw new Error(base);
         }
 
         if (!response.body) {
@@ -351,7 +332,152 @@ export function ChatApp() {
         abortRef.current = null;
       }
     },
-    [attachments, hydrated, mode, t]
+    [t]
+  );
+
+  const sendMessage = useCallback(
+    async (raw: string, meta?: SubmitMeta) => {
+      const content = raw.trim();
+      const activeMode = meta?.mode || mode;
+      const activeAttachments = meta?.attachments ?? attachments;
+      if (
+        (!content && activeAttachments.length === 0) ||
+        loadingRef.current ||
+        !hydrated
+      ) {
+        return;
+      }
+
+      const currentId = activeIdRef.current;
+      if (!currentId || currentId === BOOTSTRAP_SESSION_ID) return;
+      const current =
+        sessionsRef.current.find((s) => s.id === currentId) ??
+        sessionsRef.current[0];
+      if (!current || current.id === BOOTSTRAP_SESSION_ID) return;
+
+      setError(null);
+      setLimitPrompt(null);
+      setInput("");
+      setAttachments([]);
+      setMode("chat");
+
+      const uiLocale = localeRef.current;
+      const userMessage: ChatMessage = {
+        id: createId("msg"),
+        role: "user",
+        content:
+          content ||
+          (activeAttachments.length
+            ? uiLocale === "en"
+              ? "Please review the attachments."
+              : "Хавсралтыг үзэж өгнө үү."
+            : ""),
+        attachments: activeAttachments.length ? activeAttachments : undefined,
+        tool: activeMode,
+      };
+      const assistantId = createId("msg");
+      const assistantMessage: ChatMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        tool: activeMode,
+      };
+
+      const nextMessages = [
+        ...current.messages,
+        userMessage,
+        assistantMessage,
+      ];
+
+      await streamTurn(
+        currentId,
+        nextMessages,
+        assistantId,
+        userMessage,
+        activeMode,
+        activeAttachments,
+        titleFromPrompt(userMessage.content, activeMode, uiLocale)
+      );
+    },
+    [attachments, hydrated, mode, streamTurn]
+  );
+
+  const regenerateLast = useCallback(async () => {
+    if (loadingRef.current || !hydrated) return;
+    const currentId = activeIdRef.current;
+    if (!currentId || currentId === BOOTSTRAP_SESSION_ID) return;
+    const current = sessionsRef.current.find((s) => s.id === currentId);
+    if (!current) return;
+
+    const prep = prepareRegenerate(current.messages);
+    if (!prep) return;
+
+    setError(null);
+    setLimitPrompt(null);
+
+    const activeMode = prep.user.tool ?? "chat";
+    const activeAttachments = prep.user.attachments ?? [];
+    const assistantId = createId("msg");
+    const assistantMessage: ChatMessage = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+      tool: activeMode,
+    };
+    const nextMessages = [...prep.kept, assistantMessage];
+
+    // Hits /api/chat (or /api/image) again → counts against #44 plan limits.
+    await streamTurn(
+      currentId,
+      nextMessages,
+      assistantId,
+      prep.user,
+      activeMode,
+      activeAttachments
+    );
+  }, [hydrated, streamTurn]);
+
+  const editAndResend = useCallback(
+    async (messageId: string, content: string) => {
+      if (loadingRef.current || !hydrated) return;
+      const currentId = activeIdRef.current;
+      if (!currentId || currentId === BOOTSTRAP_SESSION_ID) return;
+      const current = sessionsRef.current.find((s) => s.id === currentId);
+      if (!current) return;
+
+      const lastUser = [...current.messages]
+        .reverse()
+        .find((m) => m.role === "user");
+      if (!lastUser || lastUser.id !== messageId) return;
+
+      const prep = prepareEditResend(current.messages, content);
+      if (!prep) return;
+
+      setError(null);
+      setLimitPrompt(null);
+
+      const activeMode = prep.user.tool ?? "chat";
+      const activeAttachments = prep.user.attachments ?? [];
+      const assistantId = createId("msg");
+      const assistantMessage: ChatMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        tool: activeMode,
+      };
+      const nextMessages = [...prep.kept, assistantMessage];
+
+      // Edit-resend is a fresh model turn → counts against #44 plan limits.
+      await streamTurn(
+        currentId,
+        nextMessages,
+        assistantId,
+        prep.user,
+        activeMode,
+        activeAttachments
+      );
+    },
+    [hydrated, streamTurn]
   );
 
   const handleTool = useCallback(
@@ -380,7 +506,7 @@ export function ChatApp() {
     setSessions((prev) => {
       const next = prev.filter((s) => s.id !== id);
       if (next.length === 0) {
-        const fresh = createSession();
+        const fresh = createSession(locale);
         setActiveId(fresh.id);
         return [fresh];
       }
@@ -391,11 +517,26 @@ export function ChatApp() {
     });
   };
 
+  const handleRename = (id: string, title: string) => {
+    setSessions((prev) => renameSession(prev, id, title, newChatTitle(locale)));
+  };
+
   const messages = activeSession?.messages ?? [];
   const isHome = messages.length === 0;
 
   return (
-    <div className="flex h-dvh min-h-0 overflow-hidden bg-white dark:bg-zinc-950">
+    <div
+      className="flex min-h-0 overflow-hidden bg-white dark:bg-zinc-950"
+      style={{
+        height: "var(--app-vv-height, 100dvh)",
+        transform: "translateY(var(--app-vv-offset, 0px))",
+      }}
+    >
+      <LimitUpgradeDialog
+        open={Boolean(limitPrompt)}
+        message={limitPrompt || t("planLimitTitle")}
+        onClose={() => setLimitPrompt(null)}
+      />
       <ChatSidebar
         sessions={sessions}
         activeId={activeSession?.id ?? ""}
@@ -404,13 +545,14 @@ export function ChatApp() {
         onSelect={setActiveId}
         onNew={handleNew}
         onDelete={handleDelete}
+        onRename={handleRename}
         onTool={handleTool}
       />
 
       <div className="relative flex min-w-0 flex-1 flex-col bg-white dark:bg-zinc-950">
         <button
           type="button"
-          className="absolute top-3 left-3 z-20 inline-flex size-10 items-center justify-center rounded-full bg-white/95 text-ink shadow dark:bg-zinc-900 dark:text-zinc-100 md:hidden"
+          className="absolute top-3 left-3 z-20 inline-flex size-11 items-center justify-center rounded-full bg-white/95 text-ink shadow dark:bg-zinc-900 dark:text-zinc-100 md:hidden"
           onClick={() => setSidebarOpen(true)}
           aria-label={t("openMenu")}
         >
@@ -433,8 +575,8 @@ export function ChatApp() {
           />
         ) : (
           <>
-            <header className="relative flex items-center justify-center border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-              <p className="truncate text-sm font-medium text-ink dark:text-zinc-100">
+            <header className="relative flex items-center justify-center border-b border-zinc-200 bg-white py-3 pr-3 pl-14 dark:border-zinc-800 dark:bg-zinc-950 sm:px-4 md:pl-4">
+              <p className="max-w-[min(100%,18rem)] truncate text-sm font-medium text-ink dark:text-zinc-100 sm:max-w-md">
                 {activeSession?.title || t("newChat")}
               </p>
               <div className="absolute top-1/2 right-3 hidden -translate-y-1/2 items-center gap-2 sm:flex [&_button]:text-ink [&_div]:border-zinc-200 [&_div]:bg-zinc-100 dark:[&_button]:text-zinc-100 dark:[&_div]:border-zinc-700 dark:[&_div]:bg-zinc-900">
@@ -446,25 +588,39 @@ export function ChatApp() {
               messages={messages}
               streamingId={streamingId}
               isLoading={isLoading}
+              onRegenerate={() => void regenerateLast()}
+              onEditResend={(id, content) => void editAndResend(id, content)}
             />
+            {isLoading ? (
+              <div className="mx-auto flex w-full max-w-2xl justify-center px-3 pb-1 sm:px-4">
+                <button
+                  type="button"
+                  onClick={stop}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 text-sm text-ink shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                  aria-label={t("stopGenerating")}
+                >
+                  {t("stopGenerating")}
+                </button>
+              </div>
+            ) : null}
             {error ? (
-              <div className="mx-auto w-full max-w-2xl px-4 pb-2">
+              <div className="mx-auto w-full max-w-2xl px-3 pb-2 sm:px-4">
                 <div
                   role="alert"
-                  className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                  className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm break-words text-destructive"
                 >
                   {error}
                   <button
                     type="button"
-                    className="ml-2 underline"
+                    className="ml-2 inline-flex min-h-11 items-center underline"
                     onClick={() => setError(null)}
                   >
-                    Хаах
+                    {t("closeDialog")}
                   </button>
                 </div>
               </div>
             ) : null}
-            <div className="border-t border-zinc-200 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950 md:px-6 md:py-4">
+            <div className="border-t border-zinc-200 bg-white px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-zinc-800 dark:bg-zinc-950 sm:px-4 md:px-6 md:pt-4 md:pb-4">
               <div className="mx-auto max-w-2xl">
                 <ChatComposer
                   value={input}

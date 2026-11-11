@@ -12,8 +12,11 @@ import {
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { LiveHeroBackdrop } from "@/components/chat/live-hero-backdrop";
 import { LocaleToggle } from "@/components/chat/locale-toggle";
+import { StarterPromptCards } from "@/components/chat/starter-prompt-cards";
 import { ThemeToggle } from "@/components/chat/theme-toggle";
 import { WallpaperPickerButton } from "@/components/chat/wallpaper-picker";
+import { SiteLegalLinks } from "@/components/legal/site-legal-links";
+import Link from "next/link";
 import { useLocale } from "@/components/locale-provider";
 import { useWallpaper } from "@/hooks/use-wallpaper";
 import { greetingForNow } from "@/lib/greeting";
@@ -121,22 +124,34 @@ export function HomeHero({
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center px-4 pt-10 pb-4 md:px-8 md:pt-6">
+        <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-3 pt-14 pb-3 sm:px-4 sm:pt-10 md:px-8 md:pt-6">
           <div className="animate-fade-up mx-auto w-full max-w-3xl text-center">
-            <h1 className="text-5xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-6xl md:text-7xl">
+            <h1 className="text-[2.1rem] font-semibold leading-tight tracking-tight text-white drop-shadow-sm sm:text-6xl md:text-7xl">
               {greeting || (
                 <span className="invisible" aria-hidden>
                   {t("greetingAfternoon")}
                 </span>
               )}
             </h1>
-            <p className="mt-3 text-sm text-white/75 sm:text-base">
+            <p className="mt-2 text-sm font-medium text-white/80 sm:mt-3 sm:text-base">
               {t("tagline")}
+            </p>
+            <p className="mx-auto mt-2 max-w-xl text-[13px] leading-relaxed text-white/65 sm:text-sm">
+              {t("valueProp")}
+            </p>
+            <p className="mx-auto mt-2 max-w-xl text-[12px] leading-relaxed text-white/55 sm:text-[13px]">
+              {t("pricingHero")}{" "}
+              <Link
+                href="/pricing"
+                className="underline underline-offset-2 hover:text-white"
+              >
+                {t("pricingLink")}
+              </Link>
             </p>
           </div>
 
           <div
-            className="animate-fade-up mx-auto mt-8 w-full max-w-2xl"
+            className="animate-fade-up mx-auto mt-6 w-full max-w-2xl sm:mt-8"
             style={{ animationDelay: "80ms" }}
           >
             <ChatComposer
@@ -155,7 +170,20 @@ export function HomeHero({
           </div>
 
           <div
-            className="animate-fade-up mt-4 flex max-w-3xl flex-wrap items-center justify-center gap-2"
+            className="animate-fade-up mt-3 w-full max-w-2xl px-0.5 sm:mt-4"
+            style={{ animationDelay: "110ms" }}
+          >
+            <p className="mb-2 text-center text-[11px] tracking-wide text-white/55 uppercase sm:text-xs">
+              {t("tryExamples")}
+            </p>
+            <StarterPromptCards
+              disabled={disabled || isLoading}
+              onSelect={(prompt) => onChange(prompt)}
+            />
+          </div>
+
+          <div
+            className="animate-fade-up mt-3 flex max-w-3xl flex-wrap items-center justify-center gap-2 sm:mt-4"
             style={{ animationDelay: "140ms" }}
           >
             {quickPills.map((pill) => (
@@ -165,8 +193,8 @@ export function HomeHero({
                 onClick={() => onTool(pill.mode)}
                 className={
                   mode === pill.mode
-                    ? "inline-flex items-center gap-1.5 rounded-full border border-gold/60 bg-gold/25 px-3 py-1.5 text-xs text-white backdrop-blur-md transition sm:text-[13px]"
-                    : "inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-ink/35 px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-ink/50 sm:text-[13px]"
+                    ? "inline-flex min-h-11 items-center gap-1.5 rounded-full border border-gold/60 bg-gold/25 px-3 py-2 text-xs text-white backdrop-blur-md transition sm:min-h-0 sm:py-1.5 sm:text-[13px]"
+                    : "inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/25 bg-ink/35 px-3 py-2 text-xs text-white backdrop-blur-md transition hover:bg-ink/50 sm:min-h-0 sm:py-1.5 sm:text-[13px]"
                 }
               >
                 <pill.icon className="size-3.5 opacity-90" />
@@ -176,7 +204,7 @@ export function HomeHero({
           </div>
         </div>
 
-        <div className="relative z-10 px-4 pb-5 md:px-8 md:pb-7">
+        <div className="relative z-10 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-4 md:px-8 md:pb-7">
           <div className="mx-auto grid w-full max-w-5xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {features.map((feature, i) => (
               <button
@@ -204,6 +232,9 @@ export function HomeHero({
                 </p>
               </button>
             ))}
+          </div>
+          <div className="mx-auto mt-4 flex max-w-5xl justify-center sm:mt-5">
+            <SiteLegalLinks tone="onDark" />
           </div>
         </div>
       </div>

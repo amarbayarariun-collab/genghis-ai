@@ -1,8 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Literata, Source_Sans_3 } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { LocaleProvider } from "@/components/locale-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
+
+/** Shrink layout with the virtual keyboard so chat input stays visible. */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+};
 
 const sans = Source_Sans_3({
   variable: "--font-sans",
@@ -16,12 +25,55 @@ const serif = Literata({
   display: "swap",
 });
 
+const siteTitle = "Genghis AI · Монголоос дэлхийтэй холбогд";
+const siteDescription =
+  "Genghis AI. Монголоос дэлхийтэй холбогд. Монгол хэлээр асуу, сур, бич, бүтээ. Үнэгүй 30 мессеж/сар. Pro 72,000₮/сар · 500 мессеж + 10 зураг.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL("https://genghis-ai-delta.vercel.app"),
   // Thin space: browsers need a <title>, but the tab should read as knot-favicon-only.
-  title: "\u2009",
-  description:
-    "Genghis AI. Монголоос дэлхийтэй холбогд. Мэдэх. Бүтээх. Хийх.",
-  applicationName: "\u2009",
+  title: { absolute: "\u2009" },
+  description: siteDescription,
+  applicationName: "Genghis AI",
+  keywords: [
+    "Genghis AI",
+    "Монгол AI",
+    "монгол чатбот",
+    "Монголоос дэлхийтэй холбогд",
+    "AI туслах",
+  ],
+  authors: [{ name: "Genghis AI" }],
+  creator: "Genghis AI",
+  openGraph: {
+    type: "website",
+    locale: "mn_MN",
+    url: "https://genghis-ai-delta.vercel.app",
+    siteName: "Genghis AI",
+    title: siteTitle,
+    description: siteDescription,
+    images: [
+      {
+        url: "/brand/hero-glacier.jpg",
+        width: 1920,
+        height: 1080,
+        alt: "Genghis AI · Монголоос дэлхийтэй холбогд",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteTitle,
+    description: siteDescription,
+    images: ["/brand/hero-glacier.jpg"],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Genghis AI",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -64,6 +116,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeProvider>
           <LocaleProvider>{children}</LocaleProvider>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
