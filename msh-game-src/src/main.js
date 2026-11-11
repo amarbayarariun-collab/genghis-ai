@@ -39,6 +39,7 @@ import { createFootStains } from './systems/sumiro/foot-stains.js';
 import { createEncounter } from './systems/sumiro/encounter.js';
 import { createCrows } from './systems/sumiro/crows.js';
 import { horse, person, seatRider } from './world-kit.js';
+import { ridingTemujin } from './characters/temujin.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -824,7 +825,10 @@ function setMounted(on) {
   const y = world.heightAt?.(player.pos.x, player.pos.z) ?? 0;
   h.position.set(player.pos.x, y, player.pos.z);
   h.rotation.y = world.temujin.rotation.y;
-  seatRider(h, person({ deel: '#9a1e24', fur: '#e8d4b0', hat: '#5c3b24' }));
+  const rider = ridingTemujin(world.temujin) || person({ deel: '#9a1e24', fur: '#e8d4b0', hat: '#5c3b24' });
+  seatRider(h, rider);
+  // seatRider clears rotation. The sculpt's face is +Z; the horse faces +X.
+  if (rider.userData.sculpt) rider.rotation.y = Math.PI / 2;
   scene.add(h);
   playerHorse = h;
   mounted = true;

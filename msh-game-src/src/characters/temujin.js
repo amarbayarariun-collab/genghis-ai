@@ -10,6 +10,8 @@ export const USE_TEMUJIN_GLB = true;
 export const TEMUJIN_GLB_URL = './models/base_basic_shaded.glb';
 export const TEMUJIN_ANIM_DIR = './anims/';
 const TARGET_HEIGHT = 1.72;
+// Drop the sculpt hat above the brow. The face itself stays.
+const HEAD_CUT = 1.72;
 
 const mat = (hex) => new THREE.MeshLambertMaterial({ color: hex, flatShading: true });
 
@@ -97,8 +99,8 @@ export function createTemujin(opts = {}) {
         group.remove(placeholder.root);
         group.add(wrap);
         const malgai = mongolHat(1);
-        // The sculpt crown is cut at local y 1.625. Sit this brim on that cut.
-        malgai.position.y = 1.625 * s - 1.33 + 0.06;
+        // Local 1.33 meets the cut. Sit the roll on the brow so it stays above both eyes.
+        malgai.position.y = HEAD_CUT * s - 1.33 + 0.02;
         malgai.rotation.y = Math.PI / 2;
         group.add(malgai);
 
@@ -148,22 +150,96 @@ function hideSculptHat(root) {
     const pos = o.geometry.attributes.position;
     const uv = o.geometry.attributes.uv;
     const src = o.geometry.index.array;
-    const drop = new Uint8Array(pos.count);
+    let pix = null;
+    let tw = 0;
+    let th = 0;
+    if (uv && image.width) {
+      tw = image.width;
+      th = image.height;
+      const canvas = document.createElement('canvas');
+      canvas.width = tw;
+      canvas.height = th;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(image, 0, 0);
+      pix = ctx.getImageData(0, 0, tw, th).data;
+    }
+    const sample = (i) => {
+      if (!pix || !uv) return [0, 0, 0];
+      const x = Math.min(tw - 1, Math.max(0, (uv.getX(i) * tw) | 0));
+      const yy = Math.min(th - 1, Math.max(0, ((1 - uv.getY(i)) * th) | 0));
+      const k = (yy * tw + x) * 4;
+      return [pix[k], pix[k + 1], pix[k + 2]];
+    };
+    const above = new Uint8Array(pos.count);
+    const wide = new Uint8Array(pos.count);
     for (let i = 0; i < pos.count; i++) {
       const y = pos.getY(i);
-      const wide = Math.hypot(pos.getX(i), pos.getZ(i)) > 0.24;
-      if (y > 1.625 || (y > 1.5 && wide)) drop[i] = 1;
+      if (y > HEAD_CUT) above[i] = 1;
+      else if (y > 1.55 && Math.hypot(pos.getX(i), pos.getZ(i)) > 0.2) wide[i] = 1;
     }
     const kept = [];
+    let furDropped = 0;
     for (let i = 0; i < src.length; i += 3) {
-      if (drop[src[i]] && drop[src[i + 1]] && drop[src[i + 2]]) continue;
-      kept.push(src[i], src[i + 1], src[i + 2]);
+      const a = src[i];
+      const b = src[i + 1];
+      const c = src[i + 2];
+      if (wide[a] && wide[b] && wide[c]) continue;
+      const cy = (pos.getY(a) + pos.getY(b) + pos.getY(c)) / 3;
+      const cx = (pos.getX(a) + pos.getX(b) + pos.getX(c)) / 3;
+      const cz = (pos.getZ(a) + pos.getZ(b) + pos.getZ(c)) / 3;
+      const [r1, g1, b1] = sample(a);
+      const [r2, g2, b2] = sample(b);
+      const [r3, g3, b3] = sample(c);
+      let rc = 0;
+      let gc = 0;
+      let bc = 0;
+      if (uv && pix) {
+        const u = (uv.getX(a) + uv.getX(b) + uv.getX(c)) / 3;
+        const v = (uv.getY(a) + uv.getY(b) + uv.getY(c)) / 3;
+        const x = Math.min(tw - 1, Math.max(0, (u * tw) | 0));
+        const yy = Math.min(th - 1, Math.max(0, ((1 - v) * th) | 0));
+        const k = (yy * tw + x) * 4;
+        rc = pix[k];
+        gc = pix[k + 1];
+        bc = pix[k + 2];
+      }
+      // Cream hat-fur reads nearly white. Face skin is darker in the blue channel.
+      const whiteFur = (r, g, b) => r > 190 && g > 165 && b > 130 && r - b < 90;
+      const orangeFur = (r, g, b) => r > 165 && g > 105 && b < 125 && r - b > 55 && r > g - 5;
+      const white = whiteFur(r1, g1, b1) || whiteFur(r2, g2, b2) || whiteFur(r3, g3, b3) || whiteFur(rc, gc, bc);
+      const orange = orangeFur(r1, g1, b1) || orangeFur(r2, g2, b2) || orangeFur(r3, g3, b3);
+      const yMax = Math.max(pos.getY(a), pos.getY(b), pos.getY(c));
+      // Keep the forehead even when one corner pokes above the cut. Drop the old hat.
+      const onFront = cz > 0.03 && Math.abs(cx) < 0.14;
+      if ((above[a] || above[b] || above[c]) && (!onFront || yMax > 1.80 || cy > 1.74)) {
+        furDropped += 1;
+        continue;
+      }
+      const face = cz > 0.05 && Math.abs(cx) < 0.12 && cy > 1.50 && !white && !orange;
+      const hood = yMax > 1.46 && cy > 1.32 && (cz < 0.04 || Math.abs(cx) > 0.09);
+      const tallCollar = white && yMax > 1.42 && Math.abs(cx) > 0.16 && cy < 1.55;
+      // Pale fur left under the brim. The face test must not keep those triangles.
+      const templeFur = white && cy > 1.40 && cy < 1.76 && Math.abs(cx) > 0.04 && Math.abs(cx) < 0.24;
+      // The pale block under the brim on the viewer's left. Local −X, just above the brow.
+      const leftTemple = cx < -0.09 && cx > -0.2 && cy > 1.705 && cy < 1.78 && cz > 0.06 && cz < 0.2;
+      // Dark hair card on the viewer's right, in front of that eye. Keep the face itself.
+      const sideCard = cx > 0.09 && cx < 0.17 && cy > 1.60 && cy < 1.76 && cz < 0.10 && cz > -0.06;
+      // Pale sculpt fur beside either ear, including the piece that sits above the brim.
+      const earFur = Math.abs(cx) > 0.055 && Math.abs(cx) < 0.22 && cy > 1.64 && cy < 1.78 && cz < 0.17 && cz > -0.18
+        && !(cz > 0.10 && Math.abs(cx) < 0.07 && cy < 1.70);
+      // The old hat's back still rises above the brim.
+      const backCap = cz < -0.04 && cy > 1.66 && cy < 1.80 && Math.abs(cx) < 0.18;
+      // Pale wisp on the back of the head, just above the braids.
+      const earWisp = cy > 1.56 && cy < 1.68 && cz < -0.08 && Math.abs(cx) < 0.18;
+      if ((!face && hood && (white || orange)) || tallCollar || templeFur || leftTemple || sideCard || earFur || backCap || earWisp) { furDropped += 1; continue; }
+      kept.push(a, b, c);
     }
+    o.userData.furDropped = furDropped;
     const next = src instanceof Uint32Array ? new Uint32Array(kept) : new Uint16Array(kept);
     o.geometry.setIndex(new THREE.BufferAttribute(next, 1));
 
-    // The white collar is painted on the same shell as the face. Dye the pale
-    // fur and leave the cheek texels alone, so the brown malgai sits on skin.
+    // The collar shares this texture with the face. Recolor only the neck
+    // fur, and never a texel the face itself uses.
     if (uv) {
       const w = image.width;
       const h = image.height;
@@ -174,32 +250,74 @@ function hideSculptHat(root) {
       ctx.drawImage(image, 0, 0);
       const img = ctx.getImageData(0, 0, w, h);
       const pix = img.data;
-      const protect = new Uint8Array(w * h);
-      for (let i = 0; i < pos.count; i++) {
-        const y = pos.getY(i);
-        if (y < 1.46 || y > 1.68) continue;
-        if (Math.hypot(pos.getX(i), pos.getZ(i)) > 0.19) continue;
+      const face = new Uint8Array(w * h);
+      const collar = new Uint8Array(w * h);
+      const stamp = (mask, i, rad) => {
         const x = Math.min(w - 1, Math.max(0, (uv.getX(i) * w) | 0));
         const yy = Math.min(h - 1, Math.max(0, ((1 - uv.getY(i)) * h) | 0));
-        for (let dy = -10; dy <= 10; dy++) {
-          for (let dx = -10; dx <= 10; dx++) {
+        for (let dy = -rad; dy <= rad; dy++) {
+          for (let dx = -rad; dx <= rad; dx++) {
             const xx = x + dx;
             const y2 = yy + dy;
             if (xx < 0 || y2 < 0 || xx >= w || y2 >= h) continue;
-            protect[y2 * w + xx] = 1;
+            mask[y2 * w + xx] = 1;
           }
         }
+      };
+      const body = new Uint8Array(w * h);
+      for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i);
+        const wide = Math.hypot(pos.getX(i), pos.getZ(i));
+        const z = pos.getZ(i);
+        if (y > 1.48 && y < HEAD_CUT && wide < 0.16 && Math.abs(pos.getX(i)) < 0.09 && z > 0.02) stamp(face, i, 4);
+        if (y > 1.22 && y < 1.50 && wide > 0.09 && wide < 0.32) stamp(collar, i, 2);
+        if (y < 1.38) stamp(body, i, 1);
+        if (y > 1.5 && y < HEAD_CUT && z > 0.02 && wide < 0.15) stamp(face, i, 3);
       }
+      const temple = new Uint8Array(w * h);
+      // This texture is uploaded with flipY false, so UV v points at canvas row v*h.
+      const stampRaw = (mask, i, rad) => {
+        const x = Math.min(w - 1, Math.max(0, (uv.getX(i) * w) | 0));
+        const yy = Math.min(h - 1, Math.max(0, (uv.getY(i) * h) | 0));
+        for (let dy = -rad; dy <= rad; dy++) {
+          for (let dx = -rad; dx <= rad; dx++) {
+            const xx = x + dx;
+            const y2 = yy + dy;
+            if (xx < 0 || y2 < 0 || xx >= w || y2 >= h) continue;
+            mask[y2 * w + xx] = 1;
+          }
+        }
+      };
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        if (x < -0.085 && x > -0.22 && y > 1.64 && y < 1.78 && z > -0.02 && z < 0.22) stampRaw(temple, i, 2);
+      }
+      const redOnFace = (r, g, b) => r > 150 && g < 80 && b < 80 && r > g + 60;
       for (let p = 0; p < w * h; p++) {
-        if (protect[p]) continue;
         const k = p * 4;
         const r = pix[k];
         const g = pix[k + 1];
         const b = pix[k + 2];
-        if (!(r > 140 && g > 100 && b > 55 && r - g < 78 && g > r * 0.52)) continue;
-        pix[k] = 140;
-        pix[k + 1] = 32;
-        pix[k + 2] = 22;
+        if (temple[p] && r > 110 && g > 60) {
+          pix[k] = 42;
+          pix[k + 1] = 26;
+          pix[k + 2] = 18;
+          continue;
+        }
+        if (face[p] && !body[p] && redOnFace(r, g, b)) {
+          pix[k] = 196;
+          pix[k + 1] = 148;
+          pix[k + 2] = 108;
+          continue;
+        }
+        if (face[p] || !collar[p]) continue;
+        const pale = r > 140 && g > 100 && b > 55 && r - g < 78 && g > r * 0.52;
+        if (!pale) continue;
+        pix[k] = 107;
+        pix[k + 1] = 68;
+        pix[k + 2] = 40;
       }
       ctx.putImageData(img, 0, 0);
       const tex = new THREE.CanvasTexture(canvas);
@@ -215,6 +333,197 @@ function hideSculptHat(root) {
     done = true;
   });
   return done;
+}
+
+const HIP = 0.96;
+const KNEE = 0.50;
+const SHOULDER = 1.40;
+
+function fadeDown(y, joint, band) {
+  const t = (joint - y) / band;
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  return t * t * (3 - 2 * t);
+}
+
+function rotX(x, y, z, px, py, pz, ang) {
+  const c = Math.cos(ang);
+  const s = Math.sin(ang);
+  const vy = y - py;
+  const vz = z - pz;
+  return [x, py + vy * c - vz * s, pz + vy * s + vz * c];
+}
+
+function rotZ(x, y, z, px, py, pz, ang) {
+  const c = Math.cos(ang);
+  const s = Math.sin(ang);
+  const vx = x - px;
+  const vy = y - py;
+  return [px + vx * c - vy * s, py + vx * s + vy * c, z];
+}
+
+/** Bend the clothed mesh into a seat. No bones: the vertices themselves move. */
+export function poseRidingGeometry(geo) {
+  const attr = geo.attributes.position;
+  const orig = new Float32Array(attr.array);
+  const feet = {
+    L: { y: Infinity, p: null },
+    R: { y: Infinity, p: null },
+  };
+  const hands = {
+    L: { z: -Infinity, p: null },
+    R: { z: -Infinity, p: null },
+  };
+  for (let i = 0; i < attr.count; i++) {
+    const ox = orig[i * 3];
+    const oy = orig[i * 3 + 1];
+    const oz = orig[i * 3 + 2];
+    let x = ox;
+    let y = oy;
+    let z = oz;
+    const isArm = oy < SHOULDER && oy > 0.78 && Math.abs(ox) > 0.16;
+    if (isArm) {
+      const side = ox < 0 ? -1 : 1;
+      const reach = Math.max(0, Math.min(1, (Math.abs(ox) - 0.16) / 0.1));
+      const aw = fadeDown(oy, SHOULDER, 0.22) * reach;
+      const sx = side * 0.16;
+      const sy = SHOULDER;
+      const sz = 0.02;
+      [x, y, z] = rotX(x, y, z, sx, sy, sz, -1.75 * aw);
+      [x, y, z] = rotZ(x, y, z, sx, sy, sz, side * -0.62 * aw);
+      if (oy < 1.16) {
+        const ew = fadeDown(oy, 1.16, 0.12) * reach;
+        let ex = side * 0.2;
+        let ey = 1.18;
+        let ez = 0.06;
+        [ex, ey, ez] = rotX(ex, ey, ez, sx, sy, sz, -1.75);
+        [ex, ey, ez] = rotZ(ex, ey, ez, sx, sy, sz, side * -0.62);
+        [x, y, z] = rotX(x, y, z, ex, ey, ez, 0.7 * ew);
+      }
+      if (oy < 1.12) {
+        const slot = ox < 0 ? hands.L : hands.R;
+        if (z > slot.z) slot.z = z, slot.p = [x, y, z];
+      }
+    } else if (oy < HIP) {
+      const side = ox < 0 ? -1 : 1;
+      const hw = fadeDown(oy, HIP, 0.18);
+      const spread = side * 0.55 * hw;
+      const fold = -0.92 * hw;
+      [x, y, z] = rotZ(x, y, z, 0, HIP, 0, spread);
+      [x, y, z] = rotX(x, y, z, 0, HIP, 0, fold);
+      if (oy < KNEE) {
+        const kw = fadeDown(oy, KNEE, 0.12);
+        let kx = side * 0.08;
+        let ky = KNEE;
+        let kz = 0;
+        [kx, ky, kz] = rotZ(kx, ky, kz, 0, HIP, 0, side * 0.55);
+        [kx, ky, kz] = rotX(kx, ky, kz, 0, HIP, 0, -0.92);
+        [x, y, z] = rotX(x, y, z, kx, ky, kz, 1.35 * kw);
+      }
+      // Part the robe. Both shins stay outside the barrel, in the stirrups.
+      if (oy < 0.72) {
+        const want = 0.22 + fadeDown(oy, 0.72, 0.44) * 0.34;
+        if (Math.abs(x) < want) x = side * want;
+      }
+      if (oy < 0.16) {
+        const slot = ox < 0 ? feet.L : feet.R;
+        if (y < slot.y) slot.y = y, slot.p = [x, y, z];
+      }
+    }
+    attr.setXYZ(i, x, y, z);
+  }
+  const gripFor = (side) => [side * 0.1, 1.08, 0.42];
+  for (let i = 0; i < attr.count; i++) {
+    const ox = orig[i * 3];
+    const oy = orig[i * 3 + 1];
+    if (Math.abs(ox) < 0.16 || oy < 0.72 || oy > 1.22) continue;
+    const side = ox < 0 ? -1 : 1;
+    const grip = gripFor(side);
+    const w = Math.max(0, Math.min(1, (Math.abs(ox) - 0.18) / 0.12)) * fadeDown(oy, 1.2, 0.18);
+    attr.setXYZ(
+      i,
+      attr.getX(i) * (1 - w) + grip[0] * w,
+      attr.getY(i) * (1 - w) + grip[1] * w,
+      attr.getZ(i) * (1 - w) + grip[2] * w,
+    );
+  }
+  hands.L.p = gripFor(-1);
+  hands.R.p = gripFor(1);
+  attr.needsUpdate = true;
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return {
+    footL: feet.L.p,
+    footR: feet.R.p,
+    handL: hands.L.p,
+    handR: hands.R.p,
+  };
+}
+
+/** A second Temüjin, same mesh, seated. The standing copy is left alone. */
+export function ridingTemujin(standing) {
+  let body = null;
+  standing?.traverse((o) => {
+    if (!body && o.isMesh && (o.geometry?.attributes?.position?.count || 0) > 1000) body = o;
+  });
+  if (!body) return null;
+  const rider = standing.clone(true);
+  rider.userData = { hipY: HIP * (TARGET_HEIGHT / 1.903), tall: 1, mounted: true, sculpt: true };
+  let posed = null;
+  rider.traverse((o) => {
+    if (!o.isMesh) return;
+    o.geometry = o.geometry.clone();
+    if (Array.isArray(o.material)) o.material = o.material.map((m) => m.clone());
+    else if (o.material) o.material = o.material.clone();
+    if ((o.geometry.attributes.position?.count || 0) > 1000) posed = o;
+  });
+  if (!posed) return null;
+  const grips = poseRidingGeometry(posed.geometry);
+  const mark = (name, p) => {
+    if (!p) return;
+    const a = new THREE.Object3D();
+    a.name = name;
+    a.position.set(p[0], p[1], p[2]);
+    posed.add(a);
+  };
+  mark('foot', grips.footL);
+  mark('foot', grips.footR);
+  mark('hand', grips.handL);
+  mark('hand', grips.handR);
+  const head = new THREE.Object3D();
+  head.name = 'head';
+  head.position.set(0, 1.62, 0.04);
+  posed.add(head);
+  // The sculpt has no skeleton. Drop this copy of the same hat onto the scalp.
+  // The standing malgai is left where it is.
+  seatMountedHat(rider, posed);
+  return rider;
+}
+
+/** Sit the cloned malgai's fur roll on the scalp. Same hat, lower only this copy. */
+function seatMountedHat(rider, posed) {
+  const hat = rider.getObjectByName('mongol-hat');
+  const attr = posed?.geometry?.attributes?.position;
+  const index = posed?.geometry?.index;
+  if (!hat || !attr || !index) return;
+  let top = -Infinity;
+  for (let i = 0; i < index.count; i++) {
+    const vi = index.getX(i);
+    const y = attr.getY(vi);
+    if (y < 1.4) continue;
+    const x = attr.getX(vi);
+    const z = attr.getZ(vi);
+    if (x * x + z * z > 0.0064) continue;
+    if (y > top) top = y;
+  }
+  if (!Number.isFinite(top)) return;
+  rider.updateWorldMatrix(true, true);
+  const scalp = posed.localToWorld(new THREE.Vector3(0, top, 0.02));
+  const local = hat.worldToLocal(scalp.clone());
+  // PR 69 roll: inner edge is the low point (local y 1.292). Pull it a little
+  // into the hair so the side of the bowl meets the scalp, not just the crown.
+  const drop = 1.292 + 0.04 - local.y;
+  if (drop > 0.001) hat.position.y -= drop;
 }
 
 function buildPlaceholder() {
