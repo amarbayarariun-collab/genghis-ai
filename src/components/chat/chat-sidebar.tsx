@@ -84,12 +84,12 @@ export function ChatSidebar({
           <GenghisLogo compact showTagline />
           <Button
             variant="ghost"
-            size="icon-sm"
-            className="md:hidden"
+            size="icon"
+            className="size-11 md:hidden"
             onClick={onClose}
             aria-label={t("close")}
           >
-            <X className="size-4" />
+            <X className="size-5" />
           </Button>
         </div>
 

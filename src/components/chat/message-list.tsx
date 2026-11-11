@@ -20,15 +20,47 @@ export function MessageList({
   isLoading,
 }: MessageListProps) {
   const { t } = useLocale();
+  const scrollerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, isLoading]);
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    const onScroll = () => {
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      stickToBottomRef.current = dist < 96;
+    };
+
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    const ro = new ResizeObserver(() => {
+      if (!stickToBottomRef.current) return;
+      endRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!stickToBottomRef.current) return;
+    const behavior = streamingId ? "auto" : "smooth";
+    endRef.current?.scrollIntoView({ behavior, block: "end" });
+  }, [messages, isLoading, streamingId]);
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-white dark:bg-zinc-950">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 py-8 md:px-6">
+    <div
+      ref={scrollerRef}
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white dark:bg-zinc-950"
+    >
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-3 py-6 sm:gap-5 sm:px-4 sm:py-8 md:px-6">
         {messages.map((message, index) => {
           const isUser = message.role === "user";
           const isStreaming = message.id === streamingId;
@@ -46,9 +78,9 @@ export function MessageList({
             >
               <div
                 className={cn(
-                  "max-w-[92%] text-[15px] leading-relaxed md:max-w-[85%]",
+                  "max-w-[min(92%,22rem)] text-[15px] leading-relaxed break-words sm:max-w-[85%]",
                   isUser
-                    ? "rounded-2xl bg-ink px-4 py-2.5 text-cream dark:bg-zinc-100 dark:text-zinc-900"
+                    ? "rounded-2xl bg-ink px-3.5 py-2.5 text-cream dark:bg-zinc-100 dark:text-zinc-900 sm:px-4"
                     : "text-ink dark:text-zinc-100"
                 )}
               >
@@ -67,20 +99,20 @@ export function MessageList({
                           key={att.id}
                           src={att.dataUrl}
                           alt={att.name}
-                          className="max-h-40 max-w-[12rem] rounded-xl object-cover"
+                          className="max-h-40 max-w-[min(12rem,70vw)] rounded-xl object-cover"
                         />
                       ) : (
                         <span
                           key={att.id}
                           className={cn(
-                            "inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px]",
+                            "inline-flex max-w-full items-center gap-1.5 rounded-lg px-2 py-1 text-[11px]",
                             isUser
                               ? "bg-white/10"
                               : "bg-zinc-100 text-ink dark:bg-zinc-800 dark:text-zinc-200"
                           )}
                         >
-                          <FileIcon className="size-3.5" />
-                          {att.name}
+                          <FileIcon className="size-3.5 shrink-0" />
+                          <span className="truncate">{att.name}</span>
                         </span>
                       )
                     )}
@@ -97,7 +129,7 @@ export function MessageList({
                 ) : null}
 
                 {isUser ? (
-                  <div className="whitespace-pre-wrap">
+                  <div className="whitespace-pre-wrap break-words">
                     {message.content || null}
                   </div>
                 ) : (
@@ -108,7 +140,7 @@ export function MessageList({
                     ) : null}
 
                     {message.content ? (
-                      <div className="relative">
+                      <div className="relative break-words">
                         <MarkdownMessage content={message.content} />
                         {isStreamingAnswer ? (
                           <span className="ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-gold animate-pulse-soft" />
@@ -121,7 +153,7 @@ export function MessageList({
             </div>
           );
         })}
-        <div ref={endRef} />
+        <div ref={endRef} className="h-px w-full shrink-0" aria-hidden />
       </div>
     </div>
   );
