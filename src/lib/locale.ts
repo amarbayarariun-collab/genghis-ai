@@ -264,28 +264,8 @@ export const UI = {
 
 export type UiKey = keyof typeof UI.mn;
 
-/** First-run example prompts on the empty home hero. */
-export const EXAMPLE_PROMPTS: Record<Locale, readonly string[]> = {
-  mn: [
-    "Сайн уу, чи юу хийж чадах вэ?",
-    "Хуушуурын жор товчхон хэлж өгөөч",
-    "Энэ и-мэйлийг албан ёсны монголоор засаад өг",
-    "Python-оор энгийн тоолуур бичиж өгнө үү",
-  ],
-  en: [
-    "Hi, what can you help me with?",
-    "Give me a short khuushuur recipe",
-    "Rewrite this email in formal Mongolian",
-    "Write a simple counter in Python",
-  ],
-} as const;
-
 export function t(locale: Locale, key: UiKey): string {
   return UI[locale][key] ?? UI.mn[key];
-}
-
-export function examplePrompts(locale: Locale): readonly string[] {
-  return EXAMPLE_PROMPTS[locale] ?? EXAMPLE_PROMPTS.mn;
 }
 
 export function toolLabel(locale: Locale, mode: string): string {

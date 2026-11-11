@@ -10,7 +10,8 @@
     "test:legal": "node scripts/verify-legal-launch.mjs",
     "test:translit": "node --experimental-strip-types --test src/lib/transliterate-mn.test.mts",
     "test:chat-actions": "node --experimental-strip-types --test src/lib/chat-actions.test.mts",
-    "test": "npm run test:legal && npm run test:translit && npm run test:chat-actions"
+    "test:starter-prompts": "node --experimental-strip-types --test src/lib/starter-prompts.test.mts",
+    "test": "npm run test:legal && npm run test:translit && npm run test:chat-actions && npm run test:starter-prompts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

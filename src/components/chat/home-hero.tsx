@@ -12,6 +12,7 @@ import {
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { LiveHeroBackdrop } from "@/components/chat/live-hero-backdrop";
 import { LocaleToggle } from "@/components/chat/locale-toggle";
+import { StarterPromptCards } from "@/components/chat/starter-prompt-cards";
 import { ThemeToggle } from "@/components/chat/theme-toggle";
 import { WallpaperPickerButton } from "@/components/chat/wallpaper-picker";
 import { SiteLegalLinks } from "@/components/legal/site-legal-links";
@@ -19,7 +20,6 @@ import Link from "next/link";
 import { useLocale } from "@/components/locale-provider";
 import { useWallpaper } from "@/hooks/use-wallpaper";
 import { greetingForNow } from "@/lib/greeting";
-import { examplePrompts } from "@/lib/locale";
 import type { ChatAttachment, ToolMode } from "@/lib/types";
 
 type HomeHeroProps = {
@@ -58,7 +58,6 @@ export function HomeHero({
     () => greetingForNow(new Date(), locale),
     [locale]
   );
-  const prompts = useMemo(() => examplePrompts(locale), [locale]);
 
   const quickPills = useMemo(
     () =>
@@ -171,27 +170,16 @@ export function HomeHero({
           </div>
 
           <div
-            className="animate-fade-up mt-3 w-full max-w-2xl sm:mt-4"
+            className="animate-fade-up mt-3 w-full max-w-2xl px-0.5 sm:mt-4"
             style={{ animationDelay: "110ms" }}
           >
             <p className="mb-2 text-center text-[11px] tracking-wide text-white/55 uppercase sm:text-xs">
               {t("tryExamples")}
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              {prompts.map((prompt) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  disabled={disabled || isLoading}
-                  onClick={() =>
-                    onSubmit(prompt, { mode: "chat", attachments: [] })
-                  }
-                  className="max-w-full min-h-11 rounded-full border border-white/20 bg-ink/40 px-3 py-2.5 text-left text-[12px] leading-snug text-white/90 backdrop-blur-md transition hover:bg-ink/55 disabled:opacity-60 sm:min-h-0 sm:py-1.5 sm:text-[13px]"
-                >
-                  {prompt}
-                </button>
-              ))}
-            </div>
+            <StarterPromptCards
+              disabled={disabled || isLoading}
+              onSelect={(prompt) => onChange(prompt)}
+            />
           </div>
 
           <div
