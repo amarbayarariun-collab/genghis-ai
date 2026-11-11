@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   Code2,
   FileText,
@@ -8,6 +8,7 @@ import {
   ImageIcon,
   MessageSquarePlus,
   MoreHorizontal,
+  Pencil,
   Search,
   X,
 } from "lucide-react";
@@ -31,6 +32,7 @@ type ChatSidebarProps = {
   onSelect: (id: string) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
+  onRename: (id: string, title: string) => void;
   onTool?: (mode: ToolMode) => void;
 };
 
@@ -42,10 +44,21 @@ export function ChatSidebar({
   onSelect,
   onNew,
   onDelete,
+  onRename,
   onTool,
 }: ChatSidebarProps) {
   const { t } = useLocale();
   const { width, setWidth, beginResize, isResizing } = useSidebarWidth();
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+
+  useEffect(() => {
+    if (!renamingId) return;
+    if (!sessions.some((s) => s.id === renamingId)) {
+      setRenamingId(null);
+      setRenameDraft("");
+    }
+  }, [sessions, renamingId]);
   const tools: Array<{
     label: string;
     icon: typeof Search;
@@ -146,29 +159,82 @@ export function ChatSidebar({
             <ul className="space-y-0.5">
               {recent.map((session) => (
                 <li key={session.id} className="group relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSelect(session.id);
-                      onClose();
-                    }}
-                    className={cn(
-                      "w-full rounded-xl px-3 py-2 pr-8 text-left text-[13px] transition-colors",
-                      session.id === activeId
-                        ? "bg-zinc-100 text-ink dark:bg-zinc-900 dark:text-zinc-50"
-                        : "text-ink/65 hover:bg-zinc-50 hover:text-ink dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
-                    )}
-                  >
-                    <span className="line-clamp-1">{session.title}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="absolute top-1.5 right-1.5 rounded-md px-1.5 py-0.5 text-[10px] text-ink/40 opacity-0 transition-opacity group-hover:opacity-100 hover:text-ink dark:text-zinc-500"
-                    onClick={() => onDelete(session.id)}
-                    aria-label={t("delete")}
-                  >
-                    ×
-                  </button>
+                  {renamingId === session.id ? (
+                    <form
+                      className="flex items-center gap-1 rounded-xl bg-zinc-100 px-2 py-1 dark:bg-zinc-900"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        onRename(session.id, renameDraft);
+                        setRenamingId(null);
+                        setRenameDraft("");
+                      }}
+                    >
+                      <input
+                        value={renameDraft}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        autoFocus
+                        aria-label={t("renameChat")}
+                        className="min-h-11 min-w-0 flex-1 rounded-lg bg-transparent px-2 text-[13px] text-ink outline-none dark:text-zinc-50 sm:min-h-9"
+                      />
+                      <button
+                        type="submit"
+                        className="inline-flex min-h-11 shrink-0 items-center px-2 text-[11px] font-medium text-ink dark:text-zinc-100 sm:min-h-9"
+                      >
+                        {t("renameChatSave")}
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex min-h-11 shrink-0 items-center px-2 text-[11px] text-ink/55 dark:text-zinc-400 sm:min-h-9"
+                        onClick={() => {
+                          setRenamingId(null);
+                          setRenameDraft("");
+                        }}
+                      >
+                        {t("cancel")}
+                      </button>
+                    </form>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelect(session.id);
+                          onClose();
+                        }}
+                        className={cn(
+                          "w-full rounded-xl px-3 py-2 pr-14 text-left text-[13px] transition-colors",
+                          session.id === activeId
+                            ? "bg-zinc-100 text-ink dark:bg-zinc-900 dark:text-zinc-50"
+                            : "text-ink/65 hover:bg-zinc-50 hover:text-ink dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+                        )}
+                      >
+                        <span className="line-clamp-1">{session.title}</span>
+                      </button>
+                      <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+                        <button
+                          type="button"
+                          className="inline-flex size-9 items-center justify-center rounded-md text-ink/45 hover:text-ink dark:text-zinc-500 dark:hover:text-zinc-100 sm:size-7"
+                          onClick={() => {
+                            setRenamingId(session.id);
+                            setRenameDraft(session.title);
+                          }}
+                          aria-label={t("renameChat")}
+                          title={t("renameChat")}
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex size-9 items-center justify-center rounded-md text-ink/45 hover:text-ink dark:text-zinc-500 dark:hover:text-zinc-100 sm:size-7"
+                          onClick={() => onDelete(session.id)}
+                          aria-label={t("delete")}
+                          title={t("delete")}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
