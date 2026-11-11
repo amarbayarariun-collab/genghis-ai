@@ -215,10 +215,14 @@ function hideSculptHat(root) {
         furDropped += 1;
         continue;
       }
-      const face = cz > 0.05 && Math.abs(cx) < 0.13 && cy > 1.50;
+      const face = cz > 0.05 && Math.abs(cx) < 0.12 && cy > 1.50 && !white && !orange;
       const hood = yMax > 1.46 && cy > 1.32 && (cz < 0.04 || Math.abs(cx) > 0.09);
       const tallCollar = white && yMax > 1.42 && Math.abs(cx) > 0.16 && cy < 1.55;
-      if ((!face && hood && (white || orange)) || tallCollar) { furDropped += 1; continue; }
+      // Pale fur left under the brim. The face test must not keep those triangles.
+      const templeFur = white && cy > 1.40 && cy < 1.76 && Math.abs(cx) > 0.04 && Math.abs(cx) < 0.24;
+      // The pale block under the brim on the viewer's left. Local −X, just above the brow.
+      const leftTemple = cx < -0.09 && cx > -0.2 && cy > 1.705 && cy < 1.78 && cz > 0.06 && cz < 0.2;
+      if ((!face && hood && (white || orange)) || tallCollar || templeFur || leftTemple) { furDropped += 1; continue; }
       kept.push(a, b, c);
     }
     o.userData.furDropped = furDropped;
@@ -256,10 +260,30 @@ function hideSculptHat(root) {
         const y = pos.getY(i);
         const wide = Math.hypot(pos.getX(i), pos.getZ(i));
         const z = pos.getZ(i);
-        if (y > 1.48 && y < HEAD_CUT && wide < 0.18) stamp(face, i, 4);
+        if (y > 1.48 && y < HEAD_CUT && wide < 0.16 && Math.abs(pos.getX(i)) < 0.09 && z > 0.02) stamp(face, i, 4);
         if (y > 1.22 && y < 1.50 && wide > 0.09 && wide < 0.32) stamp(collar, i, 2);
         if (y < 1.38) stamp(body, i, 1);
         if (y > 1.5 && y < HEAD_CUT && z > 0.02 && wide < 0.15) stamp(face, i, 3);
+      }
+      const temple = new Uint8Array(w * h);
+      // This texture is uploaded with flipY false, so UV v points at canvas row v*h.
+      const stampRaw = (mask, i, rad) => {
+        const x = Math.min(w - 1, Math.max(0, (uv.getX(i) * w) | 0));
+        const yy = Math.min(h - 1, Math.max(0, (uv.getY(i) * h) | 0));
+        for (let dy = -rad; dy <= rad; dy++) {
+          for (let dx = -rad; dx <= rad; dx++) {
+            const xx = x + dx;
+            const y2 = yy + dy;
+            if (xx < 0 || y2 < 0 || xx >= w || y2 >= h) continue;
+            mask[y2 * w + xx] = 1;
+          }
+        }
+      };
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+        if (x < -0.085 && x > -0.22 && y > 1.64 && y < 1.78 && z > -0.02 && z < 0.22) stampRaw(temple, i, 2);
       }
       const redOnFace = (r, g, b) => r > 150 && g < 80 && b < 80 && r > g + 60;
       for (let p = 0; p < w * h; p++) {
@@ -267,6 +291,12 @@ function hideSculptHat(root) {
         const r = pix[k];
         const g = pix[k + 1];
         const b = pix[k + 2];
+        if (temple[p] && r > 110 && g > 60) {
+          pix[k] = 42;
+          pix[k + 1] = 26;
+          pix[k + 2] = 18;
+          continue;
+        }
         if (face[p] && !body[p] && redOnFace(r, g, b)) {
           pix[k] = 196;
           pix[k + 1] = 148;
@@ -291,9 +321,183 @@ function hideSculptHat(root) {
       o.material.emissiveMap = tex;
       o.material.needsUpdate = true;
     }
+    // Cover the slit left when the pale temple shell is removed.
+    if (!o.parent?.getObjectByName('temple-fill')) {
+      const fill = new THREE.Mesh(
+        new THREE.CircleGeometry(0.068, 10),
+        new THREE.MeshBasicMaterial({ color: '#2a160f', side: THREE.DoubleSide, depthWrite: true })
+      );
+      fill.name = 'temple-fill';
+      fill.position.set(-0.09, 1.7, 0.158);
+      o.add(fill);
+      const fillR = new THREE.Mesh(
+        new THREE.CircleGeometry(0.026, 8),
+        new THREE.MeshBasicMaterial({ color: '#2a160f', side: THREE.DoubleSide })
+      );
+      fillR.name = 'temple-fill-r';
+      fillR.position.set(0.022, 1.722, 0.165);
+      o.add(fillR);
+    }
     done = true;
   });
   return done;
+}
+
+const HIP = 0.96;
+const KNEE = 0.50;
+const SHOULDER = 1.40;
+
+function fadeDown(y, joint, band) {
+  const t = (joint - y) / band;
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  return t * t * (3 - 2 * t);
+}
+
+function rotX(x, y, z, px, py, pz, ang) {
+  const c = Math.cos(ang);
+  const s = Math.sin(ang);
+  const vy = y - py;
+  const vz = z - pz;
+  return [x, py + vy * c - vz * s, pz + vy * s + vz * c];
+}
+
+function rotZ(x, y, z, px, py, pz, ang) {
+  const c = Math.cos(ang);
+  const s = Math.sin(ang);
+  const vx = x - px;
+  const vy = y - py;
+  return [px + vx * c - vy * s, py + vx * s + vy * c, z];
+}
+
+/** Bend the clothed mesh into a seat. No bones: the vertices themselves move. */
+export function poseRidingGeometry(geo) {
+  const attr = geo.attributes.position;
+  const orig = new Float32Array(attr.array);
+  const feet = {
+    L: { y: Infinity, p: null },
+    R: { y: Infinity, p: null },
+  };
+  const hands = {
+    L: { z: -Infinity, p: null },
+    R: { z: -Infinity, p: null },
+  };
+  for (let i = 0; i < attr.count; i++) {
+    const ox = orig[i * 3];
+    const oy = orig[i * 3 + 1];
+    const oz = orig[i * 3 + 2];
+    let x = ox;
+    let y = oy;
+    let z = oz;
+    const isArm = oy < SHOULDER && oy > 0.78 && Math.abs(ox) > 0.16;
+    if (isArm) {
+      const side = ox < 0 ? -1 : 1;
+      const reach = Math.max(0, Math.min(1, (Math.abs(ox) - 0.16) / 0.1));
+      const aw = fadeDown(oy, SHOULDER, 0.22) * reach;
+      const sx = side * 0.16;
+      const sy = SHOULDER;
+      const sz = 0.02;
+      [x, y, z] = rotX(x, y, z, sx, sy, sz, -1.75 * aw);
+      [x, y, z] = rotZ(x, y, z, sx, sy, sz, side * -0.62 * aw);
+      if (oy < 1.16) {
+        const ew = fadeDown(oy, 1.16, 0.12) * reach;
+        let ex = side * 0.2;
+        let ey = 1.18;
+        let ez = 0.06;
+        [ex, ey, ez] = rotX(ex, ey, ez, sx, sy, sz, -1.75);
+        [ex, ey, ez] = rotZ(ex, ey, ez, sx, sy, sz, side * -0.62);
+        [x, y, z] = rotX(x, y, z, ex, ey, ez, 0.7 * ew);
+      }
+      if (oy < 1.12) {
+        const slot = ox < 0 ? hands.L : hands.R;
+        if (z > slot.z) slot.z = z, slot.p = [x, y, z];
+      }
+    } else if (oy < HIP) {
+      const side = Math.max(-1, Math.min(1, ox / 0.12));
+      const hw = fadeDown(oy, HIP, 0.14);
+      const spread = side * 0.22 * hw;
+      const fold = -0.92 * hw;
+      [x, y, z] = rotZ(x, y, z, 0, HIP, 0, spread);
+      [x, y, z] = rotX(x, y, z, 0, HIP, 0, fold);
+      if (oy < KNEE) {
+        const kw = fadeDown(oy, KNEE, 0.12);
+        let kx = Math.max(-0.1, Math.min(0.1, ox));
+        let ky = KNEE;
+        let kz = 0;
+        [kx, ky, kz] = rotZ(kx, ky, kz, 0, HIP, 0, side * 0.22);
+        [kx, ky, kz] = rotX(kx, ky, kz, 0, HIP, 0, -0.92);
+        [x, y, z] = rotX(x, y, z, kx, ky, kz, 1.35 * kw);
+      }
+      if (oy < 0.16) {
+        const slot = ox < 0 ? feet.L : feet.R;
+        if (y < slot.y) slot.y = y, slot.p = [x, y, z];
+      }
+    }
+    attr.setXYZ(i, x, y, z);
+  }
+  const gripFor = (side) => [side * 0.1, 1.08, 0.42];
+  for (let i = 0; i < attr.count; i++) {
+    const ox = orig[i * 3];
+    const oy = orig[i * 3 + 1];
+    if (Math.abs(ox) < 0.16 || oy < 0.72 || oy > 1.22) continue;
+    const side = ox < 0 ? -1 : 1;
+    const grip = gripFor(side);
+    const w = Math.max(0, Math.min(1, (Math.abs(ox) - 0.18) / 0.12)) * fadeDown(oy, 1.2, 0.18);
+    attr.setXYZ(
+      i,
+      attr.getX(i) * (1 - w) + grip[0] * w,
+      attr.getY(i) * (1 - w) + grip[1] * w,
+      attr.getZ(i) * (1 - w) + grip[2] * w,
+    );
+  }
+  hands.L.p = gripFor(-1);
+  hands.R.p = gripFor(1);
+  attr.needsUpdate = true;
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return {
+    footL: feet.L.p,
+    footR: feet.R.p,
+    handL: hands.L.p,
+    handR: hands.R.p,
+  };
+}
+
+/** A second Temüjin, same mesh, seated. The standing copy is left alone. */
+export function ridingTemujin(standing) {
+  let body = null;
+  standing?.traverse((o) => {
+    if (!body && o.isMesh && (o.geometry?.attributes?.position?.count || 0) > 1000) body = o;
+  });
+  if (!body) return null;
+  const rider = standing.clone(true);
+  rider.userData = { hipY: HIP * (TARGET_HEIGHT / 1.903), tall: 1, mounted: true, sculpt: true };
+  let posed = null;
+  rider.traverse((o) => {
+    if (!o.isMesh) return;
+    o.geometry = o.geometry.clone();
+    if (Array.isArray(o.material)) o.material = o.material.map((m) => m.clone());
+    else if (o.material) o.material = o.material.clone();
+    if ((o.geometry.attributes.position?.count || 0) > 1000) posed = o;
+  });
+  if (!posed) return null;
+  const grips = poseRidingGeometry(posed.geometry);
+  const mark = (name, p) => {
+    if (!p) return;
+    const a = new THREE.Object3D();
+    a.name = name;
+    a.position.set(p[0], p[1], p[2]);
+    posed.add(a);
+  };
+  mark('foot', grips.footL);
+  mark('foot', grips.footR);
+  mark('hand', grips.handL);
+  mark('hand', grips.handR);
+  const head = new THREE.Object3D();
+  head.name = 'head';
+  head.position.set(0, 1.62, 0.04);
+  posed.add(head);
+  return rider;
 }
 
 function buildPlaceholder() {

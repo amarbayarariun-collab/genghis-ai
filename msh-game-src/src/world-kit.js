@@ -30,6 +30,38 @@ export function skyDome({ top, mid, horizon, bottom }, radius = 300) {
   return new THREE.Mesh(new THREE.SphereGeometry(Math.min(radius, 150), 28, 18), mat);
 }
 
+/** Fur brim. The front stays low. The sides and the back turn up around the crown. */
+function curledBrimGeometry(tall) {
+  const profile = [
+    [0.086, 1.342],
+    [0.112, 1.338],
+    [0.134, 1.352],
+    [0.150, 1.376],
+    [0.162, 1.398],
+  ];
+  const pts = [];
+  for (const [r, y] of profile) pts.push(new THREE.Vector2(r * tall, (y + 0.01) * tall));
+  for (let i = profile.length - 1; i >= 0; i--) {
+    const [r, y] = profile[i];
+    pts.push(new THREE.Vector2(Math.max(0.082, r - 0.005) * tall, y * tall));
+  }
+  const geo = new THREE.LatheGeometry(pts, 40);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const r = Math.hypot(x, z);
+    if (r < 1e-4) continue;
+    const outward = Math.max(0, (r / tall - 0.10) / 0.062);
+    const side = Math.abs(z) / r;
+    const back = Math.max(0, -x / r);
+    const lift = outward * (0.082 * side * side + 0.04 * back);
+    pos.setY(i, pos.getY(i) + lift * tall);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
 /** Short ear flap. Thin along X, wide face on YZ, only long enough to cover an ear. */
 function earFlapGeometry(tall) {
   const hx = 0.005 * tall;
@@ -72,14 +104,10 @@ export function mongolHat(tall = 1) {
     new THREE.SphereGeometry(0.10 * tall, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
     hide
   );
-  crown.scale.set(0.72, 1.45, 1);
+  crown.scale.set(0.7, 1.9, 1);
   crown.position.y = 1.33 * tall;
-  // Bottom of the brim is the brow line. The lip turns up, away from the eyes.
-  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.16 * tall, 0.09 * tall, 0.022 * tall, 18), fur);
-  brim.position.y = 1.368 * tall;
-  const roll = new THREE.Mesh(new THREE.TorusGeometry(0.155 * tall, 0.012 * tall, 6, 18), fur);
-  roll.rotation.x = Math.PI / 2;
-  roll.position.y = 1.381 * tall;
+  // Fur brim curls up around the crown. The outer lip is higher than the brow.
+  const brim = new THREE.Mesh(curledBrimGeometry(tall), fur);
   // Short flaps just under the brim, beside the ears. Forward is +X, ears are ±Z.
   const flapGeo = earFlapGeometry(tall);
   const flapL = new THREE.Mesh(flapGeo, fur);
@@ -90,7 +118,7 @@ export function mongolHat(tall = 1) {
   flapR.name = 'ear-flap';
   flapR.position.set(0.0, 1.31 * tall, -0.12 * tall);
   flapR.rotation.x = -0.22;
-  g.add(brim, roll, crown, flapL, flapR);
+  g.add(brim, crown, flapL, flapR);
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return g;
 }
