@@ -24,6 +24,7 @@ import { createDustSteps, createStrideTrigger } from './systems/harvest/fx-dust-
 import { createSteppeMotes } from './systems/harvest/fx-steppe-motes.js';
 import { createBirds } from './systems/harvest/fx-birds.js';
 import { createSteppeAudio } from './systems/harvest/ambient-audio.js';
+import { createTheme } from './systems/theme.js';
 import { createLocomotionFSM } from './systems/harvest/anim-state-machine.js';
 import { createAdaptiveQuality } from './systems/harvest/lod-instancing.js';
 import { qualityPreset, pickTierFromAvgMs, applyRendererQuality, QUALITY_TIERS } from './systems/quality.js';
@@ -196,6 +197,7 @@ const player = { pos: new THREE.Vector3(0, 0, 10), yaw: 0.15, bob: 0 };
 const cam = createCameraRig(camera, { distance: 5.0, height: 1.55, minPitch: -0.35, maxPitch: 0.55 });
 const mover = createMover(player);
 const audio = createSteppeAudio({ volume: 0.75 });
+const theme = createTheme();
 audio.attachUnlock?.();
 const simpleCine = createSimpleCine(camera, { duration: 2.8 });
 const pathCine = createPathCine(camera, ONON_INTRO);
@@ -870,7 +872,7 @@ function renderChapterSelect() {
     b.onclick = () => {
       $('chapters').classList.add('hidden');
       $('title').classList.add('hidden');
-      try { audio.unlock(); } catch (err) { console.warn('[audio]', err); }
+      try { audio.unlock(); theme.start(); } catch (err) { console.warn('[audio]', err); }
       loadScene(ch.scene, { cinematic: true });
     };
     list.append(b);
@@ -879,7 +881,7 @@ function renderChapterSelect() {
 
 function beginCamp({ cinematic, dialogueNode, arrive = false }) {
   // Audio must not be able to cancel the tap. iPad Safari throws from resume().
-  try { audio.unlock(); }
+  try { audio.unlock(); theme.start(); }
   catch (err) { console.warn('[audio]', err); }
   writeSave({ unlocked: ['camp'], lastChapter: 'camp', flags: {}, quality: qualityId });
   save = loadSave();
@@ -929,13 +931,23 @@ addEventListener('touchend', (ev) => {
   btn.dispatchEvent(new Event('pointerup', { bubbles: true }));
 }, { passive: true });
 bindTap($('mountBtn'), () => setMounted(!mounted));
+const muteBtn = $('muteBtn');
+if (muteBtn) {
+  muteBtn.textContent = theme.muted ? 'Дуу хаагдсан' : 'Дуу';
+  muteBtn.setAttribute('aria-pressed', theme.muted ? 'true' : 'false');
+  bindTap(muteBtn, () => {
+    const muted = theme.toggleMute();
+    muteBtn.textContent = muted ? 'Дуу хаагдсан' : 'Дуу';
+    muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+  });
+}
 bindTap($('fastPlayBtn'), () => {
   setQuality('low', { manual: true, reloadScene: false });
   beginCamp({ cinematic: false, dialogueNode: null, arrive: true });
 });
 bindTap($('startBtn'), () => beginCamp({ cinematic: true, dialogueNode: 'intro0' }));
 bindTap($('continueBtn'), () => {
-  try { audio.unlock(); } catch (err) { console.warn('[audio]', err); }
+  try { audio.unlock(); theme.start(); } catch (err) { console.warn('[audio]', err); }
   $('title').classList.add('hidden');
   const ch = CHAPTERS.find((c) => c.id === save.lastChapter) || CHAPTERS[0];
   loadScene(ch.scene, { cinematic: true });
@@ -994,6 +1006,7 @@ function updateObjective() {
 function releasePlay() {
   state = 'explore';
   talkTarget = null;
+  theme.duck(false);
   const el = document.activeElement;
   if (el && el !== document.body && el !== canvas) el.blur();
   canvas.focus({ preventScroll: true });
@@ -1006,6 +1019,7 @@ function startDialogue(id) {
   $('prompt').classList.add('hidden');
   $('dialogue').classList.remove('hidden');
   audio.duck?.(0.4, 0.5);
+  theme.duck(true);
   birds?.startle?.();
   show(id);
 }
@@ -1092,6 +1106,7 @@ function btn(label, fn) {
 
 function presentChapter(card) {
   audio.duck?.(0.35, 0.5);
+  theme.duck(true);
   $('warmGrade')?.classList.add('arriving');
   setTimeout(() => {
     $('warmGrade')?.classList.remove('arriving');
@@ -1344,7 +1359,10 @@ function tick() {
   const pace = $('pace');
   if (pace) {
     const sprint = !!(keys.ShiftLeft || keys.ShiftRight);
-    const label = mounted ? (sprint ? 'Давхилт' : 'Жороо') : (sprint ? 'Гүйлт' : '');
+    const gaitName = {
+      idle: 'Зогсоо', walk: 'Алхаа', trot: 'Жороо', canter: 'Шогшоо', gallop: 'Давхилт',
+    }[playerHorse?.userData?.gait];
+    const label = mounted ? (gaitName || 'Жороо') : (sprint ? 'Гүйлт' : '');
     pace.textContent = label;
     pace.classList.toggle('hidden', !label || state !== 'explore');
   }
@@ -1540,6 +1558,33 @@ window.__mshMount = (on = true, sprint = false) => {
     );
   }
   return { mounted, pace: $('pace')?.textContent || '', sprint: !!keys.ShiftLeft };
+};
+window.__mshGait = (speed = 13) => {
+  if (state === 'title' || state === 'cine') {
+    state = 'explore';
+    document.body.classList.add('in-play');
+    $('title')?.classList.add('hidden');
+    $('hud')?.classList.remove('hidden');
+  }
+  if (!mounted) setMounted(true);
+  if (!playerHorse?.userData?.step) return null;
+  playerHorse.rotation.y = 0;
+  playerHorse.userData.phase = 0;
+  const gait = playerHorse.userData.step(0.08, speed);
+  const names = { walk: 'Алхаа', trot: 'Жороо', canter: 'Шогшоо', gallop: 'Давхилт', idle: 'Зогсоо' };
+  const paceEl = $('pace');
+  if (paceEl) {
+    paceEl.textContent = names[gait] || '';
+    paceEl.classList.remove('hidden');
+  }
+  const p = playerHorse.position;
+  window.__mshFrame(
+    [p.x + 0.1, p.y + 1.2, p.z + 5.4],
+    [p.x + 0.1, p.y + 0.85, p.z],
+    36,
+    false
+  );
+  return { gait, pace: paceEl?.textContent || '', missing: theme.missing };
 };
 window.__mshStick = () => {
   state = 'explore';
