@@ -1,12 +1,119 @@
 import {
-  resolveImageApiConfig,
+  listImageApiConfigs,
+  resolveImageProviderPreference,
   sanitizeApiError,
+  type ImageApiConfig,
 } from "@/lib/api-config";
+import { logImageGeneration } from "@/lib/image-usage-log";
 import { isLocale, type Locale } from "@/lib/locale";
 import {
   assertCanGenerateImage,
   trackImageForUser,
 } from "@/lib/usage/quotas";
+
+function missingKeyError(
+  preference: ReturnType<typeof resolveImageProviderPreference>
+): string {
+  if (preference === "xai") {
+    return "Зураг үүсгэхэд xAI түлхүүр хэрэгтэй. Vercel дээр OPENAI_API_KEY эсвэл AP (xai-…) тохируулаад Production Redeploy хийнэ үү.";
+  }
+  if (preference === "openai") {
+    return "Зураг үүсгэхэд OpenAI image түлхүүр хэрэгтэй. Vercel дээр OPENAI_IMAGE_API_KEY (эсвэл жинхэнэ OpenAI OPENAI_API_KEY, xai- биш) тохируулаад Production Redeploy хийнэ үү.";
+  }
+  return "Зураг үүсгэхэд API түлхүүр хэрэгтэй. Гол зам: OPENAI_IMAGE_API_KEY. Нөөц: xAI AP / OPENAI_API_KEY (xai-…). Production Redeploy хийнэ үү.";
+}
+
+function looksLikeCreditsIssue(detail: string): boolean {
+  return /billing|credit|quota|insufficient|payment|balance|no cre/i.test(detail);
+}
+
+function allFailedError(configs: ImageApiConfig[], detail: string): string {
+  const triedXai = configs.some((c) => c.provider === "xai");
+  const triedOpenAI = configs.some((c) => c.provider === "openai");
+  const credits = looksLikeCreditsIssue(detail);
+
+  if (triedXai && triedOpenAI) {
+    return credits
+      ? "Зураг үүсгэж чадсангүй. OpenAI image credits/billing дууссан эсвэл хүрэлцэхгүй байна; xAI нөөц (grok-imagine-image) ч амжилтгүй. OpenAI prepaid credits цэнэглээд Redeploy хийнэ үү, эсвэл IMAGE_PROVIDER=xai туршина уу."
+      : "Зураг үүсгэж чадсангүй. OpenAI GPT Image болон xAI нөөц (grok-imagine-image) аль аль нь амжилтгүй. OPENAI_IMAGE_API_KEY, OPENAI_IMAGE_MODEL=gpt-image-2.5-flare (quality=low, size=1024x1024) шалгаад Redeploy хийнэ үү.";
+  }
+  if (triedXai) {
+    return "Зураг үүсгэж чадсангүй. OPENAI_IMAGE_API_KEY байхгүй тул xAI (grok-imagine-image) ашигласан боловч амжилтгүй. OPENAI_IMAGE_API_KEY нэмэх эсвэл xAI AP / OPENAI_API_KEY (xai-…) эрхээ шалгана уу.";
+  }
+  if (credits) {
+    return "Зураг үүсгэж чадсангүй. OpenAI image credits/billing хүрэлцэхгүй байна. Prepaid credits цэнэглээд Production Redeploy хийнэ үү. Түр xAI нөөцөд IMAGE_PROVIDER=auto үлдээж AP (xai-…) байлгана уу.";
+  }
+  return "Зураг үүсгэж чадсангүй. OpenAI image model эсвэл түлхүүр буруу байна. dall-e-3 / gpt-image-1 retired — OPENAI_IMAGE_MODEL=gpt-image-2.5-flare, OPENAI_IMAGE_QUALITY=low, OPENAI_IMAGE_SIZE=1024x1024 тавина уу.";
+}
+
+async function tryGenerateWithConfig(
+  config: ImageApiConfig,
+  prompt: string,
+  signal: AbortSignal
+): Promise<
+  | { imageUrl: string; model: string; quality: string | null; size: string | null }
+  | { errors: string[] }
+> {
+  const errors: string[] = [];
+
+  for (const model of config.imageModelCandidates) {
+    const payload: Record<string, unknown> = {
+      model,
+      prompt,
+      n: 1,
+    };
+    if (!config.isXai) {
+      // Cost-control defaults for OpenAI GPT Image.
+      payload.size = config.size || "1024x1024";
+      if (config.quality) payload.quality = config.quality;
+    }
+
+    const response = await fetch(`${config.baseUrl}/images/generations`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal,
+    });
+
+    const raw = await response.text();
+    if (!response.ok) {
+      errors.push(
+        `${config.provider}/${model}: ${sanitizeApiError(raw) || response.statusText}`
+      );
+      continue;
+    }
+
+    let data: { data?: Array<{ url?: string; b64_json?: string }> };
+    try {
+      data = JSON.parse(raw) as typeof data;
+    } catch {
+      errors.push(`${config.provider}/${model}: буруу JSON хариу`);
+      continue;
+    }
+
+    const first = data.data?.[0];
+    const imageUrl =
+      first?.url ||
+      (first?.b64_json ? `data:image/png;base64,${first.b64_json}` : null);
+
+    if (!imageUrl) {
+      errors.push(`${config.provider}/${model}: хоосон хариу`);
+      continue;
+    }
+
+    return {
+      imageUrl,
+      model,
+      quality: config.quality,
+      size: config.size,
+    };
+  }
+
+  return { errors };
+}
 
 export async function POST(request: Request) {
   let body: { prompt?: string; locale?: Locale };
@@ -38,100 +145,69 @@ export async function POST(request: Request) {
     );
   }
 
-  await trackImageForUser(quota.subject.user.id);
-
-  const config = resolveImageApiConfig();
-  if (!config) {
+  const preference = resolveImageProviderPreference();
+  const configs = listImageApiConfigs(preference);
+  if (!configs.length) {
     return Response.json(
-      {
-        error:
-          "Зураг үүсгэхэд API түлхүүр хэрэгтэй. Vercel дээр OPENAI_IMAGE_API_KEY тохируулаад Production Redeploy хийнэ үү (эсвэл OPENAI_API_KEY / AP).",
-      },
+      { error: missingKeyError(preference), imageProvider: preference },
       { status: 503 }
     );
   }
 
-  const {
-    apiKey,
-    baseUrl,
-    imageModelCandidates,
-    isXai,
-    usingDedicatedImageKey,
-  } = config;
   const errors: string[] = [];
 
   try {
-    for (const model of imageModelCandidates) {
-      const payload: Record<string, unknown> = {
-        model,
-        prompt,
-        n: 1,
-      };
-      if (!isXai) {
-        // OpenAI Images API rejects response_format on current models.
-        payload.size = "1024x1024";
+    for (const config of configs) {
+      const result = await tryGenerateWithConfig(config, prompt, request.signal);
+      if ("imageUrl" in result) {
+        await trackImageForUser(quota.subject.user.id);
+        const usageLog = await logImageGeneration({
+          provider: config.provider,
+          model: result.model,
+          quality: result.quality,
+          size: result.size,
+          usingDedicatedImageKey: config.usingDedicatedImageKey,
+        });
+
+        return Response.json({
+          ok: true,
+          imageUrl: result.imageUrl,
+          model: result.model,
+          provider: config.provider,
+          quality: result.quality,
+          size: result.size,
+          usingDedicatedImageKey: config.usingDedicatedImageKey,
+          usage: quota.subject.usage,
+          usageLog,
+        });
       }
-
-      const response = await fetch(`${baseUrl}/images/generations`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-        signal: request.signal,
-      });
-
-      const raw = await response.text();
-      if (!response.ok) {
-        errors.push(`${model}: ${sanitizeApiError(raw) || response.statusText}`);
-        continue;
-      }
-
-      let data: { data?: Array<{ url?: string; b64_json?: string }> };
-      try {
-        data = JSON.parse(raw) as typeof data;
-      } catch {
-        errors.push(`${model}: буруу JSON хариу`);
-        continue;
-      }
-
-      const first = data.data?.[0];
-      const imageUrl =
-        first?.url ||
-        (first?.b64_json ? `data:image/png;base64,${first.b64_json}` : null);
-
-      if (!imageUrl) {
-        errors.push(`${model}: хоосон хариу`);
-        continue;
-      }
-
-      return Response.json({
-        ok: true,
-        imageUrl,
-        model,
-        usage: quota.subject.usage,
-      });
+      errors.push(...result.errors);
     }
 
-    const error = !usingDedicatedImageKey
-      ? "Зураг үүсгэж чадсангүй. OPENAI_IMAGE_API_KEY Vercel дээр тохируулаагүй (эсвэл Redeploy хийгээгүй) байна. Env нэрийг яг OPENAI_IMAGE_API_KEY гэж тавиад Production Redeploy хийнэ үү."
-      : "Зураг үүсгэж чадсангүй. OpenAI image model эрх/billing эсвэл загварын нэр буруу байна. Vercel дээр OPENAI_IMAGE_MODEL=dall-e-3 тавиад Redeploy хийнэ үү.";
-
+    const detail = sanitizeApiError(errors.join(" · "));
+    // Never return opaque 502s — surface clear Mongolian guidance instead.
     return Response.json(
       {
-        error,
-        detail: sanitizeApiError(errors.join(" · ")),
-        usingDedicatedImageKey,
+        ok: false,
+        error: allFailedError(configs, detail),
+        detail,
+        imageProvider: preference,
+        triedProviders: configs.map((c) => c.provider),
+        usingDedicatedImageKey: configs.some((c) => c.usingDedicatedImageKey),
       },
-      { status: 502 }
+      { status: 503 }
     );
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Зураг үүсгэж чадсангүй.";
     return Response.json(
-      { error: sanitizeApiError(message) },
-      { status: 500 }
+      {
+        ok: false,
+        error:
+          "Зураг үүсгэх үед алдаа гарлаа. Дахин оролдоно уу. Хэрэв үргэлжилбэл OPENAI_IMAGE_API_KEY эсвэл xAI AP тохиргоогоо шалгана уу.",
+        detail: sanitizeApiError(message),
+      },
+      { status: 503 }
     );
   }
 }

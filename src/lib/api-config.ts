@@ -1,3 +1,5 @@
+import type { ImageQuality } from "@/lib/image-pricing";
+
 /**
  * Legacy shared chat key (OPENAI_API_KEY / AP).
  * Prefer resolveChatProvider() from @/lib/chat-provider for /api/chat.
@@ -14,14 +16,135 @@ export function getImageApiKey(): string | undefined {
   return process.env.OPENAI_IMAGE_API_KEY?.trim();
 }
 
-const OPENAI_IMAGE_BASE_URL = "https://api.openai.com/v1";
+/**
+ * Real OpenAI chat key for image generation only.
+ * Never treat the xAI key mapped into OPENAI_API_KEY / AP as OpenAI.
+ */
+export function getOpenAIKeyForImages(): string | undefined {
+  const dedicated = getImageApiKey();
+  if (dedicated) return dedicated;
+  const chat = process.env.OPENAI_API_KEY?.trim();
+  if (chat && !chat.startsWith("xai-")) return chat;
+  return undefined;
+}
 
-function openaiImageModelCandidates(): string[] {
+/** xAI chat key (OPENAI_API_KEY or AP) when it is actually an xai- key. */
+export function getXaiKeyForImages(): string | undefined {
+  const key = getApiKey();
+  if (key?.startsWith("xai-")) return key;
+  return undefined;
+}
+
+const OPENAI_IMAGE_BASE_URL = "https://api.openai.com/v1";
+const XAI_BASE_URL = "https://api.x.ai/v1";
+
+/** Retired OpenAI Images models — skip even if OPENAI_IMAGE_MODEL still names them. */
+const RETIRED_OPENAI_IMAGE_MODELS = new Set([
+  "dall-e-2",
+  "dall-e-3",
+  "gpt-image-1",
+]);
+
+/** Current OpenAI Images defaults (primary → fallbacks). */
+const DEFAULT_OPENAI_IMAGE_MODELS = [
+  "gpt-image-2.5-flare",
+  "gpt-image-2",
+  "gpt-image-1.5",
+  "gpt-image-1-mini",
+] as const;
+
+/**
+ * Current xAI Imagine models (docs.x.ai).
+ * Prefer grok-imagine-image (~$0.02). Do not use retired grok-2-image*.
+ */
+const DEFAULT_XAI_IMAGE_MODELS = ["grok-imagine-image"] as const;
+
+const RETIRED_XAI_IMAGE_MODELS = new Set([
+  "grok-2-image",
+  "grok-2-image-1212",
+]);
+
+export type ImageProviderPreference = "auto" | "openai" | "xai";
+export type ImageProviderId = "openai" | "xai";
+
+export type ImageApiConfig = {
+  provider: ImageProviderId;
+  apiKey: string;
+  baseUrl: string;
+  imageModelCandidates: string[];
+  isXai: boolean;
+  usingDedicatedImageKey: boolean;
+  /** OpenAI only — cost-control defaults. */
+  quality: ImageQuality | null;
+  size: string | null;
+};
+
+/** IMAGE_PROVIDER=auto|openai|xai (default auto = OpenAI primary, xAI fallback). */
+export function resolveImageProviderPreference(
+  raw = process.env.IMAGE_PROVIDER
+): ImageProviderPreference {
+  const value = raw?.trim().toLowerCase();
+  if (value === "openai" || value === "xai") return value;
+  return "auto";
+}
+
+export function resolveOpenAIImageQuality(
+  raw = process.env.OPENAI_IMAGE_QUALITY
+): ImageQuality {
+  const value = raw?.trim().toLowerCase();
+  if (
+    value === "low" ||
+    value === "medium" ||
+    value === "high" ||
+    value === "xhigh" ||
+    value === "max" ||
+    value === "auto"
+  ) {
+    return value;
+  }
+  // Cost control default.
+  return "low";
+}
+
+export function resolveOpenAIImageSize(
+  raw = process.env.OPENAI_IMAGE_SIZE
+): string {
+  const value = raw?.trim();
+  if (value && /^\d{2,5}x\d{2,5}$/i.test(value)) return value;
+  return "1024x1024";
+}
+
+export function openaiImageModelCandidates(
+  preferredModel = process.env.OPENAI_IMAGE_MODEL
+): string[] {
+  const preferred = preferredModel?.trim();
+  // Ignore xAI model names when building OpenAI candidates.
+  const preferredForOpenAI =
+    preferred && !preferred.startsWith("grok-") ? preferred : undefined;
   return Array.from(
     new Set(
-      [process.env.OPENAI_IMAGE_MODEL, "dall-e-3", "gpt-image-1"].filter(
-        Boolean
-      ) as string[]
+      [preferredForOpenAI, ...DEFAULT_OPENAI_IMAGE_MODELS]
+        .filter((model): model is string => Boolean(model))
+        .filter((model) => !RETIRED_OPENAI_IMAGE_MODELS.has(model))
+    )
+  );
+}
+
+export function xaiImageModelCandidates(
+  preferredModel = process.env.OPENAI_IMAGE_MODEL
+): string[] {
+  const preferred = preferredModel?.trim();
+  const preferredForXai =
+    preferred &&
+    preferred.startsWith("grok-imagine-image") &&
+    !RETIRED_XAI_IMAGE_MODELS.has(preferred)
+      ? preferred
+      : undefined;
+  return Array.from(
+    new Set(
+      [preferredForXai, ...DEFAULT_XAI_IMAGE_MODELS]
+        .filter((model): model is string => Boolean(model))
+        .filter((model) => !RETIRED_XAI_IMAGE_MODELS.has(model))
     )
   );
 }
@@ -46,59 +169,108 @@ export function resolveApiConfig(apiKey: string): {
     (process.env.CHAT_PROVIDER || "").trim().toLowerCase() === "xai" ||
     /api\.x\.ai/i.test(chatBase || "");
   const baseUrl =
-    chatBase || (isXai ? "https://api.x.ai/v1" : "https://api.openai.com/v1");
+    chatBase || (isXai ? XAI_BASE_URL : "https://api.openai.com/v1");
   // Strongest public xAI chat model (GPT-5.2-class target quality).
   const model =
     process.env.CHAT_MODEL ||
     process.env.OPENAI_MODEL ||
     (isXai ? "grok-4.7" : "gpt-4o");
-  const imageModel =
-    process.env.OPENAI_IMAGE_MODEL ||
-    (isXai ? "grok-2-image-1212" : "dall-e-3");
   const imageModelCandidates = isXai
-    ? Array.from(
-        new Set(
-          [
-            process.env.OPENAI_IMAGE_MODEL,
-            "grok-2-image-1212",
-            "grok-2-image",
-          ].filter(Boolean) as string[]
-        )
-      )
+    ? xaiImageModelCandidates()
     : openaiImageModelCandidates();
+  const imageModel =
+    imageModelCandidates[0] ||
+    (isXai ? DEFAULT_XAI_IMAGE_MODELS[0] : DEFAULT_OPENAI_IMAGE_MODELS[0]);
   return { baseUrl, model, imageModel, imageModelCandidates, isXai };
 }
 
-/** Image generation: prefer dedicated OpenAI key; else shared chat key. */
-export function resolveImageApiConfig(): {
-  apiKey: string;
-  baseUrl: string;
-  imageModelCandidates: string[];
-  isXai: boolean;
-  usingDedicatedImageKey: boolean;
-} | null {
+function buildDedicatedOpenAIImageConfig(): ImageApiConfig | null {
   const imageKey = getImageApiKey();
-  if (imageKey) {
-    return {
-      apiKey: imageKey,
-      baseUrl: OPENAI_IMAGE_BASE_URL,
-      imageModelCandidates: openaiImageModelCandidates(),
-      isXai: false,
-      usingDedicatedImageKey: true,
-    };
-  }
+  if (!imageKey) return null;
+  return {
+    provider: "openai",
+    apiKey: imageKey,
+    baseUrl: OPENAI_IMAGE_BASE_URL,
+    imageModelCandidates: openaiImageModelCandidates(),
+    isXai: false,
+    usingDedicatedImageKey: true,
+    quality: resolveOpenAIImageQuality(),
+    size: resolveOpenAIImageSize(),
+  };
+}
 
-  const apiKey = getApiKey();
+function buildSharedOpenAIChatImageConfig(): ImageApiConfig | null {
+  // Only a real OpenAI OPENAI_API_KEY — never the xAI key mapped into AP / OPENAI_API_KEY.
+  const chat = process.env.OPENAI_API_KEY?.trim();
+  if (!chat || chat.startsWith("xai-")) return null;
+  if (getImageApiKey()) return null; // dedicated key already covers OpenAI
+  return {
+    provider: "openai",
+    apiKey: chat,
+    baseUrl: OPENAI_IMAGE_BASE_URL,
+    imageModelCandidates: openaiImageModelCandidates(),
+    isXai: false,
+    usingDedicatedImageKey: false,
+    quality: resolveOpenAIImageQuality(),
+    size: resolveOpenAIImageSize(),
+  };
+}
+
+function buildXaiImageConfig(): ImageApiConfig | null {
+  const apiKey = getXaiKeyForImages();
   if (!apiKey) return null;
 
-  const { baseUrl, imageModelCandidates, isXai } = resolveApiConfig(apiKey);
+  const configured =
+    process.env.CHAT_BASE_URL?.replace(/\/$/, "").trim() ||
+    process.env.OPENAI_BASE_URL?.replace(/\/$/, "").trim();
+  const baseUrl =
+    configured && configured.includes("x.ai") ? configured : XAI_BASE_URL;
+
   return {
+    provider: "xai",
     apiKey,
     baseUrl,
-    imageModelCandidates,
-    isXai,
+    imageModelCandidates: xaiImageModelCandidates(),
+    isXai: true,
     usingDedicatedImageKey: false,
+    quality: null,
+    size: null,
   };
+}
+
+/**
+ * Ordered image backends to try.
+ * - auto (default): OpenAI GPT Image PRIMARY when OPENAI_IMAGE_API_KEY is set
+ *   (else a real OpenAI OPENAI_API_KEY); FALLBACK xAI grok-imagine-image when
+ *   OpenAI key is missing, fails, or is out of credits
+ * - openai: OpenAI keys only
+ * - xai: xAI chat key only
+ */
+export function listImageApiConfigs(
+  preference = resolveImageProviderPreference()
+): ImageApiConfig[] {
+  const dedicated = buildDedicatedOpenAIImageConfig();
+  const sharedOpenAI = buildSharedOpenAIChatImageConfig();
+  const xai = buildXaiImageConfig();
+
+  if (preference === "openai") {
+    return [dedicated, sharedOpenAI].filter(Boolean) as ImageApiConfig[];
+  }
+  if (preference === "xai") {
+    return xai ? [xai] : [];
+  }
+
+  // auto: OpenAI primary when image key (or real OpenAI chat key) present; else xAI
+  const configs: ImageApiConfig[] = [];
+  if (dedicated) configs.push(dedicated);
+  else if (sharedOpenAI) configs.push(sharedOpenAI);
+  if (xai) configs.push(xai);
+  return configs;
+}
+
+/** Image generation: prefer dedicated OpenAI key; else shared chat key / xAI. */
+export function resolveImageApiConfig(): ImageApiConfig | null {
+  return listImageApiConfigs()[0] ?? null;
 }
 
 export function sanitizeApiError(detail: string): string {
@@ -106,5 +278,5 @@ export function sanitizeApiError(detail: string): string {
     .replace(/xai-[A-Za-z0-9_-]+/g, "xai-<redacted>")
     .replace(/sk-[A-Za-z0-9_-]+/g, "sk-<redacted>")
     .replace(/Bearer\s+\S+/gi, "Bearer <redacted>")
-    .slice(0, 240);
+    .slice(0, 480);
 }
