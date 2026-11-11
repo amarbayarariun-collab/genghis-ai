@@ -215,6 +215,7 @@ const keys = {};
 let world = null;
 let sceneId = 'camp';
 let primedCamp = false;
+let campBootStarted = false;
 let chapterId = 'camp';
 let NPCS = [];
 let harvestMist = null;
@@ -450,6 +451,7 @@ function playCampArrival() {
 
 function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false, resume = null } = {}) {
   primedCamp = false;
+  campBootStarted = true;
   fieldTasks?.dispose();
   fieldTasks = null;
   horsesChimed = false;
@@ -633,12 +635,23 @@ function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false, 
   writeSave({ lastChapter: chapterId });
 }
 
-// Initial camp preload behind title. The first fast start reuses it.
-loadScene('camp', { cinematic: false });
-primedCamp = true;
+// Let the title paint before the camp file starts. The first fast start reuses it.
 state = 'title';
 $('end')?.classList.add('hidden');
 $('hud').classList.add('hidden');
+function bootCampAfterPaint() {
+  if (campBootStarted) return;
+  campBootStarted = true;
+  loadScene('camp', { cinematic: false });
+  primedCamp = true;
+  state = 'title';
+  $('end')?.classList.add('hidden');
+  $('hud').classList.add('hidden');
+}
+requestAnimationFrame(() => requestAnimationFrame(() => {
+  bootCampAfterPaint();
+  theme.warm?.();
+}));
 
 addEventListener('keydown', (e) => {
   if (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Space') {
@@ -995,7 +1008,9 @@ function beginCamp({ cinematic, dialogueNode, arrive = false }) {
     title.classList.remove('fade-out');
     $('hud').classList.remove('hidden');
     $('chapter').textContent = dialogueNode ? '0 бүлэг · Удиртгал' : 'I бүлэг · Өнчин өдрүүд';
-    if (reuse) {
+    const live = arrive && !cinematic && !dialogueNode && sceneId === 'camp' && world?.aerialView;
+    if (reuse || live) {
+      primedCamp = false;
       playCampArrival();
       return;
     }

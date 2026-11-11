@@ -1,5 +1,6 @@
-/** Looping theme. Stays silent when assets/audio/theme.mp3 is missing. */
+/** Looping theme. The file stays unloaded until after first paint. */
 const MUTE_KEY = 'msh-theme-mute';
+const THEME_URL = './assets/audio/theme.mp3';
 
 export function createTheme() {
   let audio = null;
@@ -13,9 +14,9 @@ export function createTheme() {
 
   function element() {
     if (audio) return audio;
-    audio = new Audio('./assets/audio/theme.mp3');
+    audio = new Audio();
     audio.loop = true;
-    audio.preload = 'auto';
+    audio.preload = 'none';
     audio.volume = 0;
     audio.addEventListener('error', () => {
       failed = true;
@@ -23,6 +24,15 @@ export function createTheme() {
       audio.volume = 0;
     });
     return audio;
+  }
+
+  function attachSource() {
+    const node = element();
+    if (!node.src) {
+      node.src = THEME_URL;
+      node.preload = 'auto';
+    }
+    return node;
   }
 
   const target = () => (failed || muted ? 0 : (ducked ? 0.35 : 0.6));
@@ -48,7 +58,7 @@ export function createTheme() {
 
   function start() {
     if (failed) return;
-    const node = element();
+    const node = attachSource();
     const play = node.play();
     if (play && typeof play.catch === 'function') {
       play.catch(() => {
@@ -61,6 +71,17 @@ export function createTheme() {
   }
 
   return {
+    /** Start the download only after the title has painted. */
+    warm() {
+      if (failed) return;
+      try {
+        const node = attachSource();
+        node.load();
+      } catch (err) {
+        failed = true;
+        console.warn('[theme]', err);
+      }
+    },
     start() {
       try { start(); } catch (err) {
         failed = true;

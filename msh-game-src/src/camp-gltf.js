@@ -1,6 +1,7 @@
 // Camp environment from camp-world.glb. Y-up glTF; do not apply a Blender Z-up fix.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
 export const CAMP_GLB_URL = './models/camp-world.glb';
 
@@ -37,7 +38,10 @@ export function attachCamp(scene, { shadows = true, colliders = [], onReady, gra
   }
   if (onReady) whenReady(onReady);
 
+  const draco = new DRACOLoader();
+  draco.setDecoderPath('./draco/');
   const loader = new GLTFLoader();
+  loader.setDRACOLoader(draco);
   loader.load(
     CAMP_GLB_URL,
     (gltf) => {
@@ -57,12 +61,17 @@ export function attachCamp(scene, { shadows = true, colliders = [], onReady, gra
         terrain.userData.campMeasure = measure;
         console.info('[camp] loaded', JSON.stringify(measure.report));
         waiters.splice(0).forEach((fn) => fn(measure));
+        draco.dispose();
       } catch (err) {
         console.error('[camp] setup failed', err);
+        draco.dispose();
       }
     },
     undefined,
-    (err) => console.error('[camp] GLB failed', err)
+    (err) => {
+      draco.dispose();
+      console.error('[camp] GLB failed', err);
+    }
   );
 
   return {
