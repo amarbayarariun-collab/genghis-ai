@@ -33,6 +33,7 @@ type Setup = {
   authSecret: boolean;
   adminSecret: boolean;
   googleOAuth: boolean;
+  qpay?: boolean;
 };
 
 export function AdminDashboard() {
@@ -188,6 +189,7 @@ export function AdminDashboard() {
               <li>AUTH_SECRET: {setup.authSecret ? "ok" : "missing (dev fallback)"}</li>
               <li>ADMIN_SECRET: {setup.adminSecret ? "ok" : "missing"}</li>
               <li>Google OAuth: {setup.googleOAuth ? "ok" : "off"}</li>
+              <li>QPay: {setup.qpay ? "ok" : "mock/disabled"}</li>
             </ul>
           ) : null}
           <div className="flex gap-2">

@@ -10,6 +10,7 @@ import {
   isAuthSecretConfigured,
 } from "@/lib/usage/session";
 import { FREE_PLAN, PAID_PLAN, tokenPriceUsdPerMillion } from "@/lib/plans";
+import { isQPayConfigured } from "@/lib/qpay/config";
 
 export async function GET(request: Request) {
   if (!(await isAdminRequest(request))) {
@@ -46,6 +47,7 @@ export async function GET(request: Request) {
       authSecret: isAuthSecretConfigured(),
       adminSecret: Boolean(adminSecret()),
       googleOAuth: googleOAuthConfigured(),
+      qpay: isQPayConfigured(),
     },
   });
 }

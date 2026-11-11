@@ -58,7 +58,11 @@ Restart the dev server. The chat route (`/api/chat`) uses `resolveChatProvider()
 | Free | 0 | 30 msgs/mo on `grok-4.3` | none |
 | Pro | $20 (~72,000₮)/mo | 500 msgs/mo on `grok-4.7` (`reasoning_effort=low`) | 10/mo |
 
-Cost controls on `/api/chat`: history trim (`CHAT_HISTORY_LIMIT`), `max_tokens`, attach text cap (`ATTACH_TEXT_LIMIT`), xAI `x-grok-conv-id` / `prompt_cache_key`, and token usage logged for `/admin` estimates. Pricing page: `/pricing` (QPay checkout is a follow-up PR).
+Cost controls on `/api/chat`: history trim (`CHAT_HISTORY_LIMIT`), `max_tokens`, attach text cap (`ATTACH_TEXT_LIMIT`), xAI `x-grok-conv-id` / `prompt_cache_key`, and token usage logged for `/admin` estimates.
+
+## QPay checkout
+
+Pricing + checkout: `/pricing`. Invoice create → callback → `POST /v2/payment/check` verify → mark Pro for 30 days (`paid_until`). Without `QPAY_CLIENT_ID` / `QPAY_CLIENT_SECRET` / `QPAY_INVOICE_CODE` the flow stays **mock** (no live charges). Domestic QPay merchant fee is typically **~1%** (confirm in contract).
 
 ## What’s in this slice
 
@@ -88,7 +92,7 @@ Admin checks: signups/unique users, DAU (UTC), messages all-time + today.
 
 ## Out of scope (for now)
 
-- Live QPay merchant credentials / real charges (checkout PR is separate; disabled without env)
+- Shipping real QPay merchant secrets in git (owner sets Vercel env after contract)
 - Full profile settings, teams
 - Marketing-only landing page
 
