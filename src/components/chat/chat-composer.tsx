@@ -6,6 +6,7 @@ import {
   Brain,
   FileIcon,
   Globe,
+  Languages,
   Mic,
   Plus,
   Square,
@@ -14,6 +15,12 @@ import {
 import { useLocale } from "@/components/locale-provider";
 import { fileToAttachment } from "@/lib/attachments";
 import { toolLabel } from "@/lib/locale";
+import {
+  hasLatinForTranslit,
+  latinToCyrillicMn,
+  readStoredTranslitEnabled,
+  writeStoredTranslitEnabled,
+} from "@/lib/transliterate-mn";
 import type { ChatAttachment, ToolMode } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -70,11 +77,14 @@ export function ChatComposer({
   const [attachError, setAttachError] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [micSupported, setMicSupported] = useState(false);
+  const [translitOn, setTranslitOn] = useState(false);
   const recognitionRef = useRef<SpeechRec | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- detect SpeechRecognition once
     setMicSupported(Boolean(getSpeechRecognition()));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydrate translit pref from localStorage
+    setTranslitOn(readStoredTranslitEnabled());
   }, []);
 
   useEffect(() => {
@@ -84,9 +94,28 @@ export function ChatComposer({
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, [value]);
 
+  const preview =
+    translitOn && hasLatinForTranslit(value)
+      ? latinToCyrillicMn(value)
+      : null;
+
+  const setTranslit = (next: boolean) => {
+    setTranslitOn(next);
+    writeStoredTranslitEnabled(next);
+  };
+
+  const applyTranslit = () => {
+    if (!preview || preview === value) return;
+    onChange(preview);
+  };
+
   const submit = () => {
     if (disabled || isLoading) return;
-    const text = (ref.current?.value ?? value).trim();
+    let text = (ref.current?.value ?? value).trim();
+    if (translitOn && text && hasLatinForTranslit(text)) {
+      text = latinToCyrillicMn(text).trim();
+      onChange(text);
+    }
     if (!text && attachments.length === 0) return;
     onSubmit(text || (attachments.length ? t("viewAttachments") : ""), {
       mode,
@@ -270,6 +299,23 @@ export function ChatComposer({
         <div className="hidden items-center gap-0.5 sm:flex">
           <button
             type="button"
+            onClick={() => setTranslit(!translitOn)}
+            className={cn(
+              "inline-flex min-h-9 items-center gap-1 rounded-full px-2.5 py-1.5 text-[13px] transition-colors",
+              translitOn
+                ? "bg-[#C9A36B]/25 text-[#0B0D0F]"
+                : "text-[#5C584F] hover:bg-[#F3F0EA] hover:text-[#0B0D0F]"
+            )}
+            aria-pressed={translitOn}
+            aria-label={t("translitToggle")}
+            title={t("translitToggle")}
+          >
+            <Languages className="size-4 stroke-[1.75]" />
+            <span className="max-w-[7.5rem] truncate">{t("translitToggle")}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => toggleMode("think")}
             className={cn(
               "inline-flex min-h-9 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[13px] transition-colors",
@@ -300,6 +346,23 @@ export function ChatComposer({
             <span>{t("toolWeb")}</span>
           </button>
         </div>
+
+        <button
+          type="button"
+          className={cn(
+            "inline-flex size-11 shrink-0 items-center justify-center rounded-full transition sm:hidden sm:size-9",
+            translitOn
+              ? "bg-[#C9A36B]/25 text-[#0B0D0F]"
+              : "text-[#0B0D0F] hover:bg-[#F3F0EA]"
+          )}
+          aria-pressed={translitOn}
+          aria-label={t("translitToggle")}
+          title={t("translitToggle")}
+          disabled={disabled}
+          onClick={() => setTranslit(!translitOn)}
+        >
+          <Languages className="size-[18px] stroke-[1.75]" />
+        </button>
 
         <button
           type="button"
@@ -352,6 +415,24 @@ export function ChatComposer({
           )}
         </button>
       </div>
+
+      {preview && preview !== value ? (
+        <div className="mt-1.5 flex items-start gap-2 px-1">
+          <p className="min-w-0 flex-1 text-[12px] leading-snug text-[#5C584F]">
+            <span className="mr-1 font-medium text-[#0B0D0F]">
+              {t("translitPreview")}:
+            </span>
+            {preview}
+          </p>
+          <button
+            type="button"
+            className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-[#E8E4DC] bg-white px-3 text-[12px] text-[#0B0D0F] sm:min-h-0 sm:px-2.5 sm:py-1 sm:text-[11px]"
+            onClick={applyTranslit}
+          >
+            {t("translitConvert")}
+          </button>
+        </div>
+      ) : null}
 
       {attachError ? (
         <p className="mt-1.5 px-1 text-[12px] text-[#B33B2E]">{attachError}</p>

@@ -130,6 +130,9 @@ export const UI = {
       "Үнэгүй багц: сард {free} мессеж. Pro: {price}₮/сар · {msgs} мессеж + {imgs} зураг. QPay-ээр төлнө (env байхгүй бол mock).",
     attachTruncated:
       "Хавсралтын текст хэт урт тул хязгаарлагдана (тохиргооны тэмдэгтийн хязгаар).",
+    translitToggle: "Латин → Кирилл",
+    translitConvert: "Хөрвүүлэх",
+    translitPreview: "Урьдчилсан харагдац",
   },
   en: {
     tagline: "Монголоос дэлхийтэй холбогд",
@@ -235,6 +238,9 @@ export const UI = {
       "Free: {free} messages/month. Pro: {price}₮/mo · {msgs} messages + {imgs} images. Pay with QPay (mock when env unset).",
     attachTruncated:
       "Attachment text was truncated to the configured character limit.",
+    translitToggle: "Latin → Cyrillic",
+    translitConvert: "Convert",
+    translitPreview: "Preview",
   },
 } as const;
 
