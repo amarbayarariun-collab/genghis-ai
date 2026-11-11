@@ -38,8 +38,6 @@ export async function POST(request: Request) {
     );
   }
 
-  await trackImageForUser(quota.subject.user.id);
-
   const config = resolveImageApiConfig();
   if (!config) {
     return Response.json(
@@ -105,6 +103,8 @@ export async function POST(request: Request) {
         errors.push(`${model}: хоосон хариу`);
         continue;
       }
+
+      await trackImageForUser(quota.subject.user.id);
 
       return Response.json({
         ok: true,
