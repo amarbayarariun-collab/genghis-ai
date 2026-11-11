@@ -157,7 +157,7 @@ export function makeGer(s = 1, doorColor = '#9a2a28') {
 const _seatWp = new THREE.Vector3();
 const _seatInv = new THREE.Matrix4();
 
-export function horse(color = '#6b4228') {
+export function horse(color = '#6b4228', opts = {}) {
   const g = new THREE.Group();
   const m = flat(color);
   const dark = flat('#3a2418');
@@ -221,22 +221,26 @@ export function horse(color = '#6b4228') {
   const saddle = new THREE.Group();
   saddle.name = 'saddle-anchor';
   saddle.position.set(-0.16, 1.7, 0);
-  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.24, 0.34), leather);
-  pad.name = 'saddle-pad';
-  pad.position.y = -0.1;
-  const cantle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.28), leather);
-  cantle.position.set(-0.16, 0.05, 0);
-  const pommel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.18), leather);
-  pommel.position.set(0.14, 0.04, 0);
-  saddle.add(pad, cantle, pommel);
-  const stirrupL = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.02, 6, 14), metal);
-  stirrupL.name = 'stirrup';
-  stirrupL.position.set(0.2, 1.15, 0.58);
-  stirrupL.rotation.y = Math.PI / 2;
-  const stirrupR = stirrupL.clone();
-  stirrupR.name = 'stirrup';
-  stirrupR.position.z = -0.58;
-  g.add(barrel, hind, chest, neck, head, muzzle, earL, earR, mane, tail, bit, saddle, stirrupL, stirrupR);
+  const tack = [];
+  if (opts.saddle !== false) {
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.24, 0.34), leather);
+    pad.name = 'saddle-pad';
+    pad.position.y = -0.1;
+    const cantle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.28), leather);
+    cantle.position.set(-0.16, 0.05, 0);
+    const pommel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.18), leather);
+    pommel.position.set(0.14, 0.04, 0);
+    saddle.add(pad, cantle, pommel);
+    const stirrupL = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.02, 6, 14), metal);
+    stirrupL.name = 'stirrup';
+    stirrupL.position.set(0.2, 1.15, 0.58);
+    stirrupL.rotation.y = Math.PI / 2;
+    const stirrupR = stirrupL.clone();
+    stirrupR.name = 'stirrup';
+    stirrupR.position.z = -0.58;
+    tack.push(stirrupL, stirrupR);
+  }
+  g.add(barrel, hind, chest, neck, head, muzzle, earL, earR, mane, tail, bit, saddle, ...tack);
   g.userData.legs = legPivots;
   g.userData.saddle = saddle;
   g.userData.head = head;
