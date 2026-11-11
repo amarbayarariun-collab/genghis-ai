@@ -5,6 +5,9 @@ export function loadSave() {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { unlocked: ['camp'], lastChapter: null, flags: {}, quality: null };
     const data = JSON.parse(raw);
+    // An old save must not reopen the end panel. The title is the boot screen.
+    delete data.showEnd;
+    delete data.screen;
     return {
       unlocked: Array.isArray(data.unlocked) ? data.unlocked : ['camp'],
       lastChapter: data.lastChapter || null,

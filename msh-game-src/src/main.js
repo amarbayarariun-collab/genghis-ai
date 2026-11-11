@@ -312,7 +312,7 @@ function disposeHarvestFx() {
   dust = null;
 }
 
-function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
+function loadScene(id, { cinematic = true, dialogueNode = null, remember = true } = {}) {
   walkFaceYaw = null;
   jumpY = 0; jumpV = 0;
   if (riding && world?.mount) world.mount.userData.ridden = false;
@@ -482,7 +482,8 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
     if (dialogueNode) startDialogue(dialogueNode);
   }
 
-  writeSave({ lastChapter: chapterId });
+  // A title-time load must not replace a saved chapter.
+  if (remember) save = writeSave({ lastChapter: chapterId });
 }
 
 // The camp stays unloaded until the player leaves the title, so a phone
@@ -733,10 +734,13 @@ function playIntroFilm(done) {
 function showTitle() {
   state = 'title';
   setInPlay(false);
+  save = loadSave();
   $('hud').classList.add('hidden');
   $('dialogue').classList.add('hidden');
   $('chapters').classList.add('hidden');
-  $('endOverlay').classList.add('hidden');
+  const end = $('endOverlay');
+  end.classList.add('hidden');
+  end.innerHTML = '';
   $('title').classList.remove('hidden');
   setTitleVideo(true);
   refreshContinue();
@@ -744,10 +748,16 @@ function showTitle() {
 
 function refreshContinue() {
   const btn = $('continueBtn');
+  const hot = document.getElementById('hotCont');
+  const title = CHAPTERS.find((c) => c.id === save.lastChapter)?.title || '';
   if (save.lastChapter) {
     btn.classList.remove('hidden');
-    btn.textContent = `Үргэлжлүүлэх · ${CHAPTERS.find((c) => c.id === save.lastChapter)?.title || ''}`;
-  } else btn.classList.add('hidden');
+    btn.textContent = `Үргэлжлүүлэх · ${title}`;
+    if (hot) hot.setAttribute('aria-label', `Үргэлжлүүлэх · ${title}`);
+  } else {
+    btn.classList.add('hidden');
+    if (hot) hot.setAttribute('aria-label', 'Үргэлжлүүлэх · Өмнөх өгөгдлүүд');
+  }
 }
 refreshContinue();
 requestAnimationFrame(() => setTitleVideo(true));
@@ -818,6 +828,7 @@ $('quickBtn').onclick = () => {
 };
 $('continueBtn').onclick = () => {
   audio.unlock();
+  save = loadSave();
   setInPlay(true);
   $('title').classList.add('hidden');
   setTitleVideo(false);
