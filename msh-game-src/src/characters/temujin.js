@@ -229,7 +229,9 @@ function hideSculptHat(root) {
         && !(cz > 0.10 && Math.abs(cx) < 0.07 && cy < 1.70);
       // The old hat's back still rises above the brim.
       const backCap = cz < -0.04 && cy > 1.66 && cy < 1.80 && Math.abs(cx) < 0.18;
-      if ((!face && hood && (white || orange)) || tallCollar || templeFur || leftTemple || sideCard || earFur || backCap) { furDropped += 1; continue; }
+      // Pale wisp on the back of the head, just above the braids.
+      const earWisp = cy > 1.56 && cy < 1.68 && cz < -0.08 && Math.abs(cx) < 0.18;
+      if ((!face && hood && (white || orange)) || tallCollar || templeFur || leftTemple || sideCard || earFur || backCap || earWisp) { furDropped += 1; continue; }
       kept.push(a, b, c);
     }
     o.userData.furDropped = furDropped;

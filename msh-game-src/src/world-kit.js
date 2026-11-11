@@ -30,40 +30,41 @@ export function skyDome({ top, mid, horizon, bottom }, radius = 300) {
   return new THREE.Mesh(new THREE.SphereGeometry(Math.min(radius, 150), 28, 18), mat);
 }
 
-/** Even fur roll. One height all the way around, curled up, no side spikes. */
+/** Shallow fur roll. The top faces up, so it stays tan, with a small lip. */
 function curledBrimGeometry(tall) {
-  // Lip is the outer edge and stays below the crown, the same height all around.
   const profile = [
-    [0.072, 1.300],
-    [0.086, 1.318],
-    [0.098, 1.348],
-    [0.108, 1.378],
-    [0.114, 1.400],
-    [0.110, 1.412],
-    [0.100, 1.418],
+    [0.100, 1.350],
+    [0.118, 1.354],
+    [0.134, 1.360],
+    [0.146, 1.368],
+    [0.142, 1.374],
   ];
   const pts = [];
   for (const [r, y] of profile) pts.push(new THREE.Vector2(r * tall, y * tall));
   for (let i = profile.length - 2; i >= 0; i--) {
     const [r, y] = profile[i];
-    pts.push(new THREE.Vector2(Math.max(0.072, r - 0.012) * tall, (y + 0.008) * tall));
+    pts.push(new THREE.Vector2(Math.max(0.096, r - 0.005) * tall, (y + 0.003) * tall));
   }
-  return new THREE.LatheGeometry(pts, 48);
+  return new THREE.LatheGeometry(pts, 32);
 }
 
 /** Low brown fur malgai. One even rolled brim. No cone, no pompon, no boards over the eyes. */
 export function mongolHat(tall = 1) {
   const g = new THREE.Group();
   g.name = 'mongol-hat';
-  const fur = flat('#c4a06a');
-  const hide = flat('#5c3a22');
-  // Dome on the cut crown. Pulled back so it does not shelf over the eyes.
+  const fur = new THREE.MeshLambertMaterial({
+    color: '#c4a06a',
+    emissive: '#8a6840',
+    emissiveIntensity: 0.5,
+    flatShading: true,
+  });
+  const hide = new THREE.MeshLambertMaterial({ color: '#5c3a22' });
+  // Soft dome, cut before the equator so the sides slope and sit in the roll.
   const crown = new THREE.Mesh(
-    new THREE.SphereGeometry(0.10 * tall, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5),
+    new THREE.SphereGeometry(0.118 * tall, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.42),
     hide
   );
-  crown.scale.set(1.0, 1.95, 1.08);
-  crown.position.y = 1.30 * tall;
+  crown.position.y = 1.329 * tall;
   // One even roll. No ear boards in front of the eyes.
   const brim = new THREE.Mesh(curledBrimGeometry(tall), fur);
   g.add(brim, crown);
