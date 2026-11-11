@@ -25,6 +25,7 @@ import { createSteppeMotes } from './systems/harvest/fx-steppe-motes.js';
 import { createBirds } from './systems/harvest/fx-birds.js';
 import { createSteppeAudio } from './systems/harvest/ambient-audio.js';
 import { createTheme } from './systems/theme.js';
+import { createFieldTasks } from './systems/field-tasks.js';
 import { createLocomotionFSM } from './systems/harvest/anim-state-machine.js';
 import { createAdaptiveQuality } from './systems/harvest/lod-instancing.js';
 import { qualityPreset, pickTierFromAvgMs, applyRendererQuality, QUALITY_TIERS } from './systems/quality.js';
@@ -221,6 +222,8 @@ let fLatch = false;
 let toastText = '';
 let promptText = '';
 let fTouch = false;
+let qTouch = false;
+let fieldTasks = null;
 const touchWish = { x: 0, y: 0 };
 const stride = createStrideTrigger({ strideLen: 0.72 });
 // Procedural Temüjin → animator:null FSM still fires synthetic footfalls for dust/audio
@@ -386,6 +389,8 @@ function clearMount() {
 }
 
 function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false } = {}) {
+  fieldTasks?.dispose();
+  fieldTasks = null;
   clearMount();
   $('end')?.classList.add('hidden');
   disposeHarvestFx();
@@ -394,6 +399,7 @@ function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false }
   aerialLocked = false;
   sceneId = id;
   world = buildScene(id);
+  if (id === 'camp') fieldTasks = createFieldTasks(scene, world.heightAt);
   chapterId = world.chapterId || CHAPTERS.find((c) => c.scene === id)?.id || id;
   NPCS = npcsFromWorld(world, id);
   $('chapter').textContent = world.chapterLabel || 'Бүлэг';
@@ -617,6 +623,7 @@ addEventListener('keydown', (e) => {
   }
   keys[e.code] = true;
   if (e.code === 'KeyF' && !e.repeat) fTouch = true;
+  if (e.code === 'KeyQ' && !e.repeat) qTouch = true;
   if (e.code === 'F3') {
     showPerf = !showPerf;
     $('fpsToggle')?.setAttribute('aria-pressed', showPerf ? 'true' : 'false');
@@ -653,6 +660,10 @@ $('touchTalk')?.addEventListener('click', (ev) => {
 $('touchBrace')?.addEventListener('click', (ev) => {
   ev.stopPropagation();
   fTouch = true;
+});
+$('bowBtn')?.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  qTouch = true;
 });
 
 function openPause() {
@@ -1313,6 +1324,27 @@ function tick() {
     const fEdge = fDown && !fLatch;
     fLatch = fDown;
     fTouch = false;
+    const qEdge = !!(keys.KeyQ || qTouch);
+    keys.KeyQ = false;
+    qTouch = false;
+    if (fieldTasks && sceneId === 'camp') {
+      const ft = fieldTasks.update(dt, player.pos, { mounted, yaw: player.yaw, shoot: qEdge });
+      const taskEl = $('fieldTasks');
+      if (taskEl && state === 'explore') {
+        taskEl.textContent = ft.line;
+        taskEl.classList.remove('hidden');
+      }
+      if (ft.just) {
+        toastText = ft.just;
+        const toast = $('toast');
+        if (toast) {
+          toast.textContent = ft.just;
+          toast.classList.remove('hidden');
+        }
+      }
+    } else {
+      $('fieldTasks')?.classList.add('hidden');
+    }
     const watchDx = player.pos.x - 9.2;
     const watchDz = player.pos.z - 16.4;
     const enc = (encounter && (fEdge || watchDx * watchDx + watchDz * watchDz < 196))
@@ -1558,6 +1590,17 @@ window.__mshMount = (on = true, sprint = false) => {
     );
   }
   return { mounted, pace: $('pace')?.textContent || '', sprint: !!keys.ShiftLeft };
+};
+window.__mshPlay = () => { shotLock = false; state = 'explore'; return true; };
+window.__mshField = () => fieldTasks?.status() || null;
+window.__mshAim = () => {
+  if (!fieldTasks) return null;
+  const spot = fieldTasks.status().spots.shoot;
+  const yaw = fieldTasks.aimYaw(new THREE.Vector3(player.pos.x, player.pos.y, player.pos.z));
+  player.yaw = yaw;
+  cam.view.yaw = yaw;
+  qTouch = true;
+  return { yaw, spot };
 };
 window.__mshTheme = () => ({
   muted: theme.muted,
