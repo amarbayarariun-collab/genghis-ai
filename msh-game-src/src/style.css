@@ -534,8 +534,40 @@ body.touch-ui.in-play .touch-pad {
 }
 body.touch-ui.in-play #controls { display: none; }
 body.touch-ui.in-play #muteBtn {
-  top: max(12px, env(safe-area-inset-top));
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
   bottom: auto;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+}
+/* Source sits to the left of mute so the two never share a corner. */
+body.touch-ui.in-play #sourceBtn,
+body.touch-ui.in-play #source {
+  right: calc(max(10px, env(safe-area-inset-right)) + 54px);
+}
+body.touch-ui.in-play #source {
+  width: min(360px, calc(100vw - max(10px, env(safe-area-inset-right)) - 54px - 14px));
+}
+body.touch-ui.in-play #objective {
+  max-width: min(420px, calc(100vw - 450px));
+}
+@media (max-width: 520px) {
+  body.touch-ui.in-play #chapter {
+    max-width: calc(100vw - 210px);
+    line-height: 1.25;
+  }
+  body.touch-ui.in-play #sourceBtn {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+  body.touch-ui.in-play #objective {
+    top: max(62px, calc(env(safe-area-inset-top) + 50px));
+    max-width: calc(100vw - 28px);
+  }
+  body.touch-ui.in-play #source {
+    top: calc(max(62px, env(safe-area-inset-top) + 50px) + 88px);
+  }
 }
 body:has(#dialogue:not(.hidden)) #stick,
 body:has(#dialogue:not(.hidden)) #touchPad,

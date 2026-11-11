@@ -6,6 +6,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { buildWorld } from './world.js';
 import { buildBurkhan, buildCapture, buildEscape, buildRiver, buildFlight, buildAct2, buildAct3 } from './scenes/chapters.js';
 import { buildSorkhanGer } from './scenes/ger-interior.js';
+import { controlLine } from './touch-hint.js';
 import {
   STORY, SOURCES, END_LINES, CHAPTERS, CREDITS,
   NEXT_TEASER, TAICHIUD_TEASER, ACT2_TEASER, ACT3_TEASER, MVP_DONE,
@@ -202,6 +203,11 @@ if (matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0) {
   document.body.classList.add('touch-ui');
   const hint = document.querySelector('#title .hint');
   if (hint) hint.textContent = 'Зүүн жолоо · баруун тал эргэх · Ярих · Морь';
+  const skip = document.querySelector('#introCine .skip');
+  if (skip) skip.textContent = 'Товш · алгасах';
+}
+function hintLine(text) {
+  return controlLine(text, document.body.classList.contains('touch-ui'));
 }
 function setInPlay(on) {
   document.body.classList.toggle('in-play', !!on);
@@ -247,7 +253,7 @@ function resolveCollisions(p) {
       p.x = rx + (dx >= 0 ? half : -half);
       if (Date.now() - (resolveCollisions.lastToast || 0) > 2500) {
         resolveCollisions.lastToast = Date.now();
-        toast('Онон гүн байна · мориор гатал (F)');
+        toast(hintLine('Онон гүн байна · мориор гатал (F)'));
       }
     }
   }
@@ -312,7 +318,7 @@ function disposeHarvestFx() {
   dust = null;
 }
 
-function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
+function loadScene(id, { cinematic = true, dialogueNode = null, remember = true } = {}) {
   walkFaceYaw = null;
   jumpY = 0; jumpV = 0;
   if (riding && world?.mount) world.mount.userData.ridden = false;
@@ -482,7 +488,8 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
     if (dialogueNode) startDialogue(dialogueNode);
   }
 
-  writeSave({ lastChapter: chapterId });
+  // A title-time load must not replace a saved chapter.
+  if (remember) save = writeSave({ lastChapter: chapterId });
 }
 
 // The camp stays unloaded until the player leaves the title, so a phone
@@ -733,10 +740,13 @@ function playIntroFilm(done) {
 function showTitle() {
   state = 'title';
   setInPlay(false);
+  save = loadSave();
   $('hud').classList.add('hidden');
   $('dialogue').classList.add('hidden');
   $('chapters').classList.add('hidden');
-  $('endOverlay').classList.add('hidden');
+  const end = $('endOverlay');
+  end.classList.add('hidden');
+  end.innerHTML = '';
   $('title').classList.remove('hidden');
   setTitleVideo(true);
   refreshContinue();
@@ -744,10 +754,16 @@ function showTitle() {
 
 function refreshContinue() {
   const btn = $('continueBtn');
+  const hot = document.getElementById('hotCont');
+  const title = CHAPTERS.find((c) => c.id === save.lastChapter)?.title || '';
   if (save.lastChapter) {
     btn.classList.remove('hidden');
-    btn.textContent = `Үргэлжлүүлэх · ${CHAPTERS.find((c) => c.id === save.lastChapter)?.title || ''}`;
-  } else btn.classList.add('hidden');
+    btn.textContent = `Үргэлжлүүлэх · ${title}`;
+    if (hot) hot.setAttribute('aria-label', `Үргэлжлүүлэх · ${title}`);
+  } else {
+    btn.classList.add('hidden');
+    if (hot) hot.setAttribute('aria-label', 'Үргэлжлүүлэх · Өмнөх өгөгдлүүд');
+  }
 }
 refreshContinue();
 requestAnimationFrame(() => setTitleVideo(true));
@@ -818,6 +834,7 @@ $('quickBtn').onclick = () => {
 };
 $('continueBtn').onclick = () => {
   audio.unlock();
+  save = loadSave();
   setInPlay(true);
   $('title').classList.add('hidden');
   setTitleVideo(false);
@@ -866,7 +883,7 @@ function updateObjective() {
   if (sceneId !== 'camp') {
     const o = world?.objective?.();
     el.classList.toggle('hidden', !o);
-    if (o) el.textContent = o;
+    if (o) el.textContent = hintLine(o);
     return;
   }
   const f = campFlags();
@@ -876,7 +893,7 @@ function updateObjective() {
   else if (f.pendingErrand === 'family' && !f.pendingDone) text = 'Мойлны бутанд очиж E дар';
   else if (f.chirhaSeen && !campTaskDone()) text = 'Өэлүн эх дээр буцаж очоод E дар';
   else if (campTaskDone()) text = 'Өэлүн эх дээр буцаж бүлгээ дуусга';
-  el.textContent = text;
+  el.textContent = hintLine(text);
   el.classList.remove('hidden');
 }
 
@@ -906,9 +923,9 @@ function performPendingErrand() {
   $('dialogue').classList.remove('hidden');
   $('prompt').classList.add('hidden');
   $('speaker').textContent = 'Тэмүжин';
-  $('text').textContent = f.pendingText || (food
+  $('text').textContent = hintLine(f.pendingText || (food
     ? 'Хэдэн жараахай, нэг эрэмдэг загас. Одоо Өэлүн эх дээр буц.'
-    : 'Мойл дүүрэн хормой. Одоо Өэлүн эх дээр буц.');
+    : 'Мойл дүүрэн хормой. Одоо Өэлүн эх дээр буц.'));
   const box = $('choices');
   box.innerHTML = '';
   box.append(btn('За', () => show('close')));
@@ -922,7 +939,7 @@ function beginCampChoice(choice) {
     flag = 'oath';
     save = writeSave({ flags: { ...campFlags(), oath: true, pendingErrand: null, pendingDone: true, pendingText: choice.consequence } });
     $('speaker').textContent = 'Тэмүжин';
-    $('text').textContent = choice.consequence;
+    $('text').textContent = hintLine(choice.consequence);
     const box = $('choices');
     box.innerHTML = '';
     box.append(btn('Үргэлжлүүлэх →', () => show('after')));
@@ -933,9 +950,9 @@ function beginCampChoice(choice) {
     flags: { ...campFlags(), pendingErrand: choice.flag, pendingDone: false, pendingText: choice.consequence },
   });
   $('speaker').textContent = 'Өэлүн эх';
-  $('text').textContent = choice.flag === 'food'
+  $('text').textContent = hintLine(choice.flag === 'food'
     ? 'Ононы эргийн хөх туган дээр очиж загасаа барь. Дараа нь над дээр буц.'
-    : 'Мойлны бутанд очиж түүж ир. Дараа нь над дээр буц.';
+    : 'Мойлны бутанд очиж түүж ир. Дараа нь над дээр буц.');
   const box = $('choices');
   box.innerHTML = '';
   box.append(btn('За, явья', () => show('close')));
@@ -1010,11 +1027,11 @@ function show(id) {
   if (!node) return;
   if (node.source) setSource(node.source);
   $('speaker').textContent = node.speaker;
-  $('text').textContent = id === 'camp_errand_wait' && campFlags().pendingErrand === 'food'
+  $('text').textContent = hintLine(id === 'camp_errand_wait' && campFlags().pendingErrand === 'food'
     ? 'Загас хараахан алга. Ононы эргийн хөх туган дээр очиж барь.'
     : id === 'camp_errand_wait' && campFlags().pendingErrand === 'family'
       ? 'Мойл хараахан алга. Бутанд очиж түүгээд ир.'
-      : node.text;
+      : node.text);
   const box = $('choices');
   box.innerHTML = '';
   if (id === 'ask' && sceneId === 'camp' && node.choices) {
@@ -1036,7 +1053,7 @@ function show(id) {
         writeSave({ flags: { ...(loadSave().flags || {}), [c.flag]: true } });
         if (c.source) setSource(c.source);
         $('speaker').textContent = 'Тэмүжин';
-        $('text').textContent = c.consequence;
+        $('text').textContent = hintLine(c.consequence);
         box.innerHTML = '';
         box.append(btn('Үргэлжлүүлэх →', () => show(nextAfter)));
       };
@@ -1249,7 +1266,7 @@ function tick() {
     const n = nearest();
     const prompt = (usable ? `[E] ${usable.label}` : null) || errandLine || (n ? `[E] ${n.name}` : null);
     $('prompt').classList.toggle('hidden', !prompt);
-    if (prompt) $('prompt').textContent = prompt;
+    if (prompt) $('prompt').textContent = hintLine(prompt);
     updateObjective();
   } else {
     moving = false;
@@ -1446,7 +1463,7 @@ function toggleRide() {
     player.pos.z -= Math.sin(yaw) * 1.1;
     mountAnim = { t: 0, dx: -Math.cos(yaw) * 1.1, dz: Math.sin(yaw) * 1.1, dy: m.userData.seatY - 0.91 };
     cam.view.distance = 6.2;
-    toast('Мориноос буулаа (F)');
+    toast(hintLine('Мориноос буулаа (F)'));
     return;
   }
   if (!nearMount()) return;
@@ -1459,7 +1476,7 @@ function toggleRide() {
   walkFaceYaw = m.rotation.y;
   cam.view.distance = 8.0;
   audio.neigh?.();
-  toast('Морь унлаа · F буух');
+  toast(hintLine('Морь унлаа · F буух'));
 }
 window.__mshRide = () => { if (world?.mount) { player.pos.x = world.mount.position.x + 0.5; player.pos.z = world.mount.position.z; } toggleRide(); return riding; };
 window.__mshJump = () => { if (jumpY <= 0.001) jumpV = riding ? 4.6 : 5.2; return true; };
@@ -1494,7 +1511,7 @@ function toast(msg, ms = 1600) {
     el.style.cssText = 'position:fixed;left:50%;top:18%;transform:translateX(-50%);padding:8px 16px;border-radius:8px;background:rgba(30,22,14,.82);color:#f3e4c4;font:600 15px system-ui,sans-serif;pointer-events:none;transition:opacity .4s;z-index:50';
     document.body.appendChild(el);
   }
-  el.textContent = msg;
+  el.textContent = hintLine(msg);
   el.style.opacity = '1';
   clearTimeout(el._t);
   el._t = setTimeout(() => { el.style.opacity = '0'; }, ms);
