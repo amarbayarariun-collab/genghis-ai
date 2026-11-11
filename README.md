@@ -48,11 +48,28 @@ Any OpenAI-compatible base URL works via `OPENAI_BASE_URL` (e.g. Azure OpenAI pr
 - Streaming assistant replies
 - Mock fallback without secrets
 
+## Signup + usage (lean)
+
+Sidebar email signup/login (optional Google). Signed-in `/api/chat` and `/api/image` calls increment message + DAU counters. Owner dashboard: `/admin`.
+
+Also wires `@vercel/analytics` (enable Web Analytics on the Vercel project).
+
+### Owner setup (Vercel env — no secrets in git)
+
+| Env | Purpose |
+| --- | --- |
+| `DATABASE_URL` | Neon/Postgres for users + usage (durable). Without it, in-memory only. |
+| `AUTH_SECRET` | Signs session cookies (set in production). |
+| `ADMIN_SECRET` | Unlocks `/admin` stats. |
+| `AUTH_URL` | Public origin, e.g. `https://genghis-ai-delta.vercel.app` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional Google signup; redirect URI `…/api/auth/google/callback` |
+
+Admin checks: signups/unique users, DAU (UTC), messages all-time + today.
+
 ## Out of scope (for now)
 
-- Auth / accounts
-- Database persistence
-- File uploads, tools, voice
+- Hard paywall / forcing signup before chat
+- Full profile settings, billing, teams
 - Marketing-only landing page
 
 ## Scripts

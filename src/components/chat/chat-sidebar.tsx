@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { GenghisLogo } from "@/components/brand/genghis-logo";
+import { AuthAccount } from "@/components/chat/auth-account";
 import { useLocale } from "@/components/locale-provider";
 import { Button } from "@/components/ui/button";
 import { useSidebarWidth } from "@/hooks/use-sidebar-width";
@@ -174,20 +175,8 @@ export function ChatSidebar({
           )}
         </nav>
 
-        <div className="mt-auto border-t border-zinc-200 px-3 py-3 dark:border-zinc-800">
-          <div className="flex items-center gap-2.5 rounded-xl px-2 py-1.5">
-            <div className="flex size-8 items-center justify-center rounded-full bg-ink text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">
-              A
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-ink dark:text-zinc-100">
-                A. Amarbayar
-              </p>
-              <p className="text-[11px] text-ink/45 dark:text-zinc-500">
-                Genghis AI · MVP
-              </p>
-            </div>
-          </div>
+        <div className="mt-auto">
+          <AuthAccount />
         </div>
 
         {/* Desktop resize handle (ChatGPT-style). Hidden on mobile drawer. */}

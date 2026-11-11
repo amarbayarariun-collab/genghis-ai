@@ -7,6 +7,7 @@ import { isLocale, type Locale } from "@/lib/locale";
 import { streamMockReply } from "@/lib/mock-chat";
 import { systemPromptForMode } from "@/lib/tools";
 import type { ApiAttachment, ToolMode } from "@/lib/types";
+import { trackSignedInMessage } from "@/lib/usage/track";
 
 type TextPart = { type: "text"; text: string };
 type ImagePart = { type: "image_url"; image_url: { url: string } };
@@ -177,6 +178,8 @@ export async function POST(request: Request) {
   if (!rawMessages.length && !attachments.length) {
     return Response.json({ error: "Мессеж хоосон байна." }, { status: 400 });
   }
+
+  await trackSignedInMessage();
 
   // Inject attachments into the last user message
   const messages: IncomingMessage[] = rawMessages.map((m, idx) => {
