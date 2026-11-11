@@ -5,11 +5,13 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { buildWorld } from './world.js';
 import { buildBurkhan, buildCapture, buildEscape, buildRiver, buildFlight, buildAct2, buildAct3 } from './scenes/chapters.js';
+import { buildHorsesWorld } from './scenes/horses.js';
+import { buildJamukhaWorld } from './scenes/jamukha.js';
 import { buildSorkhanGer } from './scenes/ger-interior.js';
 import { controlLine } from './touch-hint.js';
 import {
   STORY, SOURCES, END_LINES, CHAPTERS, CREDITS,
-  NEXT_TEASER, TAICHIUD_TEASER, ACT2_TEASER, ACT3_TEASER, MVP_DONE,
+  NEXT_TEASER, TAICHIUD_TEASER, ACT2_TEASER, ACT3_TEASER, JAMUKHA_TEASER, MVP_DONE,
 } from './story.js';
 import { createCameraRig } from './systems/camera-rig.js';
 import { createMover } from './systems/player-move.js';
@@ -241,6 +243,7 @@ let flag = null;
 let talkTarget = null;
 let dialogueId = null;
 let spottedCooldown = 0;
+let horsesChimed = false;
 
 const PLAYER_RADIUS = 0.3;
 const CHAPTER_ORDER = CHAPTERS.map((c) => c.id);
@@ -274,7 +277,9 @@ function buildScene(id) {
   const qOpts = { quality };
   if (id === 'burkhan') return buildBurkhan(scene, qOpts);
   if (id === 'act2') return buildAct2(scene, qOpts);
+  if (id === 'horses') return buildHorsesWorld(scene);
   if (id === 'act3') return buildAct3(scene, qOpts);
+  if (id === 'jamukha') return buildJamukhaWorld(scene);
   if (id === 'taichiud_capture') return buildCapture(scene, qOpts);
   if (id === 'taichiud_escape') return buildEscape(scene, qOpts);
   if (id === 'taichiud_river') return buildRiver(scene, qOpts);
@@ -339,6 +344,7 @@ function loadScene(id, { cinematic = true, dialogueNode = null, remember = true 
   activeCine = null;
   aerialLocked = false;
   sceneId = id;
+  horsesChimed = false;
   world = buildScene(id);
   chapterId = world.chapterId || CHAPTERS.find((c) => c.scene === id)?.id || id;
   NPCS = npcsFromWorld(world, id);
@@ -1165,6 +1171,17 @@ function endAct2Slice() {
   endCard({
     eyebrow: 'Бүлэг дууслаа',
     title: 'Боорчи · Бөртэ',
+    body: 'Дараа: Найман адуу — хулгайлагдсан адууг Боорчитой нэх (§90).',
+    button: 'Найман адуу →',
+    onNext: () => { $('title').classList.add('hidden'); loadScene('horses', { cinematic: true }); flag = null; },
+  });
+}
+function endHorsesSlice() {
+  if (titleIsUp()) return;
+  save = unlockNext('horses', CHAPTER_ORDER);
+  endCard({
+    eyebrow: 'Бүлэг дууслаа',
+    title: 'Найман адуу',
     body: ACT3_TEASER,
     button: 'III бүлэг →',
     onNext: () => { $('title').classList.add('hidden'); loadScene('act3', { cinematic: true }); flag = null; },
@@ -1174,8 +1191,19 @@ function endAct3Slice() {
   if (titleIsUp()) return;
   save = unlockNext('act3', CHAPTER_ORDER);
   endCard({
+    eyebrow: 'Бүлэг дууслаа',
+    title: 'Мэргид · Чингис',
+    body: JAMUKHA_TEASER,
+    button: 'IV бүлэг →',
+    onNext: () => { $('title').classList.add('hidden'); loadScene('jamukha', { cinematic: true }); flag = null; },
+  });
+}
+function endJamukhaSlice() {
+  if (titleIsUp()) return;
+  save = unlockNext('jamukha', CHAPTER_ORDER);
+  endCard({
     eyebrow: 'Тоглоом дууслаа',
-    title: 'Чингис',
+    title: 'Жамухатай зөрчил',
     body: MVP_DONE,
     button: 'Бүлгүүд · дахин',
     onNext: () => { showTitle(); $('chapters').classList.remove('hidden'); $('title').classList.add('hidden'); renderChapterSelect(); },
@@ -1384,6 +1412,15 @@ function tick() {
   birds?.update?.(dt, t, player.pos);
   dust?.update?.(dt, camera, renderer);
   updateWorld?.(dt, t, state === 'explore' ? nearSet() : null, temujin.position, moving && state === 'explore');
+  if (state === 'explore' && (sceneId === 'horses' || sceneId === 'jamukha')) {
+    updateObjective();
+    const status = world.herdStatus?.() || world.taskStatus?.();
+    if (status?.done && !horsesChimed) {
+      horsesChimed = true;
+      if (sceneId === 'horses') endHorsesSlice();
+      else endJamukhaSlice();
+    }
+  }
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
