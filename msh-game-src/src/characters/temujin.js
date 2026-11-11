@@ -100,7 +100,7 @@ export function createTemujin(opts = {}) {
         group.add(wrap);
         const malgai = mongolHat(1);
         // Local 1.33 meets the cut. Sit the roll on the brow so it stays above both eyes.
-        malgai.position.y = HEAD_CUT * s - 1.33 - 0.02;
+        malgai.position.y = HEAD_CUT * s - 1.33 + 0.02;
         malgai.rotation.y = Math.PI / 2;
         group.add(malgai);
 
