@@ -25,20 +25,28 @@ Create `.env.local` in the project root:
 
 ```bash
 OPENAI_API_KEY=sk-...   # or AP= for xAI (xai-… keys auto-route to api.x.ai)
-# optional chat overrides
+# optional legacy chat overrides
 # OPENAI_BASE_URL=https://api.openai.com/v1
 # OPENAI_MODEL=gpt-4o-mini
+
+# preferred chat provider abstraction (xAI today → self-hosted later)
+# CHAT_PROVIDER=xai          # or openai | self
+# CHAT_BASE_URL=https://api.x.ai/v1
+# CHAT_MODEL=grok-4.7
+# CHAT_API_KEY=              # defaults to OPENAI_API_KEY / AP if unset
+# self-hosted example:
+# CHAT_PROVIDER=self
+# CHAT_BASE_URL=http://127.0.0.1:8000/v1
+# CHAT_MODEL=genghis-mn
 
 # optional: separate OpenAI key for image generation while chat stays on xAI
 # OPENAI_IMAGE_API_KEY=sk-...
 # OPENAI_IMAGE_MODEL=dall-e-3
 ```
 
-Restart the dev server. The chat route (`/api/chat`) streams from the OpenAI-compatible endpoint when `OPENAI_API_KEY` (or `AP`) is set; without it, Genghis AI answers in **демо горим** with streamed mock replies.
+Restart the dev server. The chat route (`/api/chat`) uses `resolveChatProvider()` (`src/lib/chat-provider.ts`): `CHAT_*` first, then legacy `OPENAI_*` / `AP`. Without a configured backend, Genghis AI answers in **демо горим**.
 
-`/api/image` uses `OPENAI_IMAGE_API_KEY` when set (always `https://api.openai.com/v1`, models `OPENAI_IMAGE_MODEL` → `dall-e-3` → `gpt-image-1`). Otherwise it falls back to the shared chat key / xAI image models.
-
-Any OpenAI-compatible base URL works via `OPENAI_BASE_URL` (e.g. Azure OpenAI proxy, Groq, local gateways).
+`/api/image` stays separate (`OPENAI_IMAGE_API_KEY` → OpenAI Images API). Chat cutover to a Mongolian self-hosted model does not require rewriting the UI.
 
 ## What’s in this slice
 
