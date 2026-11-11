@@ -141,7 +141,9 @@ export function buildTaichiudEscape(scene) {
   });
 
   // Extra torch posts (patrol)
-  [[0, 2], [-5, 4], [4, 0], [-2, -2]].forEach(([x, z]) => {
+  // The (0, 2) post used to sit on the guard, so the cangue talk was always inside a torch.
+  // Keep the spawn (-3, 6) and the guard in the dark. A torch on that ground made the cangue talk impossible.
+  [[-10, 0], [11, -8], [4, 0], [-2, -2]].forEach(([x, z]) => {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 2.2, 6), flat('#3a2818'));
     post.position.set(x, heightAt(x, z) + 1.1, z);
     scene.add(post);
@@ -173,10 +175,10 @@ export function buildTaichiudEscape(scene) {
 
   // Sleeping / drowsy guard
   const guard = person({ deel: '#4a3428', hat: '#2a1810' });
-  guard.position.set(1.5, heightAt(1.5, 1.5), 1.5);
-  guard.rotation.y = -0.8;
+  guard.position.set(-4, heightAt(-4, 9), 9);
+  guard.rotation.y = 0.4;
   scene.add(guard);
-  colliders.push({ x: 1.5, z: 1.5, r: 0.7 });
+  colliders.push({ x: -4, z: 9, r: 0.7 });
   const gGlow = glowRing('#e8c37a');
   guard.add(gGlow);
 

@@ -59,6 +59,10 @@ export function createTheme() {
   function start() {
     if (failed) return;
     const node = attachSource();
+    if (started && !node.paused && !node.ended) {
+      fade();
+      return;
+    }
     const play = node.play();
     if (play && typeof play.catch === 'function') {
       play.catch(() => {

@@ -869,8 +869,8 @@ body:has(#chapters:not(.hidden)) #fpsToggle {
   #controls { display: none; }
 }
 
-/* Portrait phone: the painting is a banner. Copy, rows, and the hint stay inside the card. */
-@media (max-width: 520px) {
+/* Phone, including a short landscape: the painting is a banner. iPad and desktop stay on the slots. */
+@media (max-width: 520px), (max-height: 500px) and (max-width: 900px) {
   #title.overlay {
     justify-content: flex-start;
     overflow-y: auto;

@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { buildWorld } from './world.js';
 import {
   STORY, SOURCES, END_LINES, CHAPTERS, CREDITS,
-  NEXT_TEASER, TAICHIUD_TEASER, ACT2_TEASER, ACT3_TEASER, MVP_DONE,
+  NEXT_TEASER, TAICHIUD_TEASER, ACT2_TEASER, ACT3_TEASER, JAMUKHA_TEASER, MVP_DONE,
 } from './story.js';
 import { createCameraRig } from './systems/camera-rig.js';
 import { createMover } from './systems/player-move.js';
@@ -247,6 +247,7 @@ let shotLock = false;
 let mounted = false;
 let playerHorse = null;
 let flag = null;
+let chapterEndTimer = 0;
 let talkTarget = null;
 let spottedCooldown = 0;
 
@@ -472,10 +473,17 @@ function loadScene(id, opts = {}) {
   const { cinematic = true, dialogueNode = null, arrive = false, resume = null } = opts;
   primedCamp = false;
   campBootStarted = true;
+  clearTimeout(chapterEndTimer);
   fieldTasks?.dispose();
   fieldTasks = null;
   horsesChimed = false;
   clearMount();
+  toastText = '';
+  const toast = $('toast');
+  if (toast) {
+    toast.textContent = '';
+    toast.classList.add('hidden');
+  }
   $('end')?.classList.add('hidden');
   disposeHarvestFx();
   clearScene();
@@ -652,7 +660,8 @@ function loadScene(id, opts = {}) {
     if (dialogueNode) startDialogue(dialogueNode);
   }
 
-  writeSave({ lastChapter: chapterId });
+  // The title preloads camp behind the painting. That must not replace a saved chapter.
+  if (opts.remember !== false) writeSave({ lastChapter: chapterId });
 }
 
 // Let the title paint before the camp file starts. The first fast start reuses it.
@@ -662,7 +671,7 @@ $('hud').classList.add('hidden');
 function bootCampAfterPaint() {
   if (campBootStarted) return;
   campBootStarted = true;
-  loadScene('camp', { cinematic: false });
+  loadScene('camp', { cinematic: false, remember: false });
   primedCamp = true;
   state = 'title';
   $('end')?.classList.add('hidden');
@@ -873,7 +882,17 @@ const dist = (o) => {
   return Math.hypot(player.pos.x - _worldPt.x, player.pos.z - _worldPt.z);
 };
 function nearest(r = 3.5) {
-  return NPCS.find((n) => n.obj && dist(n.obj) < r) || null;
+  let best = null;
+  let bestD = r;
+  for (const n of NPCS) {
+    if (!n.obj) continue;
+    const d = dist(n.obj);
+    if (d < bestD) {
+      best = n;
+      bestD = d;
+    }
+  }
+  return best;
 }
 function nearSet(r = 4.2) {
   return new Set(NPCS.filter((n) => n.obj && dist(n.obj) < r).map((n) => n.obj));
@@ -1249,7 +1268,8 @@ function presentChapter(card) {
   audio.duck?.(0.35, 0.5);
   theme.duck(true);
   $('warmGrade')?.classList.add('arriving');
-  setTimeout(() => {
+  clearTimeout(chapterEndTimer);
+  chapterEndTimer = setTimeout(() => {
     $('warmGrade')?.classList.remove('arriving');
     endCard(card);
   }, 420);
@@ -1318,6 +1338,16 @@ function endAct2Slice() {
   presentChapter({
     eyebrow: 'Бүлэг дууслаа',
     title: 'Боорчи · Бөртэ',
+    body: 'Дараа: Найман адуу — хулгайлагдсан адууг Боорчитой нэх (§90).',
+    button: 'Найман адуу →',
+    onNext: () => { $('title').classList.add('hidden'); loadScene('horses', { cinematic: true }); flag = null; },
+  });
+}
+function endHorsesSlice() {
+  save = unlockNext('horses', CHAPTER_ORDER);
+  presentChapter({
+    eyebrow: 'Бүлэг дууслаа',
+    title: 'Найман адуу',
     body: ACT3_TEASER,
     button: 'III бүлэг →',
     onNext: () => { $('title').classList.add('hidden'); loadScene('act3', { cinematic: true }); flag = null; },
@@ -1326,8 +1356,18 @@ function endAct2Slice() {
 function endAct3Slice() {
   save = unlockNext('act3', CHAPTER_ORDER);
   presentChapter({
+    eyebrow: 'Бүлэг дууслаа',
+    title: 'Мэргид · Чингис',
+    body: JAMUKHA_TEASER,
+    button: 'IV бүлэг →',
+    onNext: () => { $('title').classList.add('hidden'); loadScene('jamukha', { cinematic: true }); flag = null; },
+  });
+}
+function endJamukhaSlice() {
+  save = unlockNext('jamukha', CHAPTER_ORDER);
+  presentChapter({
     eyebrow: 'Тоглоом дууслаа',
-    title: 'Чингис',
+    title: 'Жамухатай зөрчил',
     body: MVP_DONE,
     button: 'Бүлгүүд · дахин',
     onNext: () => { showTitle(); $('chapters').classList.remove('hidden'); $('title').classList.add('hidden'); renderChapterSelect(); },
@@ -1509,6 +1549,8 @@ function tick() {
           toast.classList.remove('hidden');
         }
         if (!theme.muted) flashSfx(sfx.chime());
+        if (sceneId === 'horses') endHorsesSlice();
+        else if (sceneId === 'jamukha') endJamukhaSlice();
       }
     } else {
       $('fieldTasks')?.classList.add('hidden');
