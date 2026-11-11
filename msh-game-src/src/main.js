@@ -768,7 +768,7 @@ function setMounted(on) {
     clearMount();
     return;
   }
-  const h = horse('#c4894a');
+  const h = horse('#6b4228');
   const y = world.heightAt?.(player.pos.x, player.pos.z) ?? 0;
   h.position.set(player.pos.x, y, player.pos.z);
   h.rotation.y = world.temujin.rotation.y;
@@ -1533,10 +1533,10 @@ window.__mshMount = (on = true, sprint = false) => {
     playerHorse.rotation.y = 0;
     const p = playerHorse.position;
     window.__mshFrame(
-      [p.x - 0.15, p.y + 0.95, p.z + 2.8],
-      [p.x + 0.25, p.y + 1.45, p.z],
-      46,
-      false
+      [p.x + 0.15, p.y + 1.45, p.z + 3.15],
+      [p.x + 0.35, p.y + 1.4, p.z],
+      42,
+      true
     );
   }
   return { mounted, pace: $('pace')?.textContent || '', sprint: !!keys.ShiftLeft };
