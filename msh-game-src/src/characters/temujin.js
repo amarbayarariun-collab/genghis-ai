@@ -151,7 +151,7 @@ function buildPlaceholder() {
   add(root, new THREE.CylinderGeometry(0.22, 0.28, 0.85, 8), C.deel, [0, 1.05, 0]);
   add(root, new THREE.TorusGeometry(0.2, 0.06, 5, 10), C.fur, [0, 1.4, 0], [Math.PI / 2, 0, 0]);
   add(root, new THREE.IcosahedronGeometry(0.13, 1), C.skin, [0, 1.55, 0]);
-  root.add(mongolHat(1, '#5c3b24'));
+  root.add(mongolHat(1));
   return {
     root,
     update(dt, t, sp) {

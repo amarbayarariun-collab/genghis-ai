@@ -30,27 +30,22 @@ export function skyDome({ top, mid, horizon, bottom }, radius = 300) {
   return new THREE.Mesh(new THREE.SphereGeometry(Math.min(radius, 150), 28, 18), mat);
 }
 
-/** Fur malgai: wide band, round crown, ear flaps. Not a tall red cone. */
-export function mongolHat(tall = 1, hideColor = '#5c3b24') {
+/** Low fur malgai. Wide brim, flat crown, ear flaps. No cone and no pompon. */
+export function mongolHat(tall = 1) {
   const g = new THREE.Group();
   g.name = 'mongol-hat';
-  const fur = flat('#f4ecdf');
-  const hide = flat(hideColor);
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.155 * tall, 0.175 * tall, 0.07 * tall, 12), fur);
-  band.position.y = 1.38 * tall;
-  const crown = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12 * tall, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55),
-    hide
-  );
-  crown.position.y = 1.4 * tall;
-  const flapGeo = new THREE.BoxGeometry(0.05 * tall, 0.14 * tall, 0.09 * tall);
+  const fur = flat('#c4a574');
+  const hide = flat('#6a4424');
+  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.28 * tall, 0.28 * tall, 0.035 * tall, 16), fur);
+  brim.position.y = 1.33 * tall;
+  const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.13 * tall, 0.15 * tall, 0.07 * tall, 12), hide);
+  crown.position.y = 1.38 * tall;
+  const flapGeo = new THREE.BoxGeometry(0.07 * tall, 0.26 * tall, 0.04 * tall);
   const flapL = new THREE.Mesh(flapGeo, fur);
-  flapL.position.set(-0.145 * tall, 1.3 * tall, 0);
+  flapL.position.set(-0.2 * tall, 1.16 * tall, 0.02 * tall);
   const flapR = new THREE.Mesh(flapGeo, fur);
-  flapR.position.set(0.145 * tall, 1.3 * tall, 0);
-  const top = new THREE.Mesh(new THREE.SphereGeometry(0.028 * tall, 8, 6), hide);
-  top.position.y = 1.52 * tall;
-  g.add(band, crown, flapL, flapR, top);
+  flapR.position.set(0.2 * tall, 1.16 * tall, 0.02 * tall);
+  g.add(brim, crown, flapL, flapR);
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return g;
 }
@@ -62,12 +57,13 @@ function pivot(parent, x, y, z) {
   return p;
 }
 
-export function person({ deel = '#8a1a22', hat = '#5c3b24', fur = '#e2d0b0', skin = '#c48a5e', tall = 1 } = {}) {
+export function person({ deel = '#8a1a22', fur = '#e2d0b0', skin = '#c48a5e', tall = 1 } = {}) {
   const g = new THREE.Group();
   const t = tall;
   const deelMat = flat(deel);
   const skinMat = flat(skin);
   const bootMat = flat('#3a2416');
+  const pantMat = flat('#f0d090');
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * t, 0.24 * t, 0.5 * t, 8), deelMat);
   body.position.y = 1.05 * t;
   const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.12 * t, 1), skinMat);
@@ -76,14 +72,14 @@ export function person({ deel = '#8a1a22', hat = '#5c3b24', fur = '#e2d0b0', ski
   const collar = new THREE.Mesh(new THREE.TorusGeometry(0.17 * t, 0.045 * t, 5, 10), flat(fur));
   collar.rotation.x = Math.PI / 2;
   collar.position.y = 1.24 * t;
-  g.add(body, head, mongolHat(t, hat), collar);
+  g.add(body, head, mongolHat(t), collar);
 
   const leg = (z) => {
     const hip = pivot(g, 0.02 * t, 0.82 * t, z * t);
-    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.065 * t, 0.055 * t, 0.36 * t, 6), deelMat);
+    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * t, 0.08 * t, 0.38 * t, 6), pantMat);
     thigh.position.y = -0.18 * t;
     const knee = pivot(hip, 0, -0.36 * t, 0);
-    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * t, 0.045 * t, 0.32 * t, 6), bootMat);
+    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.07 * t, 0.06 * t, 0.34 * t, 6), bootMat);
     shin.position.y = -0.16 * t;
     const foot = new THREE.Mesh(new THREE.BoxGeometry(0.08 * t, 0.045 * t, 0.16 * t), bootMat);
     foot.name = 'foot';
@@ -106,27 +102,26 @@ export function person({ deel = '#8a1a22', hat = '#5c3b24', fur = '#e2d0b0', ski
     shoulder.add(upper);
     return { shoulder, elbow, hand };
   };
-  g.userData.limbs = { legL: leg(-0.32), legR: leg(0.32), armL: arm(-0.28), armR: arm(0.28) };
+  g.userData.limbs = { legL: leg(-0.5), legR: leg(0.5), armL: arm(-0.28), armR: arm(0.28) };
   g.userData.tall = t;
   g.userData.hipY = 0.82 * t;
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return g;
 }
 
-/** Knees bent, feet toward the stirrups, hands forward to the reins. Mesh pivots only. */
+/** Thighs forward, shins straight down, hands out to the reins. Mesh pivots only. */
 export function poseRide(rider) {
   const L = rider?.userData?.limbs;
   if (!L) return;
-  L.legL.hip.rotation.z = 1.35;
-  L.legR.hip.rotation.z = 1.35;
-  L.legL.knee.rotation.z = -1.7;
-  L.legR.knee.rotation.z = -1.7;
-  L.legL.foot.rotation.z = 0.35;
-  L.legR.foot.rotation.z = 0.35;
-  L.armL.shoulder.rotation.z = 1.45;
-  L.armR.shoulder.rotation.z = 1.45;
-  L.armL.elbow.rotation.z = -0.85;
-  L.armR.elbow.rotation.z = -0.85;
+  const right = Math.PI / 2;
+  L.legL.hip.rotation.z = right;
+  L.legR.hip.rotation.z = right;
+  L.legL.knee.rotation.z = -right;
+  L.legR.knee.rotation.z = -right;
+  L.armL.shoulder.rotation.z = 1.05;
+  L.armR.shoulder.rotation.z = 1.05;
+  L.armL.elbow.rotation.z = -0.95;
+  L.armR.elbow.rotation.z = -0.95;
   rider.userData.mounted = true;
 }
 
@@ -151,53 +146,65 @@ export function makeGer(s = 1, doorColor = '#9a2a28') {
   return g;
 }
 
-export function horse(color = '#5a4030') {
+const _seatWp = new THREE.Vector3();
+const _seatInv = new THREE.Matrix4();
+
+export function horse(color = '#c4894a') {
   const g = new THREE.Group();
   const m = flat(color);
-  const dark = flat('#2a1c14');
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.85, 0.65), m);
-  body.position.y = 1.05;
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.38, 1.05, 0.38), m);
-  neck.position.set(0.7, 1.45, 0);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.32, 0.32), m);
+  const dark = flat('#3a2416');
+  const leather = flat('#8d4e2a');
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.7, 0.5), m);
+  body.position.set(0, 1.02, 0);
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.32, 0.26), m);
+  neck.position.set(0.98, 1.22, 0);
+  neck.rotation.z = -0.45;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.24, 0.22), m);
   head.name = 'horse-head';
-  head.position.set(1.15, 1.85, 0);
-  const mane = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.95, 0.4), dark);
-  mane.position.set(0.55, 1.55, 0);
+  head.position.set(1.45, 1.42, 0);
+  const mane = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.22, 0.28), dark);
+  mane.position.set(0.82, 1.4, 0);
   const legPivots = [];
-  [[-0.55, -0.22, 'hip-back'], [-0.55, 0.22, 'hip-back'], [0.55, -0.22, 'hip-front'], [0.55, 0.22, 'hip-front']].forEach(([x, z, side]) => {
+  [[-0.72, -0.16, 'hip-back'], [-0.72, 0.16, 'hip-back'], [0.62, -0.16, 'hip-front'], [0.62, 0.16, 'hip-front']].forEach(([x, z, side]) => {
     const hip = new THREE.Group();
     hip.name = side;
-    hip.position.set(x * 0.85, 0.95, z);
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.9, 0.16), m);
-    leg.position.y = -0.45;
+    hip.position.set(x, 0.72, z);
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.7, 0.14), m);
+    leg.position.y = -0.35;
     hip.add(leg);
     g.add(hip);
     legPivots.push(hip);
   });
-  const stirrupL = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.012, 6, 10), dark);
-  stirrupL.name = 'stirrup';
-  stirrupL.position.set(0.24, 1.04, 0.32);
-  stirrupL.rotation.y = Math.PI / 2;
-  const stirrupR = stirrupL.clone();
-  stirrupR.position.z = -0.32;
-  const reins = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.62, 4), dark);
-  reins.name = 'reins';
-  reins.position.set(0.37, 1.62, 0);
-  reins.rotation.x = Math.PI / 2;
-  // Saddle sits on the barrel, behind the neck. The head is at x=1.15.
+  // Seat is on the barrel, more than a metre behind the head.
   const saddle = new THREE.Group();
   saddle.name = 'saddle-anchor';
-  saddle.position.set(-0.05, 1.48, 0);
+  saddle.position.set(-0.32, 1.62, 0);
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.24, 0.4), leather);
+  pad.name = 'saddle-pad';
+  pad.position.y = -0.1;
+  const cantle = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.14, 0.38), leather);
+  cantle.position.set(-0.2, 0.06, 0);
+  saddle.add(pad, cantle);
+  const stirrupL = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.018, 6, 12), dark);
+  stirrupL.name = 'stirrup';
+  stirrupL.position.set(0, 0.7, 0.5);
+  stirrupL.rotation.y = Math.PI / 2;
+  const stirrupR = stirrupL.clone();
+  stirrupR.name = 'stirrup';
+  stirrupR.position.z = -0.5;
+  const reins = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.7, 6), flat('#1a120c'));
+  reins.name = 'reins';
+  reins.rotation.x = Math.PI / 2;
   g.add(body, neck, head, mane, saddle, stirrupL, stirrupR, reins);
   g.userData.legs = legPivots;
   g.userData.saddle = saddle;
   g.userData.head = head;
+  g.userData.reins = reins;
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return g;
 }
 
-/** Parent a soldier to the saddle anchor. Hips land on the barrel, not the head. */
+/** Parent a soldier to the saddle. Hips on the pad, feet in the stirrups, hands on the reins. */
 export function seatRider(mount, rider) {
   const saddle = mount?.userData?.saddle;
   if (!saddle || !rider) return null;
@@ -206,6 +213,38 @@ export function seatRider(mount, rider) {
   rider.position.set(0, -hip, 0);
   rider.rotation.set(0, 0, 0);
   poseRide(rider);
+  mount.updateMatrixWorld(true);
+  _seatInv.copy(mount.matrixWorld).invert();
+  const feet = [];
+  const hands = [];
+  rider.traverse((o) => {
+    if (o.name === 'foot') feet.push(o);
+    if (o.name === 'hand') hands.push(o);
+  });
+  const stirrups = [];
+  mount.traverse((o) => { if (o.name === 'stirrup') stirrups.push(o); });
+  for (const foot of feet) {
+    foot.getWorldPosition(_seatWp);
+    const local = _seatWp.clone().applyMatrix4(_seatInv);
+    let best = null;
+    let bestD = Infinity;
+    for (const s of stirrups) {
+      const d = Math.abs((s.userData.homeZ ?? s.position.z) - local.z);
+      if (d < bestD) { bestD = d; best = s; }
+    }
+    if (!best) continue;
+    best.userData.homeZ = local.z;
+    best.position.copy(local);
+  }
+  if (hands.length && mount.userData.reins) {
+    const mid = new THREE.Vector3();
+    for (const hand of hands) {
+      hand.getWorldPosition(_seatWp);
+      mid.add(_seatWp);
+    }
+    mid.multiplyScalar(1 / hands.length).applyMatrix4(_seatInv);
+    mount.userData.reins.position.copy(mid);
+  }
   return saddle;
 }
 

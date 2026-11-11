@@ -768,7 +768,7 @@ function setMounted(on) {
     clearMount();
     return;
   }
-  const h = horse('#4e3424');
+  const h = horse('#c4894a');
   const y = world.heightAt?.(player.pos.x, player.pos.z) ?? 0;
   h.position.set(player.pos.x, y, player.pos.z);
   h.rotation.y = world.temujin.rotation.y;
@@ -1336,7 +1336,7 @@ function tick() {
     while (dy < -Math.PI) dy += Math.PI * 2;
     temujin.rotation.y += dy * Math.min(1, dt * 8);
   }
-  if (mounted && playerHorse) {
+  if (mounted && playerHorse && !shotLock) {
     playerHorse.position.set(player.pos.x, groundY, player.pos.z);
     playerHorse.rotation.y = temujin.rotation.y;
     playerHorse.userData.step?.(dt, moveSpeed);
@@ -1530,12 +1530,12 @@ window.__mshMount = (on = true, sprint = false) => {
     paceEl.classList.remove('hidden');
   }
   if (playerHorse) {
-    const yaw = playerHorse.rotation.y;
+    playerHorse.rotation.y = 0;
     const p = playerHorse.position;
     window.__mshFrame(
-      [p.x + Math.sin(yaw) * 7.2, p.y + 2.1, p.z + Math.cos(yaw) * 7.2],
-      [p.x, p.y + 1.0, p.z],
-      28,
+      [p.x - 0.15, p.y + 0.95, p.z + 2.8],
+      [p.x + 0.25, p.y + 1.45, p.z],
+      46,
       false
     );
   }
