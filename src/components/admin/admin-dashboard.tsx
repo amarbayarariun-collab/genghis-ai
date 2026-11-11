@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 type Stats = {
@@ -47,8 +48,16 @@ export function AdminDashboard() {
     setSetup(data.setup || null);
   }, []);
 
+  // Restore admin cookie session once on mount.
   useEffect(() => {
-    void loadStats().catch(() => setAuthed(false));
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- cookie session restore
+    void loadStats().catch(() => {
+      if (!cancelled) setAuthed(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [loadStats]);
 
   async function login(e: React.FormEvent) {
@@ -142,9 +151,12 @@ export function AdminDashboard() {
             <Button type="button" variant="ghost" onClick={() => void logout()}>
               Lock
             </Button>
-            <a href="/" className="ml-auto self-center text-sm text-ink/60 underline dark:text-zinc-400">
+            <Link
+              href="/"
+              className="ml-auto self-center text-sm text-ink/60 underline dark:text-zinc-400"
+            >
               Back to chat
-            </a>
+            </Link>
           </div>
         </div>
       )}
