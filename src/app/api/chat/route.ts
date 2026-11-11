@@ -3,11 +3,21 @@ import {
   resolveChatProvider,
   type ChatProviderConfig,
 } from "@/lib/chat-provider";
+import { shapeChatCompletionRequest } from "@/lib/chat-request-shape";
 import { isLocale, type Locale } from "@/lib/locale";
 import { streamMockReply } from "@/lib/mock-chat";
+import {
+  attachTextLimit,
+  estimateCostUsd,
+  planForTier,
+} from "@/lib/plans";
 import { systemPromptForMode } from "@/lib/tools";
 import type { ApiAttachment, ToolMode } from "@/lib/types";
-import { trackSignedInMessage } from "@/lib/usage/track";
+import { recordTokenUsage } from "@/lib/usage/db";
+import {
+  assertCanSendMessage,
+  trackMessageForUser,
+} from "@/lib/usage/quotas";
 
 type TextPart = { type: "text"; text: string };
 type ImagePart = { type: "image_url"; image_url: { url: string } };
@@ -24,6 +34,16 @@ type ChatBody = {
   locale?: Locale;
   attachments?: ApiAttachment[];
   webContext?: string;
+  /** Client conversation id for xAI prompt-cache sticky routing. */
+  conversationId?: string;
+};
+
+type StreamUsage = {
+  promptTokens: number;
+  completionTokens: number;
+  reasoningTokens: number;
+  cachedTokens: number;
+  totalTokens: number;
 };
 
 function encoderStream(
@@ -46,25 +66,45 @@ function encoderStream(
 
 function buildUserContent(
   text: string,
-  attachments?: ApiAttachment[]
+  attachments: ApiAttachment[] | undefined,
+  locale: Locale
 ): string | ContentPart[] {
   const images = (attachments || []).filter(
     (a) => a.kind === "image" && a.dataUrl
   );
   const docs = (attachments || []).filter((a) => a.kind === "file");
+  const limit = attachTextLimit();
 
   let prompt = text;
   if (docs.length) {
+    const notices: string[] = [];
     const blocks = docs.map((d) => {
-      const body = (d.text || "").slice(0, 60_000);
+      const raw = d.text || "";
+      const truncated = raw.length > limit;
+      const body = raw.slice(0, limit);
+      if (truncated) {
+        notices.push(
+          locale === "en"
+            ? `Attachment "${d.name}" was truncated to ${limit} characters.`
+            : `"${d.name}" файлын текст ${limit} тэмдэгтээр хязгаарлагдлаа.`
+        );
+      }
       return `--- Файл: ${d.name} (${d.mime}) ---\n${body}`;
     });
-    prompt = `${text}\n\n[Хавсралт баримтууд]\n${blocks.join("\n\n")}`;
+    const noticeBlock = notices.length
+      ? `\n\n[${locale === "en" ? "Notice" : "Анхааруулга"}]\n${notices.join("\n")}`
+      : "";
+    prompt = `${text}\n\n[Хавсралт баримтууд]\n${blocks.join("\n\n")}${noticeBlock}`;
   }
 
   if (!images.length) return prompt;
 
-  const parts: ContentPart[] = [{ type: "text", text: prompt || "Энэ зургийг харж тайлбарла / асуултад хариул." }];
+  const parts: ContentPart[] = [
+    {
+      type: "text",
+      text: prompt || "Энэ зургийг харж тайлбарла / асуултад хариул.",
+    },
+  ];
   for (const img of images.slice(0, 4)) {
     if (img.dataUrl) {
       parts.push({ type: "image_url", image_url: { url: img.dataUrl } });
@@ -87,15 +127,53 @@ function lastUserText(messages: IncomingMessage[]): string {
   return "";
 }
 
+function parseUsage(raw: unknown): StreamUsage | null {
+  if (!raw || typeof raw !== "object") return null;
+  const u = raw as Record<string, unknown>;
+  const promptTokens = Number(u.prompt_tokens ?? u.input_tokens ?? 0);
+  const completionTokens = Number(u.completion_tokens ?? u.output_tokens ?? 0);
+  const totalTokens = Number(
+    u.total_tokens ?? promptTokens + completionTokens
+  );
+  const promptDetails =
+    (u.prompt_tokens_details as Record<string, unknown> | undefined) ||
+    (u.input_tokens_details as Record<string, unknown> | undefined) ||
+    {};
+  const completionDetails =
+    (u.completion_tokens_details as Record<string, unknown> | undefined) ||
+    (u.output_tokens_details as Record<string, unknown> | undefined) ||
+    {};
+  const cachedTokens = Number(promptDetails.cached_tokens ?? 0);
+  const reasoningTokens = Number(completionDetails.reasoning_tokens ?? 0);
+  if (
+    !Number.isFinite(promptTokens) &&
+    !Number.isFinite(completionTokens)
+  ) {
+    return null;
+  }
+  return {
+    promptTokens: Math.max(0, promptTokens || 0),
+    completionTokens: Math.max(0, completionTokens || 0),
+    reasoningTokens: Math.max(0, reasoningTokens || 0),
+    cachedTokens: Math.max(0, cachedTokens || 0),
+    totalTokens: Math.max(0, totalTokens || 0),
+  };
+}
+
 async function* streamChatCompletion(
   messages: IncomingMessage[],
   chat: ChatProviderConfig,
   mode: ToolMode,
   webContext: string | undefined,
   locale: Locale,
-  signal?: AbortSignal
+  options: {
+    reasoningEffort: "low" | "medium" | "high" | null;
+    conversationId?: string;
+    userId?: string;
+    signal?: AbortSignal;
+  }
 ): AsyncGenerator<string> {
-  const { baseUrl, model, apiKey } = chat;
+  const { baseUrl, model, apiKey, isXai } = chat;
   let system = systemPromptForMode(mode, locale);
   if (webContext) {
     system +=
@@ -104,10 +182,16 @@ async function* streamChatCompletion(
         : `\n\n[Вэб хайлтын үр дүн]\n${webContext}`;
   }
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  // Self-hosted OpenAI-compatible servers may not need a key.
+  const shaped = shapeChatCompletionRequest({
+    model,
+    system,
+    messages,
+    isXai,
+    conversationId: options.conversationId,
+    userId: options.userId,
+    reasoningEffort: options.reasoningEffort,
+  });
+  const headers = { ...shaped.headers };
   if (apiKey) {
     headers.Authorization = `Bearer ${apiKey}`;
   }
@@ -115,12 +199,8 @@ async function* streamChatCompletion(
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      model,
-      stream: true,
-      messages: [{ role: "system", content: system }, ...messages],
-    }),
-    signal,
+    body: JSON.stringify(shaped.body),
+    signal: options.signal,
   });
 
   if (!response.ok || !response.body) {
@@ -133,29 +213,48 @@ async function* streamChatCompletion(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let usage: StreamUsage | null = null;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() || "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
-      const data = trimmed.slice(5).trim();
-      if (data === "[DONE]") return;
-      try {
-        const json = JSON.parse(data) as {
-          choices?: Array<{ delta?: { content?: string } }>;
-        };
-        const token = json.choices?.[0]?.delta?.content;
-        // Never surface em/en dashes in assistant UI copy.
-        if (token) yield token.replace(/\u2014/g, ",").replace(/\u2013/g, "-");
-      } catch {
-        // skip
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const data = trimmed.slice(5).trim();
+        if (data === "[DONE]") continue;
+        try {
+          const json = JSON.parse(data) as {
+            choices?: Array<{ delta?: { content?: string } }>;
+            usage?: unknown;
+          };
+          const parsed = parseUsage(json.usage);
+          if (parsed) usage = parsed;
+          const token = json.choices?.[0]?.delta?.content;
+          // Never surface em/en dashes in assistant UI copy.
+          if (token) yield token.replace(/\u2014/g, ",").replace(/\u2013/g, "-");
+        } catch {
+          // skip
+        }
       }
+    }
+  } finally {
+    if (usage) {
+      void recordTokenUsage({
+        userId: options.userId || null,
+        model,
+        promptTokens: usage.promptTokens,
+        completionTokens: usage.completionTokens,
+        reasoningTokens: usage.reasoningTokens,
+        cachedTokens: usage.cachedTokens,
+        totalTokens: usage.totalTokens,
+        estimatedCostUsd: estimateCostUsd(usage),
+      });
     }
   }
 }
@@ -172,6 +271,7 @@ export async function POST(request: Request) {
   const locale: Locale = isLocale(body.locale) ? body.locale : "mn";
   const attachments = body.attachments || [];
   const webContext = body.webContext?.trim();
+  const conversationId = body.conversationId?.trim() || undefined;
 
   const rawMessages = (body.messages || []).filter(
     (m) =>
@@ -184,7 +284,24 @@ export async function POST(request: Request) {
     return Response.json({ error: "Мессеж хоосон байна." }, { status: 400 });
   }
 
-  await trackSignedInMessage();
+  const quota = await assertCanSendMessage();
+  if (!quota.ok) {
+    return Response.json(
+      {
+        error: locale === "en" ? quota.block.errorEn : quota.block.error,
+        code: quota.block.code,
+        usage: quota.block.usage,
+        ...(quota.block.upgradePath
+          ? { upgradePath: quota.block.upgradePath }
+          : {}),
+      },
+      { status: quota.block.status }
+    );
+  }
+
+  await trackMessageForUser(quota.subject.user.id);
+
+  const plan = planForTier(quota.subject.usage.tier);
 
   // Inject attachments into the last user message
   const messages: IncomingMessage[] = rawMessages.map((m, idx) => {
@@ -193,30 +310,28 @@ export async function POST(request: Request) {
       idx === rawMessages.map((x) => x.role).lastIndexOf("user");
     if (!isLastUser || !attachments.length) return m;
     const text = typeof m.content === "string" ? m.content : lastUserText([m]);
-    return { role: "user", content: buildUserContent(text, attachments) };
+    return { role: "user", content: buildUserContent(text, attachments, locale) };
   });
 
   if (!messages.length) {
     messages.push({
       role: "user",
-      content: buildUserContent("", attachments),
+      content: buildUserContent("", attachments, locale),
     });
   }
 
   const prompt = lastUserText(messages);
-  const chat = resolveChatProvider();
+  const chat = resolveChatProvider({ modelOverride: plan.chatModel });
 
   try {
     if (chat.configured) {
       const stream = encoderStream(
-        streamChatCompletion(
-          messages,
-          chat,
-          mode,
-          webContext,
-          locale,
-          request.signal
-        )
+        streamChatCompletion(messages, chat, mode, webContext, locale, {
+          reasoningEffort: plan.reasoningEffort,
+          conversationId,
+          userId: quota.subject.user.id,
+          signal: request.signal,
+        })
       );
       return new Response(stream, {
         headers: {
@@ -224,6 +339,8 @@ export async function POST(request: Request) {
           "Cache-Control": "no-cache, no-transform",
           "X-Genghis-Mode": chat.modeHeader,
           "X-Genghis-Provider": chat.provider,
+          "X-Genghis-Model": chat.model,
+          "X-Genghis-Plan": plan.tier,
         },
       });
     }
@@ -234,6 +351,7 @@ export async function POST(request: Request) {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
         "X-Genghis-Mode": "mock",
+        "X-Genghis-Plan": plan.tier,
       },
     });
   } catch (error) {
@@ -253,6 +371,7 @@ export async function POST(request: Request) {
           "Content-Type": "text/plain; charset=utf-8",
           "Cache-Control": "no-cache, no-transform",
           "X-Genghis-Mode": "mock-fallback",
+          "X-Genghis-Plan": plan.tier,
         },
       });
     }

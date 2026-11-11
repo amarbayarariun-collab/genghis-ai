@@ -113,6 +113,13 @@ export const UI = {
     authName: "Нэр (заавал биш)",
     authPassword: "Нууц үг (8+)",
     authFail: "Нэвтэрч чадсангүй.",
+    planFree: "Үнэгүй",
+    planPaid: "Pro",
+    planUsage: "Сарын хэрэглээ",
+    planUpgrade: "Pro руу шилжих",
+    planLimitTitle: "Хязгаарт хүрлээ",
+    attachTruncated:
+      "Хавсралтын текст хэт урт тул хязгаарлагдана (тохиргооны тэмдэгтийн хязгаар).",
   },
   en: {
     tagline: "From Mongolia to the world",
@@ -201,6 +208,13 @@ export const UI = {
     authName: "Name (optional)",
     authPassword: "Password (8+)",
     authFail: "Could not sign in.",
+    planFree: "Free",
+    planPaid: "Pro",
+    planUsage: "Monthly usage",
+    planUpgrade: "Upgrade to Pro",
+    planLimitTitle: "Limit reached",
+    attachTruncated:
+      "Attachment text was truncated to the configured character limit.",
   },
 } as const;
 

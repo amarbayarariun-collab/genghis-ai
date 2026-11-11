@@ -1,14 +1,33 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLocale } from "@/components/locale-provider";
 import { Button } from "@/components/ui/button";
 
-type AuthUser = { id: string; email: string; name: string | null };
+type AuthUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  plan?: "free" | "paid";
+  paidUntil?: string | null;
+};
+
+type PlanUsage = {
+  tier: "free" | "paid";
+  messagesUsed: number;
+  messagesLimit: number;
+  imagesUsed: number;
+  imagesLimit: number;
+  model: string;
+  period: string;
+  resetsAt?: string;
+};
 
 export function AuthAccount() {
   const { t, locale } = useLocale();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [usage, setUsage] = useState<PlanUsage | null>(null);
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"login" | "signup">("signup");
   const [email, setEmail] = useState("");
@@ -23,10 +42,19 @@ export function AuthAccount() {
     (async () => {
       try {
         const res = await fetch("/api/auth/me", { credentials: "include" });
-        const data = (await res.json()) as { user?: AuthUser | null };
-        if (!cancelled) setUser(data.user || null);
+        const data = (await res.json()) as {
+          user?: AuthUser | null;
+          usage?: PlanUsage | null;
+        };
+        if (!cancelled) {
+          setUser(data.user || null);
+          setUsage(data.usage || null);
+        }
       } catch {
-        if (!cancelled) setUser(null);
+        if (!cancelled) {
+          setUser(null);
+          setUsage(null);
+        }
       }
       try {
         const probe = await fetch("/api/auth/providers");
@@ -69,6 +97,9 @@ export function AuthAccount() {
       setUser(data.user);
       setOpen(false);
       setPassword("");
+      const me = await fetch("/api/auth/me", { credentials: "include" });
+      const meData = (await me.json()) as { usage?: PlanUsage | null };
+      setUsage(meData.usage || null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("authFail"));
     } finally {
@@ -84,15 +115,46 @@ export function AuthAccount() {
         credentials: "include",
       });
       setUser(null);
+      const me = await fetch("/api/auth/me", { credentials: "include" });
+      const meData = (await me.json()) as { usage?: PlanUsage | null };
+      setUsage(meData.usage || null);
     } finally {
       setBusy(false);
     }
   }
 
   const initial = (user?.name || user?.email || "?").slice(0, 1).toUpperCase();
+  const tier = usage?.tier || user?.plan || "free";
 
   return (
     <div className="border-t border-zinc-200 px-3 py-3 dark:border-zinc-800">
+      {usage ? (
+        <div className="mb-2 space-y-1 rounded-xl bg-zinc-50 px-2.5 py-2 text-[11px] text-ink/70 dark:bg-zinc-900 dark:text-zinc-400">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-medium text-ink dark:text-zinc-200">
+              {tier === "paid" ? t("planPaid") : t("planFree")}
+              {usage.model ? ` · ${usage.model}` : ""}
+            </span>
+            {tier === "free" ? (
+              <Link
+                href="/pricing"
+                className="text-gold underline decoration-gold/40 underline-offset-2"
+              >
+                {t("planUpgrade")}
+              </Link>
+            ) : null}
+          </div>
+          <p>
+            {t("planUsage")}: {usage.messagesUsed}/{usage.messagesLimit}
+            {usage.imagesLimit > 0
+              ? ` · ${locale === "en" ? "img" : "зураг"} ${usage.imagesUsed}/${usage.imagesLimit}`
+              : locale === "en"
+                ? " · no images"
+                : " · зураггүй"}
+          </p>
+        </div>
+      ) : null}
+
       {user ? (
         <div className="flex items-center gap-2.5 rounded-xl px-2 py-1.5">
           <div className="flex size-8 items-center justify-center rounded-full bg-ink text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900">

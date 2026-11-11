@@ -10,6 +10,21 @@ type Stats = {
   dau: number;
   messagesSent: number;
   messagesToday: number;
+  imagesSent: number;
+  imagesToday: number;
+  freeUsers: number;
+  paidUsers: number;
+  asOf: string;
+};
+
+type TokenTotals = {
+  requests: number;
+  promptTokens: number;
+  completionTokens: number;
+  reasoningTokens: number;
+  cachedTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
   asOf: string;
 };
 
@@ -24,6 +39,7 @@ export function AdminDashboard() {
   const [secret, setSecret] = useState("");
   const [authed, setAuthed] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [tokens, setTokens] = useState<TokenTotals | null>(null);
   const [setup, setSetup] = useState<Setup | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,11 +49,13 @@ export function AdminDashboard() {
     if (res.status === 401) {
       setAuthed(false);
       setStats(null);
+      setTokens(null);
       return;
     }
     const data = (await res.json()) as {
       error?: string;
       stats?: Stats;
+      tokens?: TokenTotals;
       setup?: Setup;
     };
     if (!res.ok) {
@@ -45,6 +63,7 @@ export function AdminDashboard() {
     }
     setAuthed(true);
     setStats(data.stats || null);
+    setTokens(data.tokens || null);
     setSetup(data.setup || null);
   }, []);
 
@@ -89,6 +108,7 @@ export function AdminDashboard() {
     });
     setAuthed(false);
     setStats(null);
+    setTokens(null);
   }
 
   return (
@@ -101,7 +121,7 @@ export function AdminDashboard() {
           Owner admin
         </h1>
         <p className="mt-1 text-sm text-ink/60 dark:text-zinc-400">
-          Signups, DAU, and messages. Owner-only.
+          Signups, tiers, messages, images, and estimated xAI token cost.
         </p>
       </div>
 
@@ -128,11 +148,37 @@ export function AdminDashboard() {
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <StatCard label="Signups / unique users" value={stats?.uniqueUsers} />
+            <StatCard label="Signups / unique" value={stats?.uniqueUsers} />
             <StatCard label="DAU (UTC today)" value={stats?.dau} />
-            <StatCard label="Messages (all time)" value={stats?.messagesSent} />
+            <StatCard label="Free users" value={stats?.freeUsers} />
+            <StatCard label="Paid users" value={stats?.paidUsers} />
+            <StatCard label="Messages (all)" value={stats?.messagesSent} />
             <StatCard label="Messages today" value={stats?.messagesToday} />
+            <StatCard label="Images (all)" value={stats?.imagesSent} />
+            <StatCard label="Images today" value={stats?.imagesToday} />
           </div>
+
+          <div className="space-y-2 rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+            <p className="text-sm font-medium">xAI token usage (estimated)</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <p>Requests: {tokens?.requests ?? "—"}</p>
+              <p>Total tokens: {fmt(tokens?.totalTokens)}</p>
+              <p>Prompt: {fmt(tokens?.promptTokens)}</p>
+              <p>Completion: {fmt(tokens?.completionTokens)}</p>
+              <p>Reasoning: {fmt(tokens?.reasoningTokens)}</p>
+              <p>Cached: {fmt(tokens?.cachedTokens)}</p>
+            </div>
+            <p className="pt-1 font-heading text-2xl font-semibold tabular-nums">
+              ~$
+              {tokens
+                ? tokens.estimatedCostUsd.toFixed(4)
+                : "—"}
+            </p>
+            <p className="text-[11px] text-ink/45 dark:text-zinc-500">
+              Estimate only (env rates). Not QPay or provider invoices.
+            </p>
+          </div>
+
           <p className="text-xs text-ink/45 dark:text-zinc-500">
             As of {stats?.asOf ? new Date(stats.asOf).toLocaleString() : "—"}
           </p>
@@ -162,6 +208,11 @@ export function AdminDashboard() {
       )}
     </main>
   );
+}
+
+function fmt(n?: number) {
+  if (n == null) return "—";
+  return n.toLocaleString();
 }
 
 function StatCard({ label, value }: { label: string; value?: number }) {

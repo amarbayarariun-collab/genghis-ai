@@ -46,8 +46,13 @@ function looksLikeXaiBase(baseUrl: string): boolean {
  * Resolve where /api/chat should send OpenAI-compatible chat completions.
  * Self-hosted: set CHAT_PROVIDER=self and CHAT_BASE_URL=https://host/v1
  * (CHAT_API_KEY optional for trusted local networks).
+ *
+ * Plan tiers pick the model via `modelOverride` (free → grok-4.3, paid → grok-4.7).
+ * Env CHAT_MODEL / OPENAI_MODEL still win when set (ops escape hatch).
  */
-export function resolveChatProvider(): ChatProviderConfig {
+export function resolveChatProvider(options?: {
+  modelOverride?: string;
+}): ChatProviderConfig {
   const explicit = readProviderEnv();
   const chatKey = process.env.CHAT_API_KEY?.trim() || undefined;
   const apiKey = chatKey || legacyChatKey();
@@ -55,6 +60,7 @@ export function resolveChatProvider(): ChatProviderConfig {
   const legacyBase = trimUrl(process.env.OPENAI_BASE_URL);
   const chatModel = process.env.CHAT_MODEL?.trim() || undefined;
   const legacyModel = process.env.OPENAI_MODEL?.trim() || undefined;
+  const modelOverride = options?.modelOverride?.trim() || undefined;
 
   let provider: ChatProviderId;
   if (explicit === "self" || explicit === "xai" || explicit === "openai") {
@@ -98,7 +104,8 @@ export function resolveChatProvider(): ChatProviderConfig {
   const model =
     chatModel ||
     legacyModel ||
-    (isXai ? "grok-4.7" : provider === "self" ? "genghis-mn" : "gpt-4o");
+    modelOverride ||
+    (isXai ? "grok-4.3" : provider === "self" ? "genghis-mn" : "gpt-4o");
 
   const configured =
     provider === "self" ? Boolean(baseUrl) : Boolean(apiKey && baseUrl);

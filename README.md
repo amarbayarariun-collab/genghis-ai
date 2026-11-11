@@ -32,8 +32,11 @@ OPENAI_API_KEY=sk-...   # or AP= for xAI (xai-… keys auto-route to api.x.ai)
 # preferred chat provider abstraction (xAI today → self-hosted later)
 # CHAT_PROVIDER=xai          # or openai | self
 # CHAT_BASE_URL=https://api.x.ai/v1
-# CHAT_MODEL=grok-4.7
+# CHAT_MODEL=                # ops override; else plan picks grok-4.3 / grok-4.7
 # CHAT_API_KEY=              # defaults to OPENAI_API_KEY / AP if unset
+# CHAT_HISTORY_LIMIT=16
+# CHAT_MAX_TOKENS=1500
+# ATTACH_TEXT_LIMIT=15000
 # self-hosted example:
 # CHAT_PROVIDER=self
 # CHAT_BASE_URL=http://127.0.0.1:8000/v1
@@ -47,6 +50,17 @@ OPENAI_API_KEY=sk-...   # or AP= for xAI (xai-… keys auto-route to api.x.ai)
 Restart the dev server. The chat route (`/api/chat`) uses `resolveChatProvider()` (`src/lib/chat-provider.ts`): `CHAT_*` first, then legacy `OPENAI_*` / `AP`. Without a configured backend, Genghis AI answers in **демо горим**.
 
 `/api/image` stays separate (`OPENAI_IMAGE_API_KEY` → OpenAI Images API). Chat cutover to a Mongolian self-hosted model does not require rewriting the UI.
+
+## Plan limits (launch)
+
+| Tier | Price | Chat | Images |
+| --- | --- | --- | --- |
+| Free | 0 | 30 msgs/mo on `grok-4.3` | none |
+| Pro | $20 (~72,000₮)/mo | 500 msgs/mo on `grok-4.7` (`reasoning_effort=low`) | 10/mo |
+
+Cost controls on `/api/chat`: history trim (`CHAT_HISTORY_LIMIT`, default 16), `max_tokens` (`CHAT_MAX_TOKENS`, default 1500), attach text cap (`ATTACH_TEXT_LIMIT`), xAI sticky `x-grok-conv-id` + `prompt_cache_key` (stable per user+conversation), and token usage logged for `/admin` estimates. Free: no images. Pro limit responses include the UTC reset date (`resetsAt`). Pricing page: `/pricing` (QPay checkout is a follow-up PR).
+
+Unit tests (no live API): `npm test` covers plan quotas, reset-date copy, and request shaping.
 
 ## What’s in this slice
 
@@ -76,8 +90,8 @@ Admin checks: signups/unique users, DAU (UTC), messages all-time + today.
 
 ## Out of scope (for now)
 
-- Hard paywall / forcing signup before chat
-- Full profile settings, billing, teams
+- Live QPay merchant credentials / real charges (checkout PR is separate; disabled without env)
+- Full profile settings, teams
 - Marketing-only landing page
 
 ## Scripts
@@ -88,4 +102,5 @@ Admin checks: signups/unique users, DAU (UTC), messages all-time + today.
 | `npm run build` | Production build |
 | `npm run start` | Serve production build |
 | `npm run lint` | ESLint |
+| `npm test` | Unit tests (quotas + chat request shaping; no live API) |
 

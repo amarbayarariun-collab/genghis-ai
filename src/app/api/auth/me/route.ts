@@ -1,21 +1,36 @@
-import { findUserById, recordEvent } from "@/lib/usage/db";
+import { findUserById, getPlanUsage, recordEvent } from "@/lib/usage/db";
+import { resolveQuotaSubject } from "@/lib/usage/quotas";
 import { readSession } from "@/lib/usage/session";
 
 export async function GET() {
   const session = await readSession();
-  if (!session) {
-    return Response.json({ user: null });
+  if (session?.sub) {
+    const user = await findUserById(session.sub);
+    if (user && user.provider !== "guest") {
+      void recordEvent(user.id, "active");
+      const usage = await getPlanUsage(user.id);
+      return Response.json({
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          plan: usage.tier,
+          paidUntil: user.paidUntil,
+        },
+        usage,
+      });
+    }
   }
 
-  const user = await findUserById(session.sub);
-  if (!user) {
-    return Response.json({ user: null });
+  // Anonymous visitors still get a guest quota snapshot for UI hints.
+  try {
+    const subject = await resolveQuotaSubject();
+    return Response.json({
+      user: null,
+      usage: subject.usage,
+      guest: true,
+    });
+  } catch {
+    return Response.json({ user: null, usage: null });
   }
-
-  // Cheap DAU ping once the client asks who is signed in.
-  void recordEvent(user.id, "active");
-
-  return Response.json({
-    user: { id: user.id, email: user.email, name: user.name },
-  });
 }
