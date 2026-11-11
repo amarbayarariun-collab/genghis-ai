@@ -48,7 +48,7 @@ export function StarterPromptCards({
           disabled={disabled}
           onClick={() => onSelect(item.prompt)}
           className={cn(
-            "flex min-h-[4.5rem] flex-col items-start gap-1 rounded-2xl border border-white/25 bg-ink/40 px-3 py-2.5 text-left backdrop-blur-md transition",
+            "flex min-h-11 flex-col items-start gap-0.5 rounded-2xl border border-white/25 bg-ink/40 px-2.5 py-2 text-left backdrop-blur-md transition sm:min-h-[4.25rem] sm:gap-1 sm:px-3 sm:py-2.5",
             "hover:border-gold/50 hover:bg-ink/55",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/70",
             "disabled:pointer-events-none disabled:opacity-55",
@@ -58,7 +58,7 @@ export function StarterPromptCards({
           <span className="text-[11px] font-semibold tracking-wide text-gold sm:text-xs">
             {item.title}
           </span>
-          <span className="line-clamp-3 text-[11px] leading-snug text-white/85 sm:text-[12px]">
+          <span className="line-clamp-2 text-[11px] leading-snug text-white/85 sm:line-clamp-3 sm:text-[12px]">
             {item.prompt}
           </span>
         </button>
