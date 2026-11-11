@@ -223,7 +223,7 @@ export function createSteppeAudio(opts = {}) {
 
   // ---------- music: морин хуур-ish bowed voice over a drone ----------
   function startDrone(def) {
-    const m = def.music; if (!m) return;
+    const m = opts.music === false ? null : def.music; if (!m) return;
     const t = ctx.currentTime, nodes = [];
     for (const [hz, lvl] of m.drone) {
       const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420; lp.Q.value = 0.4;

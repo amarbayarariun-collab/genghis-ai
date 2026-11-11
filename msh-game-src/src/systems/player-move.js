@@ -46,8 +46,9 @@ export function createMover(player) {
     const wishing = wish.lengthSq() > 1e-6;
     if (wishing) wish.normalize();
 
+    const mul = input.speedMul || 1;
     const targetSpeed = wishing
-      ? (input.back ? SPEEDS.walk : SPEEDS.jog)
+      ? (input.back ? SPEEDS.walk : SPEEDS.jog) * mul
       : 0;
 
     // Accelerate toward wish direction (Sumiro-like grip blend onto velocity)
@@ -80,7 +81,7 @@ export function createMover(player) {
     }
 
     // Cap
-    const cap = SPEEDS.run;
+    const cap = SPEEDS.run * mul;
     const sp2 = Math.hypot(vel.x, vel.z);
     if (sp2 > cap) vel.multiplyScalar(cap / sp2);
 

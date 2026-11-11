@@ -15,13 +15,26 @@
   <div id="warmGrade" aria-hidden="true"></div>
 
   <!-- Title -->
+  <div id="vignette" aria-hidden="true"></div>
+  <button id="muteBtn" type="button" aria-label="Дуу хаах/нээх" title="Дуу">🔊</button>
+  <video id="titleVideo" class="hidden" src="./intro.mp4" muted loop playsinline autoplay preload="auto"></video>
+  <div id="introCine" class="hidden"><video id="introVideo" src="./intro.mp4" muted playsinline preload="auto"></video><div class="intro-cap"><p class="eyebrow">Нууц Товчоо · §72</p><p>Есүхэй баатар нас барсны дараа Тайчууд Өэлүн эхийг хүүхдүүдтэй нь Онон мөрний хөвөөнд орхин нүүжээ.</p><p class="skip">Space · алгасах</p></div></div>
   <div id="title" class="overlay" role="dialog" aria-labelledby="titleHeading">
-    <div class="title-card">
+    <div id="titleArt" aria-label="Монголын Нууц Товчоо">
+      <button class="hot" id="hotQuick" style="left:63.2%;top:42.9%;width:25.9%;height:5.8%" aria-label="Хурдан тоглох"></button>
+      <button class="hot" id="hotStart" style="left:65.3%;top:50.7%;width:22.4%;height:5.6%" aria-label="Шинээр эхлэх"></button>
+      <button class="hot" id="hotCont" style="left:65.3%;top:57.9%;width:22.4%;height:7.5%" aria-label="Үргэлжлүүлэх · Өмнөх өгөгдлүүд"></button>
+      <button class="hot" id="hotChapters" style="left:61.8%;top:69.6%;width:14.9%;height:5.4%" aria-label="Бүлгүүд"></button>
+      <button class="hot" id="hotCredits" style="left:77.3%;top:69.6%;width:15.6%;height:5.4%" aria-label="Зохиогчид"></button>
+      <button class="hot" id="hotFps" style="left:93.4%;top:1.9%;width:4.6%;height:3.9%" aria-label="FPS"></button>
+    </div>
+    <div class="title-card hidden-card">
+
       <div class="title-art" aria-hidden="true"></div>
       <div class="title-copy">
-        <p class="eyebrow">Playable Legacy · Бүтэн тоглоом v1</p>
-        <h1 id="titleHeading">МСХ · Тэмүжин</h1>
-        <p class="sub">Нууц Товчооноос суралц</p>
+        <p class="eyebrow">Playable Legacy · v1.0</p>
+        <h1 id="titleHeading">Монголын Нууц Товчоо</h1>
+        <p class="sub">МСХ · Тэмүжин</p>
         <p class="body">Удиртгал → Өнчин → Бурхан → Тайчууд → Боорчи · Бөртэ → Мэргид · Чингис.</p>
         <div class="title-actions">
           <button id="startBtn" type="button">Шинээр эхлэх</button>
@@ -35,6 +48,7 @@
   </div>
 
   <!-- Chapter select (Sumiro-style cards) -->
+  <div id="endOverlay" class="overlay hidden" role="dialog" aria-label="Бүлэг дууслаа"></div>
   <div id="chapters" class="overlay hidden" role="dialog" aria-label="Бүлэг сонгох">
     <div class="chapters-panel">
       <p class="eyebrow">Бүлэг сонгох</p>
@@ -77,7 +91,7 @@
       <span class="sep">·</span>
       <span class="ctrl"><kbd>Esc</kbd> цэс</span>
       <span class="sep">·</span>
-      <span class="ctrl">Үсрэлтгүй · морьгүй</span>
+      <span class="ctrl"><kbd>Space</kbd> үсрэх · <kbd>F</kbd> морь унах/буух</span>
     </div>
     <div id="prompt" class="hidden">[E] ярилцах</div>
     <button id="sourceBtn" type="button">📜 Эх сурвалж</button>

@@ -19,19 +19,29 @@ export function createTemujin() {
   let moving = false;
   let slope = 0;
   let phase = 0;
+  let walkBlend = 0;
+  const limbUniforms = { uPhase: { value: 0 }, uWalk: { value: 0 }, uBreath: { value: 0 }, uRide: { value: 0 } };
+  let ride = 0;
   group.userData.setMoving = (v) => { moving = !!v; };
   group.userData.setSpeed = (s) => { speed = Math.max(0, s || 0); };
   group.userData.setSlope = (s) => { slope = s || 0; };
+  group.userData.setRiding = (v) => { ride = v ? 1 : 0; };
   const motion = (node, dt, baseY) => {
     const sp = moving ? speed : 0;
     const walking = sp > 0.08;
     const g = THREE.MathUtils.clamp(sp / 3.4, 0, 1);
     phase += dt * (walking ? 2.6 + sp * 1.7 : 1.35);
-    const bob = walking ? Math.abs(Math.sin(phase)) * 0.14 * Math.max(g, 0.55) : Math.sin(phase) * 0.028;
+    // limbs: blend the walk in/out smoothly so stopping does not snap
+    walkBlend += ((walking ? Math.max(g, 0.6) : 0) - walkBlend) * Math.min(1, dt * 8);
+    limbUniforms.uPhase.value = phase;
+    limbUniforms.uWalk.value = walkBlend;
+    limbUniforms.uBreath.value = phase;
+    limbUniforms.uRide.value += (ride - limbUniforms.uRide.value) * Math.min(1, dt * 6);
+    const bob = walking ? Math.abs(Math.cos(phase)) * 0.035 * walkBlend : Math.sin(phase) * 0.006;
     node.position.y = baseY + bob;
-    node.rotation.z = Math.sin(phase) * (walking ? 0.22 : 0.04) * Math.max(g, walking ? 0.55 : 1);
+    node.rotation.z = Math.sin(phase) * 0.035 * walkBlend;
     const climb = THREE.MathUtils.clamp(slope / 0.7, -0.35, 0.35);
-    node.rotation.x = (walking ? 0.16 + Math.sin(phase * 2) * 0.18 * Math.max(g, 0.55) : Math.sin(phase * 0.5) * 0.035) + climb;
+    node.rotation.x = 0.06 * walkBlend + climb * 0.5;
   };
   group.userData.update = (dt, t) => {
     placeholder.update(dt, t, moving ? speed : 0);
@@ -73,8 +83,33 @@ export function createTemujin() {
         group.remove(placeholder.root);
         group.add(wrap);
 
-        const baseY = wrap.position.y;
-        group.userData.update = (dt) => motion(wrap, dt, baseY);
+        // Bake every mesh into body space (feet at y=0, facing +Z, 1.72 m tall)
+        // so the vertex shader can find legs, arms and robe by position.
+        group.updateMatrixWorld(true);
+        const body = new THREE.Group();
+        body.name = 'temujin-body';
+        const toGroup = new THREE.Matrix4().copy(group.matrixWorld).invert();
+        const meshes = [];
+        wrap.traverse((o) => { if (o.isMesh && !o.isSkinnedMesh) meshes.push(o); });
+        meshes.forEach((o) => {
+          const rel = new THREE.Matrix4().multiplyMatrices(toGroup, o.matrixWorld);
+          o.geometry = o.geometry.clone();
+          o.geometry.applyMatrix4(rel);
+          o.position.set(0, 0, 0);
+          o.quaternion.identity();
+          o.scale.set(1, 1, 1);
+          o.removeFromParent();
+          body.add(o);
+          attachLimbRig(o, limbUniforms);
+        });
+        if (meshes.length) {
+          group.remove(wrap);
+          group.add(body);
+          group.userData.update = (dt) => motion(body, dt, 0);
+        } else {
+          const baseY = wrap.position.y;
+          group.userData.update = (dt) => motion(wrap, dt, baseY);
+        }
       } catch (err) {
         console.error('[temujin] GLB setup failed, procedural kept', err);
       }
@@ -84,6 +119,96 @@ export function createTemujin() {
   );
 
   return group;
+}
+
+// Procedural limb rig for the unrigged clothed sculpt. Landmarks were measured
+// from the mesh: boots below ~15% height, robe hem ~20%, hands ~45%,
+// shoulders ~75%, feet apart at x = +-0.2, face toward +Z.
+// Legs swing about the hip, arms about the shoulder, opposite phase. The side
+// factor ramps through the centre line so the robe bends instead of tearing.
+export const limbGLSL = (Hh) => /* glsl */`
+  {
+    float H = ${Hh.toFixed(3)};
+    float y = transformed.y;
+    float side = clamp(transformed.x / 0.06, -1.0, 1.0);
+    float sw = sin(uPhase);
+    // robe skirt + inner legs sway together about the hip (small, no poke-through)
+    float hipY = 0.50 * H;
+    float wSkirt = 1.0 - smoothstep(0.22 * H, 0.50 * H, y);
+    float aSk = 0.10 * uWalk * sw * side * wSkirt;
+    vec2 rs = vec2(y - hipY, transformed.z - 0.02);
+    float cs = cos(aSk), ss = sin(aSk);
+    transformed.y = hipY + rs.x * cs - rs.y * ss;
+    transformed.z = 0.02 + rs.x * ss + rs.y * cs;
+    // shins and boots below the hem swing about the knee
+    float kneeY = 0.25 * H;
+    float wLow = 1.0 - smoothstep(0.15 * H, 0.23 * H, y);
+    float aLow = 0.48 * uWalk * sw * side * wLow;
+    vec2 rk = vec2(transformed.y - kneeY, transformed.z - 0.02);
+    float ck = cos(aLow), sk = sin(aLow);
+    transformed.y = kneeY + rk.x * ck - rk.y * sk;
+    transformed.z = 0.02 + rk.x * sk + rk.y * ck;
+    // lift the foot that is swinging forward
+    float wFoot = 1.0 - smoothstep(0.06 * H, 0.22 * H, y);
+    transformed.y += 0.055 * uWalk * max(0.0, -cos(uPhase) * sign(side)) * abs(side) * wFoot;
+    // arms swing opposite to the leg on the same side
+    float ax = abs(transformed.x);
+    float wArm = smoothstep(0.15, 0.22, ax) * smoothstep(0.36 * H, 0.46 * H, y) * (1.0 - smoothstep(0.66 * H, 0.74 * H, y));
+    float shY = 0.74 * H;
+    float aArm = -0.38 * uWalk * sw * sign(transformed.x) * wArm;
+    vec2 ra = vec2(transformed.y - shY, transformed.z);
+    float ca = cos(aArm), sa = sin(aArm);
+    transformed.y = shY + ra.x * ca - ra.y * sa;
+    transformed.z = ra.x * sa + ra.y * ca;
+    // riding: sit astride. The shin folds back at the knee, the thigh swings
+    // forward about the hip and the legs open around the horse's barrel.
+    {
+      float kY = 0.27 * H;
+      float wK = 1.0 - smoothstep(kY - 0.03 * H, kY + 0.03 * H, y);
+      float bK = 1.0 * uRide * wK;
+      vec2 r1 = vec2(transformed.y - kY, transformed.z);
+      transformed.y = kY + r1.x * cos(bK) + r1.y * sin(bK);
+      transformed.z = r1.x * sin(bK) + r1.y * cos(bK);
+      float wH = 1.0 - smoothstep(hipY - 0.08 * H, hipY + 0.01 * H, y);
+      float aH = 0.62 * uRide * wH;
+      vec2 r2 = vec2(transformed.y - hipY, transformed.z);
+      transformed.y = hipY + r2.x * cos(aH) - r2.y * sin(aH);
+      transformed.z = -r2.x * sin(aH) + r2.y * cos(aH);
+      float wS = 1.0 - smoothstep(0.30 * H, 0.50 * H, y);
+      transformed.x += side * wS * 0.2 * uRide;
+      // hands forward to the reins
+      float aR = -0.28 * uRide * wArm;
+      vec2 r3 = vec2(transformed.y - shY, transformed.z);
+      transformed.y = shY + r3.x * cos(aR) - r3.y * sin(aR);
+      transformed.z = r3.x * sin(aR) + r3.y * cos(aR);
+    }
+    // idle breathing on the chest
+    float wChest = smoothstep(0.5 * H, 0.62 * H, y) * (1.0 - smoothstep(0.72 * H, 0.8 * H, y)) * (1.0 - wArm);
+    transformed.z += sin(uBreath * 0.9) * 0.004 * wChest * (1.0 - uWalk);
+  }
+`;
+const LIMB_GLSL = limbGLSL(TARGET_HEIGHT);
+
+
+function patchLimbs(material, uniforms) {
+  const prev = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, r) => {
+    prev?.call(material, shader, r);
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = 'uniform float uPhase;\nuniform float uWalk;\nuniform float uBreath;\nuniform float uRide;\n' +
+      shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n' + LIMB_GLSL);
+  };
+  material.customProgramCacheKey = () => 'temujin-limbs';
+  material.needsUpdate = true;
+}
+
+function attachLimbRig(mesh, uniforms) {
+  const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  mats.forEach((m) => patchLimbs(m, uniforms));
+  // shadows follow the limbs too
+  const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  patchLimbs(depth, uniforms);
+  mesh.customDepthMaterial = depth;
 }
 
 function buildPlaceholder() {

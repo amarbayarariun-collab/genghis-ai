@@ -1,16 +1,11 @@
+import './error-overlay.js';
+import './inline-models.js';
 // МСХ · Тэмүжин v1 — Sumiro-style chapters + Taichiud + GLB Temüjin.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { buildWorld } from './world.js';
-import { buildBurkhanWorld } from './scenes/burkhan.js';
-import { buildAct2World } from './scenes/act2.js';
-import { buildAct3World } from './scenes/act3.js';
-import {
-  buildTaichiudCapture,
-  buildTaichiudEscape,
-  buildTaichiudRiver,
-  buildTaichiudGer,
-} from './scenes/taichiud.js';
+import { buildBurkhan, buildCapture, buildEscape, buildRiver, buildFlight, buildAct2, buildAct3 } from './scenes/chapters.js';
+import { buildSorkhanGer } from './scenes/ger-interior.js';
 import {
   STORY, SOURCES, END_LINES, CHAPTERS, CREDITS,
   NEXT_TEASER, TAICHIUD_TEASER, ACT2_TEASER, ACT3_TEASER, MVP_DONE,
@@ -55,7 +50,7 @@ function ensureEnvMap(on) {
     scene.environmentIntensity = 0;
   }
 }
-const camera = new THREE.PerspectiveCamera(62, 1, 0.12, 420);
+const camera = new THREE.PerspectiveCamera(62, 1, 0.12, 900);
 
 // ---- Quality / adaptive ----
 let save = loadSave();
@@ -137,8 +132,65 @@ function clearScene() {
 
 const player = { pos: new THREE.Vector3(0, 0, 10), yaw: 0.15, bob: 0 };
 const cam = createCameraRig(camera, { distance: 5.0, height: 1.55, minPitch: -0.35, maxPitch: 0.55 });
+let jumpY = 0;
+let jumpV = 0;
+let riding = false;
+let mountAnim = null; // {t, dx, dz, dy}: offset from the final pose that eases to zero
+let walkFaceYaw = null; // last walking direction of Temujin (null = face away from camera)
 const mover = createMover(player);
-const audio = createSteppeAudio({ volume: 0.75 });
+const audio = createSteppeAudio({ volume: 0.75, music: false });
+// ---------------------------------------------------------------------------
+// Theme music: the attached morin khuur track, looped quietly under everything.
+// Starts on the first user click (autoplay policy); mute is remembered.
+// ---------------------------------------------------------------------------
+const theme = new Audio('./theme.mp3');
+theme.loop = true;
+theme.preload = 'auto';
+const THEME_VOL = 0.26; // namuuhan
+let themeDuckK = 1;
+let themeMuted = localStorage.getItem('msh-mute') === '1';
+theme.volume = 0;
+function themeApply() {
+  theme.muted = themeMuted;
+  const btn = document.getElementById('muteBtn');
+  if (btn) btn.textContent = themeMuted ? '🔇' : '🔊';
+}
+function themeFadeTo(target, seconds = 1.2) {
+  const from = theme.volume;
+  const t0 = performance.now();
+  const tick = () => {
+    const k = Math.min(1, (performance.now() - t0) / (seconds * 1000));
+    theme.volume = from + (target - from) * k;
+    if (k < 1 && theme._fade === tick) requestAnimationFrame(tick);
+  };
+  theme._fade = tick;
+  tick();
+}
+function themeStart() {
+  themeApply();
+  theme.play().then(() => themeFadeTo(THEME_VOL * themeDuckK, 1.5)).catch(() => {});
+}
+{
+  const u = audio.unlock;
+  audio.unlock = (...a) => { themeStart(); return u?.(...a); };
+  const d = audio.duck;
+  audio.duck = (amount = 1, seconds = 0.6) => {
+    themeDuckK = amount >= 1 ? 1 : 0.55;
+    if (!theme.paused) themeFadeTo(THEME_VOL * themeDuckK, seconds);
+    return d?.(amount, seconds);
+  };
+}
+addEventListener('DOMContentLoaded', () => {
+  themeApply();
+  const btn = document.getElementById('muteBtn');
+  if (btn) btn.onclick = () => {
+    themeMuted = !themeMuted;
+    localStorage.setItem('msh-mute', themeMuted ? '1' : '0');
+    themeApply();
+    audio.toggleMute?.();
+    if (!themeMuted && theme.paused) themeStart();
+  };
+});
 audio.attachUnlock?.();
 const simpleCine = createSimpleCine(camera, { duration: 2.8 });
 const pathCine = createPathCine(camera, ONON_INTRO);
@@ -176,6 +228,19 @@ const PLAYER_RADIUS = 0.3;
 const CHAPTER_ORDER = CHAPTERS.map((c) => c.id);
 
 function resolveCollisions(p) {
+  // the Onon is too deep to wade: on foot you stop at the bank, on horseback you can ford it
+  if (world?.riverX && !riding && !world.fordable) {
+    const rx = world.riverX(p.z);
+    const half = 7.4;
+    const dx = p.x - rx;
+    if (Math.abs(dx) < half) {
+      p.x = rx + (dx >= 0 ? half : -half);
+      if (Date.now() - (resolveCollisions.lastToast || 0) > 2500) {
+        resolveCollisions.lastToast = Date.now();
+        toast('Онон гүн байна · мориор гатал (F)');
+      }
+    }
+  }
   for (const c of world?.colliders || []) {
     const dx = p.x - c.x, dz = p.z - c.z;
     const d = Math.hypot(dx, dz);
@@ -189,13 +254,14 @@ function resolveCollisions(p) {
 
 function buildScene(id) {
   const qOpts = { quality };
-  if (id === 'burkhan') return buildBurkhanWorld(scene);
-  if (id === 'act2') return buildAct2World(scene);
-  if (id === 'act3') return buildAct3World(scene);
-  if (id === 'taichiud_capture') return buildTaichiudCapture(scene);
-  if (id === 'taichiud_escape') return buildTaichiudEscape(scene);
-  if (id === 'taichiud_river') return buildTaichiudRiver(scene);
-  if (id === 'taichiud_ger') return buildTaichiudGer(scene);
+  if (id === 'burkhan') return buildBurkhan(scene, qOpts);
+  if (id === 'act2') return buildAct2(scene, qOpts);
+  if (id === 'act3') return buildAct3(scene, qOpts);
+  if (id === 'taichiud_capture') return buildCapture(scene, qOpts);
+  if (id === 'taichiud_escape') return buildEscape(scene, qOpts);
+  if (id === 'taichiud_river') return buildRiver(scene, qOpts);
+  if (id === 'taichiud_ger') return buildSorkhanGer(scene, qOpts);
+  if (id === 'taichiud_flight') return buildFlight(scene, qOpts);
   return buildWorld(scene, qOpts);
 }
 
@@ -214,21 +280,15 @@ function npcsFromWorld(w, id) {
 }
 
 function audioModeFor(id) {
-  if (id === 'taichiud_escape' || id === 'taichiud_ger') return id === 'taichiud_ger' ? 'ger' : 'night';
+  if (id === 'taichiud_escape' || id === 'taichiud_ger' || id === 'taichiud_flight' || id === 'act3') return id === 'taichiud_ger' ? 'ger' : 'night';
   if (id === 'taichiud_river' || id === 'burkhan') return 'dawn';
   return 'day';
 }
 
 function afterCine(id, dialogueNode) {
   if (dialogueNode) startDialogue(dialogueNode);
-  else if (id === 'burkhan') startDialogue('burkhan_start');
-  else if (id === 'act2') state = 'explore';
-  else if (id === 'act3') startDialogue('mergen_start');
-  else if (id === 'taichiud_capture') startDialogue('taichiud_capture');
-  else if (id === 'taichiud_escape') state = 'explore';
-  else if (id === 'taichiud_river') startDialogue('taichiud_river');
-  else if (id === 'taichiud_ger') startDialogue('taichiud_ger');
-  else state = 'explore';
+  else if (world?.intro) startDialogue(world.intro);
+  else releasePlay();
 }
 
 function disposeHarvestFx() {
@@ -243,6 +303,10 @@ function disposeHarvestFx() {
 }
 
 function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
+  walkFaceYaw = null;
+  jumpY = 0; jumpV = 0;
+  if (riding && world?.mount) world.mount.userData.ridden = false;
+  riding = false;
   disposeHarvestFx();
   clearScene();
   activeCine = null;
@@ -251,18 +315,21 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
   world = buildScene(id);
   chapterId = world.chapterId || CHAPTERS.find((c) => c.scene === id)?.id || id;
   NPCS = npcsFromWorld(world, id);
+  world.bind?.(gameCtx);
+  $('endOverlay').classList.add('hidden');
   $('chapter').textContent = world.chapterLabel || 'Бүлэг';
   const stealthOn = !!(world.stealth && world.stealth.torches);
-  $('stealthHint').classList.toggle('hidden', !stealthOn);
+  $('stealthHint').classList.add('hidden');
 
   const sp = world.startPos || new THREE.Vector3(0, 0, 10);
   player.pos.set(sp.x, sp.y, sp.z);
   // Face camp / sun (north-ish) for f03 rider framing
-  player.yaw = id === 'camp' ? 0.05 : 0.15;
+  player.yaw = world.startYaw ?? (id === 'camp' ? 0.05 : 0.15);
+  cam.yaw = player.yaw;
   mover.reset();
 
   // ---- Harvest FX (gated by quality tier) ----
-  if (!id.includes('ger') && quality.mist) {
+  if (!id.includes('ger') && quality.mist && !world.steppe) {
     try {
       const mistOpts =
         id === 'camp' || id === 'taichiud_river'
@@ -276,7 +343,7 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
       harvestMist = null;
     }
   }
-  if (!id.includes('ger') && quality.motes > 0) {
+  if (!id.includes('ger') && quality.motes > 0 && !world.night) {
     try {
       const base = id === 'camp' ? quality.motes : Math.max(12, (quality.motes * 0.6) | 0);
       motes = createSteppeMotes(base);
@@ -315,15 +382,17 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
     }
   }
 
-  audio.setChapter?.(id === 'taichiud_capture' || id === 'taichiud_escape' || id === 'taichiud_river' || id === 'taichiud_ger' ? 'camp' : id);
+  audio.setChapter?.(id.startsWith('taichiud') ? 'camp' : id);
   audio.setMode?.(audioModeFor(id));
 
   const groundY = world.heightAt(sp.x, sp.z);
-  cam.view.pitch = 0.22;
-  cam.view.distance = id === 'camp' ? 6.2 : 5.0;
-  camera.far = quality.camFar || 420;
+  const open = id === 'camp' || world.steppe;
+  cam.view.pitch = open ? 0.1 : 0.36;
+  cam.view.lookLift = open ? 1.3 : 0.7;
+  cam.view.distance = open ? 6.2 : 3.0;
+  camera.far = open ? 900 : (quality.camFar || 420);
   camera.updateProjectionMatrix();
-  cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, 0.22);
+  cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, cam.view.pitch);
 
   if (cinematic) {
     state = 'cine';
@@ -368,7 +437,7 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
         onDone: () => {
           camera.fov = 62;
           camera.updateProjectionMatrix();
-          cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, 0.22);
+          cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, cam.view.pitch);
           activeCine = null;
           afterCine(id, dialogueNode);
         },
@@ -434,7 +503,14 @@ addEventListener('keydown', (e) => {
   if (state === 'dialogue' && moveKey && (dialogueId === 'intro0' || dialogueId === 'intro1' || dialogueId === 'intro2')) {
     show('intro_done');
   }
+  if (e.code === 'Space' && state === 'explore' && jumpY <= 0.001) {
+    jumpV = riding ? 4.6 : 5.2;
+    audio.jump?.();
+  }
+  if (e.code === 'KeyF' && state === 'explore') toggleRide();
   if (e.code === 'KeyE' && state === 'explore') {
+    const u = nearUsable();
+    if (u) { u.use(); return; }
     if (performPendingErrand()) return;
     const n = nearest();
     if (n) talk(n);
@@ -488,10 +564,10 @@ canvas.addEventListener('click', (e) => {
 
 const dist = (o) => Math.hypot(player.pos.x - o.position.x, player.pos.z - o.position.z);
 function nearest(r = 3.5) {
-  return NPCS.find((n) => n.obj && dist(n.obj) < r) || null;
+  return NPCS.find((n) => n.obj && (!n.when || n.when()) && dist(n.obj) < r) || null;
 }
 function nearSet(r = 4.2) {
-  return new Set(NPCS.filter((n) => n.obj && dist(n.obj) < r).map((n) => n.obj));
+  return new Set(NPCS.filter((n) => n.obj && (!n.when || n.when()) && dist(n.obj) < r).map((n) => n.obj));
 }
 function talk(n) {
   talkTarget = n.obj;
@@ -521,12 +597,45 @@ function renderSource() {
   $('source').innerHTML = `${c.text}<span class="ref">— ${c.ref}</span>`;
 }
 
+function setTitleVideo(on) {
+  const v = document.getElementById('titleVideo');
+  if (!v) return;
+  v.classList.toggle('hidden', !on);
+  if (on) v.play().catch(() => {});
+  else v.pause();
+}
+/** Opening film (the user's rendered flight over the Onon) before chapter I. */
+function playIntroFilm(done) {
+  const box = document.getElementById('introCine');
+  const v = document.getElementById('introVideo');
+  if (!box || !v) return done();
+  let finished = false;
+  const end = () => {
+    if (finished) return;
+    finished = true;
+    box.classList.add('hidden');
+    v.pause();
+    removeEventListener('keydown', onKey);
+    box.onclick = null;
+    done();
+  };
+  const onKey = (e) => { if (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') { e.preventDefault(); end(); } };
+  addEventListener('keydown', onKey);
+  box.onclick = end;
+  v.onended = end;
+  v.currentTime = 0;
+  box.classList.remove('hidden');
+  v.play().catch(end);
+  setTimeout(end, 17000);
+}
 function showTitle() {
   state = 'title';
   $('hud').classList.add('hidden');
   $('dialogue').classList.add('hidden');
   $('chapters').classList.add('hidden');
+  $('endOverlay').classList.add('hidden');
   $('title').classList.remove('hidden');
+  setTitleVideo(true);
   refreshContinue();
 }
 
@@ -538,6 +647,7 @@ function refreshContinue() {
   } else btn.classList.add('hidden');
 }
 refreshContinue();
+setTitleVideo(true);
 
 function renderChapterSelect() {
   const list = $('chapterList');
@@ -569,19 +679,46 @@ $('startBtn').onclick = () => {
   setTimeout(() => {
     title.classList.add('hidden');
     title.classList.remove('fade-out');
-    $('hud').classList.remove('hidden');
-    $('chapter').textContent = '0 бүлэг · Удиртгал';
-    loadScene('camp', { cinematic: true, dialogueNode: 'intro0' });
+    setTitleVideo(false);
+    playIntroFilm(() => {
+      $('hud').classList.remove('hidden');
+      $('chapter').textContent = '0 бүлэг · Удиртгал';
+      loadScene('camp', { cinematic: true, dialogueNode: 'intro0' });
+    });
   }, 400);
 };
+// Full-art title hotspots drive the same handlers
+const hot = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
+hot('hotStart', () => $('startBtn').click());
+hot('hotChapters', () => $('chaptersBtn').click());
+hot('hotCredits', () => $('creditsBtn').click());
+hot('hotFps', () => { showPerf = !showPerf; updatePerfHud(true); });
+hot('hotCont', () => {
+  if (!$('continueBtn').classList.contains('hidden')) $('continueBtn').click();
+  else $('chaptersBtn').click();
+});
+hot('hotQuick', () => {
+  // Хурдан тоглох: бага чанар, киногүй, шууд тал руу
+  audio.unlock();
+  setQuality('low', { manual: true, reloadScene: false });
+  if (!save) { writeSave({ unlocked: ['camp'], lastChapter: 'camp', flags: {} }); save = loadSave(); }
+  $('title').classList.add('hidden');
+  setTitleVideo(false);
+  $('hud').classList.remove('hidden');
+  const ch = CHAPTERS.find((c) => c.id === save.lastChapter) || CHAPTERS[0];
+  loadScene(ch.scene, { cinematic: false });
+  if (world.intro) startDialogue(world.intro); else releasePlay();
+});
 $('continueBtn').onclick = () => {
   audio.unlock();
   $('title').classList.add('hidden');
+  setTitleVideo(false);
   const ch = CHAPTERS.find((c) => c.id === save.lastChapter) || CHAPTERS[0];
   loadScene(ch.scene, { cinematic: true });
 };
 $('chaptersBtn').onclick = () => {
   $('title').classList.add('hidden');
+  setTitleVideo(false);
   $('chapters').classList.remove('hidden');
   renderChapterSelect();
   state = 'chapters';
@@ -614,8 +751,14 @@ function campTaskDone() {
 function updateObjective() {
   const el = $('objective');
   if (!el) return;
-  if (sceneId !== 'camp' || state === 'title' || state === 'end') {
+  if (state === 'title' || state === 'end') {
     el.classList.add('hidden');
+    return;
+  }
+  if (sceneId !== 'camp') {
+    const o = world?.objective?.();
+    el.classList.toggle('hidden', !o);
+    if (o) el.textContent = o;
     return;
   }
   const f = campFlags();
@@ -702,7 +845,14 @@ function startDialogue(id) {
 }
 
 function show(id) {
+  const override = world?.onNode?.(id, dialogueId);
+  if (override) id = override;
   dialogueId = id;
+  if (typeof id === 'string' && id.startsWith('goto:')) {
+    $('dialogue').classList.add('hidden');
+    loadScene(id.slice(5), { cinematic: true });
+    return;
+  }
   if (id === 'intro_done' || id === 'camp_go') {
     $('dialogue').classList.add('hidden');
     if (id === 'camp_go') {
@@ -800,7 +950,9 @@ function endCard({ eyebrow, title, body, button, onNext, memory }) {
   state = 'end';
   $('dialogue').classList.add('hidden');
   $('hud').classList.add('hidden');
-  const o = $('title');
+  const o = $('endOverlay');
+  $('title').classList.add('hidden');
+  setTitleVideo(false);
   const mem = memory !== undefined ? memory : (END_LINES[flag] || '');
   o.innerHTML = `
     <div class="title-card end-card">
@@ -881,7 +1033,8 @@ function checkStealth(dt) {
     const d = Math.hypot(player.pos.x - tr.x, player.pos.z - tr.z);
     if (d < (tr.radius || 6.5) && moveSpeed > 0.4) {
       spottedCooldown = 4;
-      startDialogue('taichiud_spotted');
+      startDialogue(world.spottedNode || 'taichiud_spotted');
+      world.onSpotted?.();
       return;
     }
   }
@@ -950,7 +1103,9 @@ function tick() {
     if (keys.ArrowLeft) cam.yaw += dt * 1.8;
     if (keys.ArrowRight) cam.yaw -= dt * 1.8;
     player.yaw = cam.yaw;
-    const lim = sceneId === 'burkhan' ? 45 : sceneId.includes('ger') ? 8 : 50;
+    const prevX = player.pos.x;
+    const prevZ = player.pos.z;
+    const lim = world.limit ?? (sceneId.includes('ger') ? 8 : 50);
     const result = mover.step(
       dt,
       {
@@ -958,12 +1113,19 @@ function tick() {
         back: !!(keys.KeyS || keys.ArrowDown),
         left: !!keys.KeyA,
         right: !!keys.KeyD,
+        speedMul: (riding ? 2.4 : 1) * (world.speedMul?.() ?? 1),
       },
       resolveCollisions,
       { min: -lim, max: lim }
     );
     moving = result.moving;
     moveSpeed = result.speed || 0;
+    {
+      // face the way we actually walk (strafe/back included); the model faces +Z
+      const vx = player.pos.x - prevX;
+      const vz = player.pos.z - prevZ;
+      if (moving && vx * vx + vz * vz > 1e-8) walkFaceYaw = Math.atan2(vx, vz);
+    }
     player.bob += dt * (moving ? 8.5 : 1.6);
     checkStealth(dt);
 
@@ -972,12 +1134,15 @@ function tick() {
       ? '[E] Загас барих'
       : f.pendingErrand === 'family' && !f.pendingDone && nearBerry()
         ? '[E] Мойл түүх'
-        : null;
+        : !riding && nearMount()
+          ? '[F] Морь унах'
+          : null;
+    const usable = nearUsable();
     const n = nearest();
-    const prompt = errandLine || (n ? `[E] ${n.name}` : null);
+    const prompt = (usable ? `[E] ${usable.label}` : null) || errandLine || (n ? `[E] ${n.name}` : null);
     $('prompt').classList.toggle('hidden', !prompt);
     if (prompt) $('prompt').textContent = prompt;
-    if (sceneId === 'camp') updateObjective();
+    updateObjective();
   } else {
     moving = false;
     moveSpeed = 0;
@@ -985,16 +1150,46 @@ function tick() {
 
   const groundY = heightAt(player.pos.x, player.pos.z);
   player.pos.y = groundY;
-  temujin.position.set(player.pos.x, groundY, player.pos.z);
+  // jump: simple ballistic arc above the terrain
+  if (jumpY > 0 || jumpV > 0) {
+    jumpV -= 14 * dt;
+    jumpY += jumpV * dt;
+    if (jumpY <= 0) { jumpY = 0; jumpV = 0; }
+  }
+  const seat = riding && world?.mount ? world.mount.userData.seatY - 0.86 - 0.05 : 0;
+  temujin.position.set(player.pos.x, groundY + jumpY + seat, player.pos.z);
+  if (riding && world?.mount) {
+    // sit in the saddle, not on the withers: a little back along the horse's heading
+    const hy = world.mount.rotation.y;
+    temujin.position.x -= Math.sin(hy) * 0.34;
+    temujin.position.z -= Math.cos(hy) * 0.34;
+  }
+  if (mountAnim) {
+    // swing up into / down from the saddle instead of snapping
+    mountAnim.t += dt / 0.5;
+    const k = Math.min(1, mountAnim.t);
+    const e = k * k * (3 - 2 * k);
+    temujin.position.x += mountAnim.dx * (1 - e);
+    temujin.position.z += mountAnim.dz * (1 - e);
+    temujin.position.y += mountAnim.dy * (1 - e) + Math.sin(Math.PI * k) * 0.42;
+    if (k >= 1) mountAnim = null;
+  }
+  temujin.userData.setRiding?.(riding);
+  if (riding && world?.mount) {
+    const m = world.mount;
+    m.position.set(player.pos.x, groundY + jumpY, player.pos.z);
+    m.rotation.y = temujin.rotation.y;
+    m.userData.update(dt, performance.now() / 1000, moveSpeed);
+  }
   {
-    const face = cam.yaw + Math.PI;
+    const face = walkFaceYaw ?? cam.yaw + Math.PI;
     let dy = face - temujin.rotation.y;
     while (dy > Math.PI) dy -= Math.PI * 2;
     while (dy < -Math.PI) dy += Math.PI * 2;
     temujin.rotation.y += dy * Math.min(1, dt * 8);
   }
   if (world.hoelun) world.hoelun.userData.talking = state === 'dialogue' && talkTarget === world.hoelun;
-  temujin.userData.setMoving?.(moving && state === 'explore');
+  temujin.userData.setMoving?.(moving && state === 'explore' && !riding && jumpY <= 0);
   temujin.userData.setSpeed?.(moveSpeed);
 
   if (state === 'explore') {
@@ -1032,7 +1227,7 @@ function tick() {
 }
 tick();
 
-window.__mshLoadScene = (id) => loadScene(id, { cinematic: false });
+window.__mshLoadScene = (id) => { loadScene(id, { cinematic: false }); if (world.intro) startDialogue(world.intro); else releasePlay(); };
 window.__mshShow = show;
 window.__mshStartDialogue = startDialogue;
 window.__mshSetQuality = (id) => setQuality(id, { manual: true, reloadScene: true });
@@ -1117,3 +1312,82 @@ window.__mshAerial = (opts = {}) => {
   };
 };
 window.__mshUnlockAerial = () => { aerialLocked = false; };
+/** Test helper: quest target positions in the current camp. */
+window.__mshTargets = () => ({
+  hoelun: world?.hoelun ? { x: world.hoelun.position.x, z: world.hoelun.position.z } : null,
+  chirha: world?.chirha ? { x: world.chirha.position.x, z: world.chirha.position.z } : null,
+  fish: world?.fishSpot ? { x: world.fishSpot.position.x, z: world.fishSpot.position.z } : null,
+  berries: (world?.berryPoints || []).map((p) => ({ x: p.x, z: p.z })),
+});
+window.__mshCamYaw = (y) => { cam.view.yaw = y; return y; };
+
+function nearMount(r = 2.6) {
+  const m = world?.mount;
+  return !!m && Math.hypot(player.pos.x - m.position.x, player.pos.z - m.position.z) < r;
+}
+function toggleRide() {
+  const m = world?.mount;
+  if (!m) return;
+  if (riding) {
+    riding = false;
+    m.userData.ridden = false;
+    // step off to the left of the horse
+    const yaw = world.temujin.rotation.y;
+    m.position.set(player.pos.x, m.position.y, player.pos.z);
+    player.pos.x += Math.cos(yaw) * 1.1;
+    player.pos.z -= Math.sin(yaw) * 1.1;
+    mountAnim = { t: 0, dx: -Math.cos(yaw) * 1.1, dz: Math.sin(yaw) * 1.1, dy: m.userData.seatY - 0.91 };
+    cam.view.distance = 6.2;
+    toast('Мориноос буулаа (F)');
+    return;
+  }
+  if (!nearMount()) return;
+  riding = true;
+  m.userData.ridden = true;
+  mountAnim = { t: 0, dx: player.pos.x - m.position.x, dz: player.pos.z - m.position.z, dy: -(m.userData.seatY - 0.91) };
+  player.pos.x = m.position.x;
+  player.pos.z = m.position.z;
+  world.temujin.rotation.y = m.rotation.y;
+  walkFaceYaw = m.rotation.y;
+  cam.view.distance = 8.0;
+  audio.neigh?.();
+  toast('Морь унлаа · F буух');
+}
+window.__mshRide = () => { if (world?.mount) { player.pos.x = world.mount.position.x + 0.5; player.pos.z = world.mount.position.z; } toggleRide(); return riding; };
+window.__mshJump = () => { if (jumpY <= 0.001) jumpV = riding ? 4.6 : 5.2; return true; };
+window.__mshJumpY = () => jumpY;
+function nearUsable() {
+  for (const u of world?.usables || []) {
+    if (u.when && !u.when()) continue;
+    if (Math.hypot(player.pos.x - u.x, player.pos.z - u.z) < u.r) return u;
+  }
+  return null;
+}
+const gameCtx = {
+  player,
+  state: () => state,
+  riding: () => riding,
+  toast: (m, ms) => toast(m, ms),
+  startDialogue: (id) => startDialogue(id),
+  loadScene: (id) => loadScene(id, { cinematic: true }),
+  teleport: (x, z) => { player.pos.x = x; player.pos.z = z; mover.reset(); },
+  dismount: () => { if (riding) toggleRide(); },
+  mount: () => { if (!riding && world?.mount) { player.pos.x = world.mount.position.x; player.pos.z = world.mount.position.z; toggleRide(); } },
+  keys,
+};
+window.__mshWorld = () => world;
+window.__mshTheme = () => theme;
+window.__mshEndCard = () => endCard({ eyebrow: 'Туршилт', title: 'Тоглоом дууслаа · Чингис', body: 'тест', button: 'Нүүр рүү', onNext: () => showTitle() });
+function toast(msg, ms = 1600) {
+  let el = document.getElementById('msh-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'msh-toast';
+    el.style.cssText = 'position:fixed;left:50%;top:18%;transform:translateX(-50%);padding:8px 16px;border-radius:8px;background:rgba(30,22,14,.82);color:#f3e4c4;font:600 15px system-ui,sans-serif;pointer-events:none;transition:opacity .4s;z-index:50';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = '0'; }, ms);
+}

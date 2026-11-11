@@ -43,7 +43,7 @@ export function createCameraRig(camera, opts = {}) {
   const springOmega = opts.springOmega ?? 10;
   const posOmega = opts.posOmega ?? 11;
 
-  const view = { yaw: 0.35, pitch: 0.18, distance, height };
+  const view = { yaw: 0.35, pitch: 0.18, distance, height, lookLift: 0 };
   const yawS = { x: view.yaw, v: 0 };
   const pitchS = { x: view.pitch, v: 0 };
   const distS = { x: view.distance, v: 0 };
@@ -113,7 +113,7 @@ export function createCameraRig(camera, opts = {}) {
     // Never sink under terrain soft floor
     camera.position.y = Math.max(camera.position.y, focus.y + 0.9);
 
-    lookAt.set(xS.x, yS.x + 0.08, zS.x);
+    lookAt.set(xS.x, yS.x + 0.08 + (view.lookLift || 0), zS.x);
     camera.lookAt(lookAt);
 
     return { yaw, pitch };
