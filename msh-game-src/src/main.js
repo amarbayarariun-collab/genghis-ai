@@ -170,7 +170,9 @@ function themeFadeTo(target, seconds = 1.2) {
 }
 function themeStart() {
   themeApply();
-  theme.play().then(() => themeFadeTo(THEME_VOL * themeDuckK, 1.5)).catch(() => {});
+  if (theme._on || !theme.paused) return;
+  theme._on = 1;
+  theme.play().then(() => { theme._on = 0; themeFadeTo(THEME_VOL * themeDuckK, 1.5); }).catch(() => { theme._on = 0; });
 }
 {
   const u = audio.unlock;
