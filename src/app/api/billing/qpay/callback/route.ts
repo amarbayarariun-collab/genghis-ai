@@ -33,7 +33,10 @@ export async function POST(request: Request) {
   }
 
   if (!invoiceId) {
-    return Response.json({ ok: false, error: "missing invoice_id" }, { status: 400 });
+    return Response.json(
+      { ok: false, error: "invoice_id дутуу байна." },
+      { status: 400 }
+    );
   }
 
   const local = await findInvoiceByQpayId(invoiceId);

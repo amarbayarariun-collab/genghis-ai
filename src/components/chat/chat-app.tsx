@@ -470,7 +470,7 @@ export function ChatApp() {
                     className="ml-2 underline"
                     onClick={() => setError(null)}
                   >
-                    Хаах
+                    {t("closeDialog")}
                   </button>
                 </div>
               </div>
