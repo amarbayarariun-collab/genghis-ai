@@ -124,9 +124,9 @@ export function HomeHero({
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center px-3 pt-14 pb-3 sm:px-4 sm:pt-10 md:px-8 md:pt-6">
+        <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-3 pt-14 pb-3 sm:px-4 sm:pt-10 md:px-8 md:pt-6">
           <div className="animate-fade-up mx-auto w-full max-w-3xl text-center">
-            <h1 className="text-[2.45rem] font-semibold leading-tight tracking-tight text-white drop-shadow-sm sm:text-6xl md:text-7xl">
+            <h1 className="text-[2.1rem] font-semibold leading-tight tracking-tight text-white drop-shadow-sm sm:text-6xl md:text-7xl">
               {greeting || (
                 <span className="invisible" aria-hidden>
                   {t("greetingAfternoon")}
@@ -185,7 +185,7 @@ export function HomeHero({
                   onClick={() =>
                     onSubmit(prompt, { mode: "chat", attachments: [] })
                   }
-                  className="max-w-full rounded-full border border-white/20 bg-ink/40 px-3 py-1.5 text-left text-[12px] leading-snug text-white/90 backdrop-blur-md transition hover:bg-ink/55 disabled:opacity-60 sm:text-[13px]"
+                  className="max-w-full min-h-11 rounded-full border border-white/20 bg-ink/40 px-3 py-2.5 text-left text-[12px] leading-snug text-white/90 backdrop-blur-md transition hover:bg-ink/55 disabled:opacity-60 sm:min-h-0 sm:py-1.5 sm:text-[13px]"
                 >
                   {prompt}
                 </button>
@@ -204,8 +204,8 @@ export function HomeHero({
                 onClick={() => onTool(pill.mode)}
                 className={
                   mode === pill.mode
-                    ? "inline-flex items-center gap-1.5 rounded-full border border-gold/60 bg-gold/25 px-3 py-1.5 text-xs text-white backdrop-blur-md transition sm:text-[13px]"
-                    : "inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-ink/35 px-3 py-1.5 text-xs text-white backdrop-blur-md transition hover:bg-ink/50 sm:text-[13px]"
+                    ? "inline-flex min-h-11 items-center gap-1.5 rounded-full border border-gold/60 bg-gold/25 px-3 py-2 text-xs text-white backdrop-blur-md transition sm:min-h-0 sm:py-1.5 sm:text-[13px]"
+                    : "inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/25 bg-ink/35 px-3 py-2 text-xs text-white backdrop-blur-md transition hover:bg-ink/50 sm:min-h-0 sm:py-1.5 sm:text-[13px]"
                 }
               >
                 <pill.icon className="size-3.5 opacity-90" />
@@ -215,7 +215,7 @@ export function HomeHero({
           </div>
         </div>
 
-        <div className="relative z-10 px-4 pb-5 md:px-8 md:pb-7">
+        <div className="relative z-10 px-3 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-4 md:px-8 md:pb-7">
           <div className="mx-auto grid w-full max-w-5xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {features.map((feature, i) => (
               <button
