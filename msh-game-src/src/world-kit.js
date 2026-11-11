@@ -30,6 +30,37 @@ export function skyDome({ top, mid, horizon, bottom }, radius = 300) {
   return new THREE.Mesh(new THREE.SphereGeometry(Math.min(radius, 150), 28, 18), mat);
 }
 
+/** Tapered ear flap. Thin along X, wide face on YZ, narrower at the bottom. */
+function earFlapGeometry(tall) {
+  const hx = 0.009 * tall;
+  const yT = 0.078 * tall;
+  const yB = -0.078 * tall;
+  const zT = 0.046 * tall;
+  const zB = 0.024 * tall;
+  const corners = [
+    [-hx, yT, -zT], [hx, yT, -zT], [hx, yT, zT], [-hx, yT, zT],
+    [-hx, yB, -zB], [hx, yB, -zB], [hx, yB, zB], [-hx, yB, zB],
+  ];
+  const idx = [
+    0, 1, 2, 0, 2, 3,
+    4, 6, 5, 4, 7, 6,
+    0, 4, 5, 0, 5, 1,
+    3, 2, 6, 3, 6, 7,
+    0, 3, 7, 0, 7, 4,
+    1, 5, 6, 1, 6, 2,
+  ];
+  const pos = new Float32Array(idx.length * 3);
+  idx.forEach((i, n) => {
+    pos[n * 3] = corners[i][0];
+    pos[n * 3 + 1] = corners[i][1];
+    pos[n * 3 + 2] = corners[i][2];
+  });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
+  return geo;
+}
+
 /** Low brown fur malgai. Wide brim and ear flaps. No cone, no pompon, no white trim. */
 export function mongolHat(tall = 1) {
   const g = new THREE.Group();
@@ -40,11 +71,17 @@ export function mongolHat(tall = 1) {
   brim.position.y = 1.33 * tall;
   const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * tall, 0.14 * tall, 0.055 * tall, 12), hide);
   crown.position.y = 1.37 * tall;
-  const flapGeo = new THREE.BoxGeometry(0.055 * tall, 0.42 * tall, 0.1 * tall);
+  // Ear flaps hang from the brim beside the ears. Forward is +X, ears are ±Z.
+  // Wide face is the YZ plane and the bottom is narrower, so they read as flaps.
+  const flapGeo = earFlapGeometry(tall);
   const flapL = new THREE.Mesh(flapGeo, fur);
-  flapL.position.set(0.18 * tall, 1.06 * tall, -0.16 * tall);
+  flapL.name = 'ear-flap';
+  flapL.position.set(0.045 * tall, 1.235 * tall, 0.12 * tall);
+  flapL.rotation.x = 0.14;
   const flapR = new THREE.Mesh(flapGeo, fur);
-  flapR.position.set(0.18 * tall, 1.06 * tall, 0.16 * tall);
+  flapR.name = 'ear-flap';
+  flapR.position.set(0.045 * tall, 1.235 * tall, -0.12 * tall);
+  flapR.rotation.x = -0.14;
   g.add(brim, crown, flapL, flapR);
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return g;
