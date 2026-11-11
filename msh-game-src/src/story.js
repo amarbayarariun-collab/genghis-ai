@@ -595,6 +595,13 @@ export const CHAPTERS = [
     source: '§90–94',
   },
   {
+    id: 'horses',
+    scene: 'horses',
+    title: 'II · Найман адуу',
+    blurb: 'Хулгайлагдсан адуу · Боорчи',
+    source: '§90',
+  },
+  {
     id: 'act3',
     scene: 'act3',
     title: 'III · Мэргид · Чингис',
