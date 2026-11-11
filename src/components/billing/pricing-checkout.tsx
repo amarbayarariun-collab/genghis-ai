@@ -151,7 +151,9 @@ export function PricingCheckout() {
         notice?: string;
         paidUntil?: string | null;
       };
-      if (!res.ok) throw new Error(data.error || "Mock complete failed");
+      if (!res.ok) {
+        throw new Error(data.error || "Mock төлбөрийг дуусгаж чадсангүй.");
+      }
       setNotice(data.notice || "Mock төлбөр амжилттай.");
       setInvoice({ ...invoice, status: "paid" });
       setPlan({ tier: "paid", paidUntil: data.paidUntil || null });
@@ -165,19 +167,17 @@ export function PricingCheckout() {
 
   return (
     <main className="min-h-dvh bg-[radial-gradient(ellipse_at_top,#F8F6F1_0%,#EFE8DC_45%,#E4D5BE_100%)] text-ink">
-      <div className="mx-auto flex max-w-3xl flex-col gap-10 px-6 py-12">
+      <div className="mx-auto flex max-w-3xl flex-col gap-10 px-4 py-10 sm:px-6 sm:py-12">
         <header className="space-y-3">
           <p className="text-xs tracking-[0.2em] text-ink/45 uppercase">
             Genghis AI
           </p>
           <h1 className="font-heading text-4xl font-semibold tracking-tight sm:text-5xl">
-            Багц · QPay
+            Багц сонгох
           </h1>
           <p className="max-w-xl text-base text-ink/70">
-            Үнэгүй багц сард {FREE_PLAN.messagesPerMonth} мессеж. Pro багц $
-            {PAID_PLAN.priceUsd} (~{PAID_PLAN.priceMnt.toLocaleString("mn-MN")}₮)
-            · {PAID_PLAN.messagesPerMonth} мессеж + {PAID_PLAN.imagesPerMonth}{" "}
-            зураг · {PAID_PLAN.chatModel}.
+            Монголоос дэлхийтэй холбогд. Монгол хэлээр асуу, сур, бич, бүтээ.
+            Үнэгүй багцаар эхэлж, илүү их хэрэгтэй үед Pro руу шилжээрэй.
           </p>
           <Link
             href="/"
@@ -187,8 +187,8 @@ export function PricingCheckout() {
           </Link>
         </header>
 
-        <section className="grid gap-6 sm:grid-cols-2">
-          <article className="space-y-4 border border-ink/10 bg-white/70 p-6 backdrop-blur">
+        <section className="grid gap-4 sm:grid-cols-2 sm:gap-6">
+          <article className="space-y-4 border border-ink/10 bg-white/70 p-5 sm:p-6 backdrop-blur">
             <h2 className="font-heading text-2xl font-semibold">Үнэгүй</h2>
             <p className="text-3xl font-semibold tabular-nums">0₮</p>
             <ul className="space-y-2 text-sm text-ink/75">
@@ -198,21 +198,18 @@ export function PricingCheckout() {
             </ul>
           </article>
 
-          <article className="space-y-4 border border-[#C9A36B]/50 bg-[#C9A36B]/10 p-6">
+          <article className="space-y-4 border border-[#C9A36B]/50 bg-[#C9A36B]/10 p-5 sm:p-6">
             <h2 className="font-heading text-2xl font-semibold">Pro</h2>
             <p className="text-3xl font-semibold tabular-nums">
-              ${PAID_PLAN.priceUsd}
+              {PAID_PLAN.priceMnt.toLocaleString("mn-MN")}₮
               <span className="ml-2 text-base font-normal text-ink/60">
-                · ~{PAID_PLAN.priceMnt.toLocaleString("mn-MN")}₮ / сар
+                / сар · ~${PAID_PLAN.priceUsd}
               </span>
             </p>
             <ul className="space-y-2 text-sm text-ink/75">
               <li>{PAID_PLAN.messagesPerMonth} мессеж / сар</li>
               <li>{PAID_PLAN.imagesPerMonth} зураг / сар</li>
-              <li>
-                {PAID_PLAN.chatModel} (reasoning_effort=
-                {PAID_PLAN.reasoningEffort})
-              </li>
+              <li>Загвар: {PAID_PLAN.chatModel}</li>
               <li>Төлбөр амжилттай болсны дараа 30 хоног</li>
             </ul>
             <p className="text-xs text-ink/55">
@@ -221,8 +218,8 @@ export function PricingCheckout() {
           </article>
         </section>
 
-        <section className="space-y-4 border border-ink/10 bg-white/80 p-6">
-          <h2 className="font-heading text-xl font-semibold">Төлбөр</h2>
+        <section className="space-y-4 border border-ink/10 bg-white/80 p-5 sm:p-6">
+          <h2 className="font-heading text-xl font-semibold">Төлбөр (QPay)</h2>
           {plan?.tier === "paid" ? (
             <p className="text-sm text-ink/70">
               Pro идэвхтэй
@@ -233,7 +230,9 @@ export function PricingCheckout() {
             </p>
           ) : (
             <p className="text-sm text-ink/70">
-              Одоогийн багц: үнэгүй. Pro руу шилжихийн тулд нэвтэрч QPay-ээр төлнө үү.
+              Одоогийн багц: үнэгүй ({FREE_PLAN.messagesPerMonth} мессеж / сар).
+              Pro руу шилжихийн тулд нэвтэрч QPay-ээр төлнө үү. QPay
+              тохируулаагүй үед mock горим ажиллана (мөнгө авахгүй).
             </p>
           )}
 
@@ -268,7 +267,6 @@ export function PricingCheckout() {
                 {invoice.mock ? " · mock" : ""}
               </p>
               {qrImage ? (
-                // QPay returns base64 PNG without data-url prefix in some responses.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   alt="QPay QR"
