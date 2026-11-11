@@ -58,6 +58,10 @@ export const SOURCES = {
     text: 'Монголчууд Тэмүжинг Чингис хэмээн өргөмжилсөн — анхны цол, эзэнт гүрний төгсгөл биш.',
     ref: 'Нууц Товчоо, §123 (товчилсон)',
   },
+  s118: {
+    text: 'Тэмүжин Жамухагаас шөнө салж, гурван айлаа дагуулан нүүжээ.',
+    ref: 'Нууц Товчоо, §118 (товчилсон)',
+  },
 };
 
 export const STORY = {
@@ -601,11 +605,25 @@ export const CHAPTERS = [
     source: '§90–94',
   },
   {
+    id: 'horses',
+    scene: 'horses',
+    title: 'II · Найман адуу',
+    blurb: 'Хулгайлагдсан адуу · Боорчи',
+    source: '§90',
+  },
+  {
     id: 'act3',
     scene: 'act3',
     title: 'III · Мэргид · Чингис',
     blurb: 'Эвсэл · анхны цол',
     source: '§102–123',
+  },
+  {
+    id: 'jamukha',
+    scene: 'jamukha',
+    title: 'IV · Жамухатай зөрчил',
+    blurb: 'Шөнийн салгалт · гурван айл',
+    source: '§118',
   },
 ];
 
@@ -613,7 +631,8 @@ export const NEXT_TEASER = 'Дараа: Бурхан халдун — Тайчу
 export const TAICHIUD_TEASER = 'Ia бүлэг: Тайчууд олзлолт — буулга, Улаан тойрог шөнө, Онон зэгс, Сорхан-Шира (§81–87).';
 export const ACT2_TEASER = 'II бүлэг: Боорчи · Бөртэ · анда холбоо.';
 export const ACT3_TEASER = 'III бүлэг: Мэргид хямрал · эвсэл · анхны Чингис цол.';
-export const MVP_DONE = 'Бүтэн тоглоом Act 0–III дууслаа: өнчин өдрүүд → Тайчууд → Боорчи/Бөртэ → Чингис. Дараа: Жамухатай зөрчил.';
+export const JAMUKHA_TEASER = 'IV бүлэг: Жамухатай зөрчил — шөнийн салгалт, гурван айл (§118).';
+export const MVP_DONE = 'Бүтэн тоглоом дууслаа: өнчин өдрүүд → Тайчууд → Боорчи · Бөртэ → Найман адуу → Чингис → Жамухатай зөрчил.';
 export const CREDITS = `Монголын Нууц Товчоо · Тэмүжин
 Нууц Товчоо (Ц. Дамдинсүрэн)
 Playable Legacy · Sumiro-inspired feel
@@ -754,6 +773,26 @@ Object.assign(STORY, {
     speaker: 'Хуралдай', source: 's123',
     text: 'Тэмүжин, Чингис хаан.\nӨнчин өдрүүдээс анхны цол хүртэлх зам энд төгсөв.',
     next: 'act3_end',
+  },
+  horses_intro: {
+    speaker: 'Боорчи', source: 's90',
+    text: 'Найман адуу алга. Морь унаад хамт нэхье.',
+    next: 'close',
+  },
+  horses_line: {
+    speaker: 'Боорчи', source: 's90',
+    text: 'Хулгайлагдсан адууг уяан дээр буцааж ав.',
+    next: 'close',
+  },
+  jamukha_intro: {
+    speaker: 'Жамуха', source: 's118',
+    text: 'Хамт бууя гэж байна. Мордоод гурван айлаа ав.',
+    next: 'close',
+  },
+  jamukha_line: {
+    speaker: 'Жамуха', source: 's118',
+    text: 'Шөнө салгалт. Морь унаад айлд ойрт.',
+    next: 'close',
   },
 });
 STORY.burkhan_start.choiceNext = 'burkhan_hide';
