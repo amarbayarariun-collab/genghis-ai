@@ -43,7 +43,7 @@ function allFailedError(configs: ImageApiConfig[], detail: string): string {
   if (credits) {
     return "Зураг үүсгэж чадсангүй. OpenAI image credits/billing хүрэлцэхгүй байна. Prepaid credits цэнэглээд Production Redeploy хийнэ үү. Үндсэн замд IMAGE_PROVIDER unset / auto үлдээж AP (xai-…) ашиглана уу.";
   }
-  return "Зураг үүсгэж чадсангүй. OpenAI image model эсвэл түлхүүр буруу байна. dall-e-3 / gpt-image-1 retired — OPENAI_IMAGE_MODEL=gpt-image-2.5-flare, OPENAI_IMAGE_QUALITY=low, OPENAI_IMAGE_SIZE=1024x1024 тавина уу. Эсвэл IMAGE_PROVIDER unset үлдээж xAI ашиглана уу.";
+  return "Зураг үүсгэж чадсангүй. OpenAI image model эсвэл түлхүүр буруу байна. dall-e-3 / gpt-image-1 retired: OPENAI_IMAGE_MODEL=gpt-image-2.5-flare, OPENAI_IMAGE_QUALITY=low, OPENAI_IMAGE_SIZE=1024x1024 тавина уу. Эсвэл IMAGE_PROVIDER unset үлдээж xAI ашиглана уу.";
 }
 
 async function tryGenerateWithConfig(
