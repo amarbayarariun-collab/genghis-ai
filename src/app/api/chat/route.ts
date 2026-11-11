@@ -1,8 +1,8 @@
+import { sanitizeApiError } from "@/lib/api-config";
 import {
-  getApiKey,
-  resolveApiConfig,
-  sanitizeApiError,
-} from "@/lib/api-config";
+  resolveChatProvider,
+  type ChatProviderConfig,
+} from "@/lib/chat-provider";
 import { isLocale, type Locale } from "@/lib/locale";
 import { streamMockReply } from "@/lib/mock-chat";
 import { systemPromptForMode } from "@/lib/tools";
@@ -87,15 +87,15 @@ function lastUserText(messages: IncomingMessage[]): string {
   return "";
 }
 
-async function* streamOpenAI(
+async function* streamChatCompletion(
   messages: IncomingMessage[],
-  apiKey: string,
+  chat: ChatProviderConfig,
   mode: ToolMode,
   webContext: string | undefined,
   locale: Locale,
   signal?: AbortSignal
 ): AsyncGenerator<string> {
-  const { baseUrl, model } = resolveApiConfig(apiKey);
+  const { baseUrl, model, apiKey } = chat;
   let system = systemPromptForMode(mode, locale);
   if (webContext) {
     system +=
@@ -104,12 +104,17 @@ async function* streamOpenAI(
         : `\n\n[Вэб хайлтын үр дүн]\n${webContext}`;
   }
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  // Self-hosted OpenAI-compatible servers may not need a key.
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify({
       model,
       stream: true,
@@ -199,14 +204,14 @@ export async function POST(request: Request) {
   }
 
   const prompt = lastUserText(messages);
-  const apiKey = getApiKey();
+  const chat = resolveChatProvider();
 
   try {
-    if (apiKey) {
+    if (chat.configured) {
       const stream = encoderStream(
-        streamOpenAI(
+        streamChatCompletion(
           messages,
-          apiKey,
+          chat,
           mode,
           webContext,
           locale,
@@ -217,7 +222,8 @@ export async function POST(request: Request) {
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
           "Cache-Control": "no-cache, no-transform",
-          "X-Genghis-Mode": "openai",
+          "X-Genghis-Mode": chat.modeHeader,
+          "X-Genghis-Provider": chat.provider,
         },
       });
     }
@@ -233,7 +239,7 @@ export async function POST(request: Request) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Тодорхойгүй алдаа гарлаа.";
-    if (apiKey) {
+    if (chat.configured) {
       const stream = encoderStream(
         (async function* () {
           yield `⚠️ Жинхэнэ API ажилласангүй (${sanitizeApiError(message)}). Демо горим руу шилжлээ.\n\n`;
