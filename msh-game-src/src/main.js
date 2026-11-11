@@ -2,16 +2,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { buildWorld } from './world.js';
-import { buildBurkhanWorld } from './scenes/burkhan.js';
-import { buildAct2World } from './scenes/act2.js';
-import { buildHorsesWorld } from './scenes/horses.js';
-import { buildAct3World } from './scenes/act3.js';
-import {
-  buildTaichiudCapture,
-  buildTaichiudEscape,
-  buildTaichiudRiver,
-  buildTaichiudGer,
-} from './scenes/taichiud.js';
 import {
   STORY, SOURCES, END_LINES, CHAPTERS, CREDITS,
   NEXT_TEASER, TAICHIUD_TEASER, ACT2_TEASER, ACT3_TEASER, MVP_DONE,
@@ -232,6 +222,7 @@ let encounter = null;
 let fLatch = false;
 let toastText = '';
 let horsesChimed = false;
+const sceneMod = {};
 let promptText = '';
 let fTouch = false;
 let qTouch = false;
@@ -260,6 +251,7 @@ let talkTarget = null;
 let spottedCooldown = 0;
 
 const PLAYER_RADIUS = 0.3;
+CHAPTERS.push({ id: 'jamukha', scene: 'jamukha', title: 'IV · Жамухатай зөрчил', blurb: 'Шөнийн салгалт · гурван айл', source: '§118' });
 const CHAPTER_ORDER = CHAPTERS.map((c) => c.id);
 
 function resolveCollisions(p) {
@@ -279,14 +271,15 @@ function resolveCollisions(p) {
 
 function buildScene(id) {
   const qOpts = { quality };
-  if (id === 'burkhan') return buildBurkhanWorld(scene);
-  if (id === 'act2') return buildAct2World(scene);
-  if (id === 'horses') return buildHorsesWorld(scene);
-  if (id === 'act3') return buildAct3World(scene);
-  if (id === 'taichiud_capture') return buildTaichiudCapture(scene);
-  if (id === 'taichiud_escape') return buildTaichiudEscape(scene);
-  if (id === 'taichiud_river') return buildTaichiudRiver(scene);
-  if (id === 'taichiud_ger') return buildTaichiudGer(scene);
+  if (id === 'burkhan') return sceneMod.burkhan(scene);
+  if (id === 'act2') return sceneMod.act2(scene);
+  if (id === 'horses') return sceneMod.horses(scene);
+  if (id === 'jamukha') return sceneMod.jamukha(scene);
+  if (id === 'act3') return sceneMod.act3(scene);
+  if (id === 'taichiud_capture') return sceneMod.taichiud.buildTaichiudCapture(scene);
+  if (id === 'taichiud_escape') return sceneMod.taichiud.buildTaichiudEscape(scene);
+  if (id === 'taichiud_river') return sceneMod.taichiud.buildTaichiudRiver(scene);
+  if (id === 'taichiud_ger') return sceneMod.taichiud.buildTaichiudGer(scene);
   return buildWorld(scene, qOpts);
 }
 
@@ -306,7 +299,7 @@ function npcsFromWorld(w, id) {
 
 function audioModeFor(id) {
   if (id === 'taichiud_ger') return 'ger';
-  if (id === 'taichiud_escape' || id === 'taichiud_capture' || id === 'taichiud_river' || id === 'act3') return 'night';
+  if (id === 'taichiud_escape' || id === 'taichiud_capture' || id === 'taichiud_river' || id === 'act3' || id === 'jamukha') return 'night';
   if (id === 'burkhan') return 'ridge';
   return 'day';
 }
@@ -327,7 +320,7 @@ function sceneLook(id, x, z) {
   if (id === 'taichiud_river') return blend(0, 0, 4, 18, 5.4, 9.0, 0.08, 0.16, 1.45, 1.7);
   if (id === 'taichiud_ger') return { distance: 4.1, pitch: 0.07, height: 1.22 };
   if (id === 'act2') return blend(0, 0, 8, 28, 5.6, 9.6, 0.12, 0.22, 1.6, 1.9);
-  if (id === 'horses') return blend(0, 4, 6, 24, 5.2, 9.2, 0.12, 0.22, 1.5, 1.85);
+  if (id === 'horses' || id === 'jamukha') return blend(0, 4, 6, 24, 5.2, 9.2, 0.12, 0.22, 1.5, 1.85);
   if (id === 'act3') return blend(0, 0, 5, 18, 4.3, 6.6, 0.08, 0.14, 1.35, 1.5);
   return { distance: 5, pitch: 0.22, height: 1.55 };
 }
@@ -339,7 +332,7 @@ function applyGrade(id) {
   const name = id === 'burkhan' ? 'grade-burkhan'
     : id.startsWith('taichiud') ? 'grade-taichiud'
     : id === 'act2' || id === 'horses' ? 'grade-act2'
-    : id === 'act3' ? 'grade-act3'
+    : id === 'act3' || id === 'jamukha' ? 'grade-act3'
     : 'grade-camp';
   grade.classList.add(name);
 }
@@ -347,7 +340,7 @@ function applyGrade(id) {
 function afterCine(id, dialogueNode) {
   if (dialogueNode) startDialogue(dialogueNode);
   else if (id === 'burkhan') startDialogue('burkhan_start');
-  else if (id === 'act2' || id === 'horses') state = 'explore';
+  else if (id === 'act2' || id === 'horses' || id === 'jamukha') state = 'explore';
   else if (id === 'act3') startDialogue('mergen_start');
   else if (id === 'taichiud_capture') startDialogue('taichiud_capture');
   else if (id === 'taichiud_escape') state = 'explore';
@@ -450,7 +443,33 @@ function playCampArrival() {
   activeCine = pathCine;
 }
 
-function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false, resume = null } = {}) {
+function loadScene(id, opts = {}) {
+  const arriveMod = (key, mod) => { sceneMod[key] = mod; loadScene(id, opts); };
+  if (id === 'burkhan' && !sceneMod.burkhan) {
+    import('./scenes/burkhan.js').then((m) => arriveMod('burkhan', m.buildBurkhanWorld), console.error);
+    return;
+  }
+  if (id === 'act2' && !sceneMod.act2) {
+    import('./scenes/act2.js').then((m) => arriveMod('act2', m.buildAct2World), console.error);
+    return;
+  }
+  if (id === 'horses' && !sceneMod.horses) {
+    import('./scenes/horses.js').then((m) => arriveMod('horses', m.buildHorsesWorld), console.error);
+    return;
+  }
+  if (id === 'jamukha' && !sceneMod.jamukha) {
+    import('./scenes/jamukha.js').then((m) => arriveMod('jamukha', m.buildJamukhaWorld), console.error);
+    return;
+  }
+  if (id === 'act3' && !sceneMod.act3) {
+    import('./scenes/act3.js').then((m) => arriveMod('act3', m.buildAct3World), console.error);
+    return;
+  }
+  if (id.startsWith('taichiud') && !sceneMod.taichiud) {
+    import('./scenes/taichiud.js').then((m) => arriveMod('taichiud', m), console.error);
+    return;
+  }
+  const { cinematic = true, dialogueNode = null, arrive = false, resume = null } = opts;
   primedCamp = false;
   campBootStarted = true;
   fieldTasks?.dispose();
@@ -861,7 +880,7 @@ function nearSet(r = 4.2) {
 }
 function talk(n) {
   talkTarget = n.obj;
-  if (sceneId === 'horses') {
+  if (sceneId === 'horses' || sceneId === 'jamukha') {
     const text = world?.blurb?.() || '';
     toastText = text;
     const toast = $('toast');
@@ -980,7 +999,7 @@ function renderChapterSelect() {
   list.innerHTML = '';
   save = loadSave();
   for (const ch of CHAPTERS) {
-    const unlocked = save.unlocked.includes(ch.id) || ch.id === 'camp' || ch.id === 'horses';
+    const unlocked = save.unlocked.includes(ch.id) || ch.id === 'camp' || ch.id === 'horses' || ch.id === 'jamukha';
     const b = document.createElement('button');
     b.type = 'button';
     const here = save.lastChapter === ch.id;
@@ -1473,14 +1492,14 @@ function tick() {
           flashSfx(sfx.chime());
         }
       }
-    } else if (sceneId === 'horses' && world?.taskLine) {
+    } else if ((sceneId === 'horses' || sceneId === 'jamukha') && world?.taskLine) {
       const taskEl = $('fieldTasks');
       const line = world.taskLine();
       if (taskEl && state === 'explore') {
         taskEl.textContent = line;
         taskEl.classList.remove('hidden');
       }
-      const status = world.herdStatus?.();
+      const status = world.herdStatus?.() || world.taskStatus?.();
       if (status?.done && !horsesChimed) {
         horsesChimed = true;
         toastText = line;
