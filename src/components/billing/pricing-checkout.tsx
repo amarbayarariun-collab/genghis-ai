@@ -165,6 +165,27 @@ export function PricingCheckout() {
     }
   }
 
+  function focusCheckout() {
+    document
+      .getElementById("qpay-checkout")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function onProCta() {
+    focusCheckout();
+    if (!user) {
+      setNotice(
+        "Pro руу шилжихийн тулд эхлээд чатны хажуу самбараас нэвтэрнэ үү."
+      );
+      return;
+    }
+    if (plan?.tier === "paid") {
+      setNotice("Pro аль хэдийн идэвхтэй байна.");
+      return;
+    }
+    void startCheckout();
+  }
+
   return (
     <main className="min-h-dvh bg-[radial-gradient(ellipse_at_top,#F8F6F1_0%,#EFE8DC_45%,#E4D5BE_100%)] text-ink">
       <div className="mx-auto flex max-w-3xl flex-col gap-10 px-4 py-10 sm:px-6 sm:py-12">
@@ -215,10 +236,20 @@ export function PricingCheckout() {
             <p className="text-xs text-ink/55">
               QPay дотоод шимтгэл ихэвчлэн ~1% (merchant гэрээгээр баталгаажуулна).
             </p>
+            <Button
+              type="button"
+              disabled={busy || plan?.tier === "paid"}
+              onClick={onProCta}
+            >
+              {plan?.tier === "paid" ? "Pro идэвхтэй" : "Pro руу шилжих"}
+            </Button>
           </article>
         </section>
 
-        <section className="space-y-4 border border-ink/10 bg-white/80 p-5 sm:p-6">
+        <section
+          id="qpay-checkout"
+          className="scroll-mt-6 space-y-4 border border-ink/10 bg-white/80 p-5 sm:p-6"
+        >
           <h2 className="font-heading text-xl font-semibold">Төлбөр (QPay)</h2>
           {plan?.tier === "paid" ? (
             <p className="text-sm text-ink/70">
