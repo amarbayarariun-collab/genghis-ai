@@ -585,6 +585,33 @@ button:disabled {
   border: 1px solid rgba(201, 163, 90, 0.25);
 }
 
+#coach {
+  position: absolute;
+  left: 50%;
+  bottom: max(92px, calc(env(safe-area-inset-bottom) + 78px));
+  transform: translateX(-50%);
+  z-index: 18;
+  max-width: min(92vw, 560px);
+  text-align: center;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #1a120c;
+  background: rgba(243, 226, 184, 0.94);
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(92, 58, 34, 0.45);
+}
+#sfxMark {
+  position: absolute;
+  top: max(86px, calc(env(safe-area-inset-top) + 78px));
+  left: 14px;
+  z-index: 16;
+  font-size: 13px;
+  color: #f3e2b8;
+  background: rgba(20, 12, 6, 0.72);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
 #fieldTasks {
   position: absolute;
   top: max(118px, calc(env(safe-area-inset-top) + 108px));

@@ -25,6 +25,8 @@ import { createSteppeMotes } from './systems/harvest/fx-steppe-motes.js';
 import { createBirds } from './systems/harvest/fx-birds.js';
 import { createSteppeAudio } from './systems/harvest/ambient-audio.js';
 import { createTheme } from './systems/theme.js';
+import { createSfx } from './systems/audio.js';
+import { createCoach } from './systems/coach.js';
 import { createFieldTasks } from './systems/field-tasks.js';
 import { createLocomotionFSM } from './systems/harvest/anim-state-machine.js';
 import { createAdaptiveQuality } from './systems/harvest/lod-instancing.js';
@@ -199,6 +201,11 @@ const cam = createCameraRig(camera, { distance: 5.0, height: 1.55, minPitch: -0.
 const mover = createMover(player);
 const audio = createSteppeAudio({ volume: 0.75 });
 const theme = createTheme();
+const sfx = createSfx();
+const coach = createCoach($('coach'));
+let resumeAcc = 0;
+let hoofAcc = 0;
+let sfxTimer = 0;
 audio.attachUnlock?.();
 const simpleCine = createSimpleCine(camera, { duration: 2.8 });
 const pathCine = createPathCine(camera, ONON_INTRO);
@@ -388,7 +395,7 @@ function clearMount() {
   }
 }
 
-function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false } = {}) {
+function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false, resume = null } = {}) {
   fieldTasks?.dispose();
   fieldTasks = null;
   clearMount();
@@ -410,6 +417,10 @@ function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false }
   player.pos.set(sp.x, sp.y, sp.z);
   // Face camp / sun (north-ish) for f03 rider framing
   player.yaw = id === 'camp' ? 0.05 : 0.15;
+  if (resume && resume.scene === id) {
+    player.pos.set(resume.x, sp.y, resume.z);
+    player.yaw = resume.yaw || player.yaw;
+  }
   mover.reset();
 
   // ---- Harvest FX (gated by quality tier) ----
@@ -639,9 +650,11 @@ addEventListener('keydown', (e) => {
     activeCine.skip();
   }
   if (e.code === 'KeyE' && state === 'explore') {
+    finishCoach(coach.note('talk'));
     const n = nearest();
     if (n) talk(n);
   }
+  if (e.code === 'KeyF' && !e.repeat && state === 'explore') setMounted(!mounted);
   if (e.code === 'KeyM' && !e.repeat && state === 'explore') setMounted(!mounted);
 });
 $('fxToggle')?.addEventListener('click', () => setFx(!fxOn));
@@ -654,6 +667,7 @@ $('fpsToggle')?.addEventListener('click', (ev) => {
 $('touchTalk')?.addEventListener('click', (ev) => {
   ev.stopPropagation();
   if (state !== 'explore') return;
+  finishCoach(coach.note('talk'));
   const n = nearest();
   if (n) talk(n);
 });
@@ -790,6 +804,8 @@ function setMounted(on) {
   playerHorse = h;
   mounted = true;
   world.temujin.visible = false;
+  finishCoach(coach.note('mount'));
+  persistResume();
 }
 
 const ray = new THREE.Raycaster();
@@ -841,6 +857,58 @@ function renderSource() {
   $('source').innerHTML = `${c.text}<span class="ref">— ${c.ref}</span>`;
 }
 
+function finishCoach(done) {
+  if (!done) return;
+  save = writeSave({ tutorialDone: true });
+}
+
+function flashSfx(name) {
+  if (!name || theme.muted) return;
+  const el = $('sfxMark');
+  if (!el) return;
+  el.textContent = name;
+  el.classList.remove('hidden');
+  clearTimeout(sfxTimer);
+  sfxTimer = setTimeout(() => el.classList.add('hidden'), 6000);
+}
+
+function persistResume() {
+  if (!sceneId || state === 'title') return;
+  save = writeSave({
+    lastChapter: chapterId,
+    resume: {
+      scene: sceneId,
+      x: Math.round(player.pos.x * 10) / 10,
+      z: Math.round(player.pos.z * 10) / 10,
+      yaw: Math.round(player.yaw * 100) / 100,
+      mounted,
+    },
+  });
+}
+
+function continueFromTitle() {
+  const end = $('end');
+  if (end) {
+    end.classList.add('hidden');
+    end.innerHTML = '';
+  }
+  save = loadSave();
+  try { audio.unlock(); sfx.unlock(); theme.start(); } catch (err) { console.warn('[audio]', err); }
+  $('title')?.classList.add('hidden');
+  $('hud')?.classList.remove('hidden');
+  document.body.classList.add('in-play');
+  const resume = save.resume;
+  const ch = CHAPTERS.find((c) => c.id === save.lastChapter) || CHAPTERS[0];
+  const sceneName = resume?.scene || ch.scene;
+  loadScene(sceneName, { cinematic: false, dialogueNode: null, arrive: false, resume });
+  if (resume?.mounted) setMounted(true);
+  state = 'explore';
+  if ($('end') && !$('end').classList.contains('hidden')) {
+    $('end').classList.add('hidden');
+    $('end').innerHTML = '';
+  }
+}
+
 function showTitle() {
   state = 'title';
   $('hud').classList.add('hidden');
@@ -883,7 +951,7 @@ function renderChapterSelect() {
     b.onclick = () => {
       $('chapters').classList.add('hidden');
       $('title').classList.add('hidden');
-      try { audio.unlock(); theme.start(); } catch (err) { console.warn('[audio]', err); }
+      try { audio.unlock(); sfx.unlock(); theme.start(); } catch (err) { console.warn('[audio]', err); }
       loadScene(ch.scene, { cinematic: true });
     };
     list.append(b);
@@ -892,9 +960,9 @@ function renderChapterSelect() {
 
 function beginCamp({ cinematic, dialogueNode, arrive = false }) {
   // Audio must not be able to cancel the tap. iPad Safari throws from resume().
-  try { audio.unlock(); theme.start(); }
+  try { audio.unlock(); sfx.unlock(); theme.start(); }
   catch (err) { console.warn('[audio]', err); }
-  writeSave({ unlocked: ['camp'], lastChapter: 'camp', flags: {}, quality: qualityId });
+  writeSave({ unlocked: ['camp'], lastChapter: 'camp', flags: {}, quality: qualityId, resume: null });
   save = loadSave();
   const title = $('title');
   title.classList.add('fade-out');
@@ -957,12 +1025,7 @@ bindTap($('fastPlayBtn'), () => {
   beginCamp({ cinematic: false, dialogueNode: null, arrive: true });
 });
 bindTap($('startBtn'), () => beginCamp({ cinematic: true, dialogueNode: 'intro0' }));
-bindTap($('continueBtn'), () => {
-  try { audio.unlock(); theme.start(); } catch (err) { console.warn('[audio]', err); }
-  $('title').classList.add('hidden');
-  const ch = CHAPTERS.find((c) => c.id === save.lastChapter) || CHAPTERS[0];
-  loadScene(ch.scene, { cinematic: true });
-});
+bindTap($('continueBtn'), () => continueFromTitle());
 bindTap($('chaptersBtn'), () => {
   $('title').classList.add('hidden');
   const panel = $('chapters');
@@ -1319,6 +1382,17 @@ function tick() {
     moveSpeed = result.speed || 0;
     player.bob += dt * (moving ? 8.5 : 1.6);
     checkStealth(dt);
+    if (!save.tutorialDone) {
+      coach.start();
+      if (moving) finishCoach(coach.note('move'));
+      if (mounted && sprint && moveSpeed > 6) finishCoach(coach.note('gallop'));
+      finishCoach(coach.update(dt));
+    } else coach.hide();
+    resumeAcc += dt;
+    if (resumeAcc > 2) {
+      resumeAcc = 0;
+      persistResume();
+    }
 
     const fDown = !!(keys.KeyF || fTouch);
     const fEdge = fDown && !fLatch;
@@ -1327,6 +1401,10 @@ function tick() {
     const qEdge = !!(keys.KeyQ || qTouch);
     keys.KeyQ = false;
     qTouch = false;
+    if (qEdge) {
+      finishCoach(coach.note('shoot'));
+      if (!theme.muted) flashSfx(sfx.bow());
+    }
     if (fieldTasks && sceneId === 'camp') {
       const ft = fieldTasks.update(dt, player.pos, { mounted, yaw: player.yaw, shoot: qEdge });
       const taskEl = $('fieldTasks');
@@ -1340,6 +1418,10 @@ function tick() {
         if (toast) {
           toast.textContent = ft.just;
           toast.classList.remove('hidden');
+        }
+        if (!theme.muted) {
+          if (ft.just.includes('Они')) flashSfx(sfx.hit());
+          flashSfx(sfx.chime());
         }
       }
     } else {
@@ -1386,7 +1468,15 @@ function tick() {
   if (mounted && playerHorse && !shotLock) {
     playerHorse.position.set(player.pos.x, groundY, player.pos.z);
     playerHorse.rotation.y = temujin.rotation.y;
-    playerHorse.userData.step?.(dt, moveSpeed);
+    const gait = playerHorse.userData.step?.(dt, moveSpeed);
+    const gap = gait === 'gallop' ? 0.12 : gait === 'canter' ? 0.18 : gait === 'trot' ? 0.28 : gait === 'walk' ? 0.46 : 0;
+    if (gap && moving && !theme.muted) {
+      hoofAcc += dt;
+      if (hoofAcc >= gap) {
+        hoofAcc = 0;
+        flashSfx(sfx.hoof(gait));
+      }
+    } else hoofAcc = 0;
   }
   const pace = $('pace');
   if (pace) {
@@ -1592,6 +1682,11 @@ window.__mshMount = (on = true, sprint = false) => {
   return { mounted, pace: $('pace')?.textContent || '', sprint: !!keys.ShiftLeft };
 };
 window.__mshPlay = () => { shotLock = false; state = 'explore'; return true; };
+window.__mshCoach = () => ({ text: coach.text, step: coach.step, active: coach.active });
+window.__mshSfx = () => sfx.last;
+window.__mshPos = () => ({ x: Math.round(player.pos.x * 10) / 10, z: Math.round(player.pos.z * 10) / 10, state });
+window.__mshSave = () => loadSave();
+window.__mshContinue = () => { continueFromTitle(); return { state, endHidden: $('end')?.classList.contains('hidden'), titleHidden: $('title')?.classList.contains('hidden'), x: player.pos.x, z: player.pos.z }; };
 window.__mshField = () => fieldTasks?.status() || null;
 window.__mshAim = () => {
   if (!fieldTasks) return null;
