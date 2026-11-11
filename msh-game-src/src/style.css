@@ -721,11 +721,17 @@ body:has(#chapters:not(.hidden)) #fpsToggle {
   text-align: center;
 }
 
-#muteBtn {
+#hudTools {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
-  right: 176px;
+  right: 84px;
+  display: flex;
+  gap: 8px;
   pointer-events: auto;
+}
+#muteBtn,
+#sourceBtn {
+  position: static;
   font-size: 13px;
   padding: 7px 12px;
 }
@@ -733,14 +739,6 @@ body:has(#chapters:not(.hidden)) #fpsToggle {
   background: #3a2418;
   color: #c4b39a;
   text-decoration: line-through;
-}
-#sourceBtn {
-  position: absolute;
-  top: max(12px, env(safe-area-inset-top));
-  right: 78px;
-  pointer-events: auto;
-  font-size: 13px;
-  padding: 7px 12px;
 }
 
 #source {
@@ -818,15 +816,16 @@ body:has(#chapters:not(.hidden)) #fpsToggle {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  #muteBtn,
-  #sourceBtn {
-    top: max(50px, calc(env(safe-area-inset-top) + 44px));
+  #hudTools {
+    top: max(46px, calc(env(safe-area-inset-top) + 40px));
+    right: auto;
+    left: 14px;
   }
-  #muteBtn { right: auto; left: 14px; }
-  #sourceBtn { right: auto; left: 78px; }
-  #objective { top: max(140px, calc(env(safe-area-inset-top) + 128px)); }
+  #pace { top: max(92px, calc(env(safe-area-inset-top) + 84px)); }
+  #sfxMark { top: max(130px, calc(env(safe-area-inset-top) + 122px)); }
+  #objective { top: max(168px, calc(env(safe-area-inset-top) + 156px)); }
   #fieldTasks {
-    top: max(196px, calc(env(safe-area-inset-top) + 184px));
+    top: max(214px, calc(env(safe-area-inset-top) + 202px));
     max-width: 62vw;
   }
   #perfHud {
