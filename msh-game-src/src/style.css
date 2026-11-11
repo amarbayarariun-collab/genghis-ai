@@ -518,6 +518,14 @@ button:disabled {
   cursor: not-allowed;
 }
 
+#chapters.overlay {
+  justify-content: safe center;
+  overflow-y: auto;
+}
+body:has(#chapters:not(.hidden)) #fpsToggle {
+  visibility: hidden;
+  pointer-events: none;
+}
 .chapters-panel {
   width: min(880px, 100%);
   background: rgba(18, 12, 8, 0.92);
