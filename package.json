@@ -12,7 +12,7 @@
     "test:chat-actions": "node --experimental-strip-types --test src/lib/chat-actions.test.mts",
     "test:starter-prompts": "node --experimental-strip-types --test src/lib/starter-prompts.test.mts",
     "test": "npm run test:image && npm run test:legal && npm run test:translit && npm run test:chat-actions && npm run test:starter-prompts",
-    "test:image": "node scripts/verify-image-config.mjs"
+    "test:image": "npx --yes tsx scripts/verify-image-config.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
