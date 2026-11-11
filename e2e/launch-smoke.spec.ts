@@ -347,9 +347,11 @@ test.describe("API mock gates", () => {
 
     await page.goto("/");
     await sendChat(page, "pro limit mock");
-    await expect(
-      page.getByText(/Хязгаарт хүрлээ.*2026-12-01.*шинэчлэгдэнэ/)
-    ).toBeVisible({ timeout: 15_000 });
+    // Error surfaces as both chat bubble + dismissible alert; assert alert + no Pro dialog.
+    await expect(page.getByRole("alert")).toContainText(
+      /Хязгаарт хүрлээ.*2026-12-01.*шинэчлэгдэнэ/,
+      { timeout: 15_000 }
+    );
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 });
