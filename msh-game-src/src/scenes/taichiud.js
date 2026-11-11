@@ -22,11 +22,11 @@ export function buildTaichiudCapture(scene) {
   scene.background = new THREE.Color('#0c1428');
   scene.add(skyDome({ top: '#0c1428', mid: '#24365c', horizon: '#c45a28', bottom: '#120c0a' }));
   scene.fog = new THREE.FogExp2('#1a140e', 0.012);
-  scene.add(new THREE.HemisphereLight('#6a7898', '#1a100c', 0.32));
+  scene.add(new THREE.HemisphereLight('#8a98b8', '#3a2a22', 0.62));
   const sun = new THREE.DirectionalLight('#ff8a3a', 0.85);
   sun.position.set(40, 8, -20);
   scene.add(sun);
-  const riderFill = new THREE.DirectionalLight('#ffe0c0', 1.05);
+  const riderFill = new THREE.DirectionalLight('#ffe0c0', 1.7);
   riderFill.position.set(-10, 16, 12);
   scene.add(riderFill);
 

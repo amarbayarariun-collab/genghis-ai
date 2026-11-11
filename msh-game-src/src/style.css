@@ -137,8 +137,8 @@ body.in-play #game:active { cursor: grabbing; }
 }
 #pace {
   position: absolute;
-  top: max(12px, env(safe-area-inset-top));
-  right: 14px;
+  top: max(46px, calc(env(safe-area-inset-top) + 34px));
+  left: 14px;
   font-size: 14px;
   background: rgba(0, 0, 0, 0.45);
   padding: 6px 12px;
@@ -186,7 +186,7 @@ body.touch-ui.in-play #stick { display: block; }
     display: flex;
     position: fixed;
     right: max(12px, env(safe-area-inset-right));
-    bottom: max(78px, calc(env(safe-area-inset-bottom) + 70px));
+    bottom: max(148px, calc(env(safe-area-inset-bottom) + 132px));
     z-index: 18;
     gap: 8px;
   }

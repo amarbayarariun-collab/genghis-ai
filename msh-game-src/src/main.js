@@ -1523,14 +1523,19 @@ window.__mshMount = (on = true, sprint = false) => {
     $('hud')?.classList.remove('hidden');
   }
   keys.ShiftLeft = !!sprint;
-  keys.KeyW = !!sprint;
   setMounted(!!on);
-  const p = playerHorse?.position;
+  const paceEl = $('pace');
+  if (paceEl && mounted) {
+    paceEl.textContent = sprint ? 'Давхилт' : 'Жороо';
+    paceEl.classList.remove('hidden');
+  }
   if (playerHorse) {
+    const yaw = playerHorse.rotation.y;
+    const p = playerHorse.position;
     window.__mshFrame(
-      [p.x + 2.4, p.y + 1.3, p.z + 2.2],
-      [p.x, p.y + 1.1, p.z],
-      32,
+      [p.x + Math.sin(yaw) * 7.2, p.y + 2.1, p.z + Math.cos(yaw) * 7.2],
+      [p.x, p.y + 1.0, p.z],
+      28,
       false
     );
   }
@@ -1573,9 +1578,9 @@ window.__mshFrameHorse = () => {
   const riderHead = new THREE.Vector3();
   saddle.getObjectByName('head')?.getWorldPosition(riderHead);
   window.__mshFrame(
-    [p.x + 2.6, p.y + 0.9, p.z + 2.4],
-    [p.x, p.y + 0.35, p.z],
-    30
+    [p.x + 5.2, p.y + 1.7, p.z + 0.15],
+    [p.x, p.y + 0.7, p.z - 0.5],
+    34
   );
   return {
     saddle: [p.x, p.y, p.z],
