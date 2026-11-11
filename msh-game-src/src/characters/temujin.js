@@ -494,7 +494,36 @@ export function ridingTemujin(standing) {
   head.name = 'head';
   head.position.set(0, 1.62, 0.04);
   posed.add(head);
+  // The sculpt has no skeleton. Drop this copy of the same hat onto the scalp.
+  // The standing malgai is left where it is.
+  seatMountedHat(rider, posed);
   return rider;
+}
+
+/** Sit the cloned malgai's fur roll on the scalp. Same hat, lower only this copy. */
+function seatMountedHat(rider, posed) {
+  const hat = rider.getObjectByName('mongol-hat');
+  const attr = posed?.geometry?.attributes?.position;
+  const index = posed?.geometry?.index;
+  if (!hat || !attr || !index) return;
+  let top = -Infinity;
+  for (let i = 0; i < index.count; i++) {
+    const vi = index.getX(i);
+    const y = attr.getY(vi);
+    if (y < 1.4) continue;
+    const x = attr.getX(vi);
+    const z = attr.getZ(vi);
+    if (x * x + z * z > 0.0064) continue;
+    if (y > top) top = y;
+  }
+  if (!Number.isFinite(top)) return;
+  rider.updateWorldMatrix(true, true);
+  const scalp = posed.localToWorld(new THREE.Vector3(0, top, 0.02));
+  const local = hat.worldToLocal(scalp.clone());
+  // PR 69 roll: inner edge is the low point (local y 1.292). Pull it a little
+  // into the hair so the side of the bowl meets the scalp, not just the crown.
+  const drop = 1.292 + 0.04 - local.y;
+  if (drop > 0.001) hat.position.y -= drop;
 }
 
 function buildPlaceholder() {
