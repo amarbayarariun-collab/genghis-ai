@@ -12,7 +12,10 @@
     "test:chat-actions": "node --experimental-strip-types --test src/lib/chat-actions.test.mts",
     "test:starter-prompts": "node --experimental-strip-types --test src/lib/starter-prompts.test.mts",
     "test": "npm run test:image && npm run test:legal && npm run test:translit && npm run test:chat-actions && npm run test:starter-prompts",
-    "test:image": "npx --yes tsx scripts/verify-image-config.mjs"
+    "test:image": "npx --yes tsx scripts/verify-image-config.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:desktop": "playwright test --project=desktop",
+    "test:e2e:mobile": "playwright test --project=mobile-360"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -33,6 +36,7 @@
     "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
     "@tailwindcss/turbopack": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
