@@ -1,5 +1,6 @@
 /** Жамухагаас шөнө салгалт (§118). Ride to three households and bring them off his camp. */
 import * as THREE from 'three';
+import { createTemujin } from '../characters/temujin.js';
 import { makeGer, person } from '../world-kit.js';
 
 export function buildJamukhaWorld(scene) {
@@ -41,7 +42,7 @@ export function buildJamukhaWorld(scene) {
   jamukha.rotation.y = 0.6;
   scene.add(jamukha);
 
-  const temujin = person({ deel: '#9a1e24' });
+  const temujin = createTemujin();
   temujin.position.set(0, heightAt(0, 12), 12);
   scene.add(temujin);
 
@@ -74,7 +75,8 @@ export function buildJamukhaWorld(scene) {
   let done = false;
   let line = 'Мордоод айлд ойрт · 0/3';
 
-  function update(dt, _t, _near, playerPos) {
+  function update(dt, t, _near, playerPos) {
+    temujin.userData.update?.(dt, t);
     const mounted = temujin.visible === false;
     const stepDt = Math.min(dt || 0, 0.05);
     let home = 0;
