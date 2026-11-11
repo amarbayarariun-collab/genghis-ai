@@ -30,95 +30,43 @@ export function skyDome({ top, mid, horizon, bottom }, radius = 300) {
   return new THREE.Mesh(new THREE.SphereGeometry(Math.min(radius, 150), 28, 18), mat);
 }
 
-/** Fur brim. The front stays low. The sides and the back turn up around the crown. */
+/** Even fur roll. One height all the way around, curled up, no side spikes. */
 function curledBrimGeometry(tall) {
+  // Lip is the outer edge and stays below the crown, the same height all around.
   const profile = [
-    [0.086, 1.342],
-    [0.112, 1.338],
-    [0.134, 1.352],
-    [0.150, 1.376],
-    [0.162, 1.398],
+    [0.078, 1.292],
+    [0.098, 1.310],
+    [0.118, 1.338],
+    [0.134, 1.368],
+    [0.144, 1.392],
+    [0.142, 1.404],
+    [0.134, 1.410],
   ];
   const pts = [];
-  for (const [r, y] of profile) pts.push(new THREE.Vector2(r * tall, (y + 0.01) * tall));
-  for (let i = profile.length - 1; i >= 0; i--) {
+  for (const [r, y] of profile) pts.push(new THREE.Vector2(r * tall, y * tall));
+  for (let i = profile.length - 2; i >= 0; i--) {
     const [r, y] = profile[i];
-    pts.push(new THREE.Vector2(Math.max(0.082, r - 0.005) * tall, y * tall));
+    pts.push(new THREE.Vector2(Math.max(0.072, r - 0.012) * tall, (y + 0.008) * tall));
   }
-  const geo = new THREE.LatheGeometry(pts, 40);
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i);
-    const z = pos.getZ(i);
-    const r = Math.hypot(x, z);
-    if (r < 1e-4) continue;
-    const outward = Math.max(0, (r / tall - 0.10) / 0.062);
-    const side = Math.abs(z) / r;
-    const back = Math.max(0, -x / r);
-    const lift = outward * (0.082 * side * side + 0.04 * back);
-    pos.setY(i, pos.getY(i) + lift * tall);
-  }
-  geo.computeVertexNormals();
-  return geo;
+  return new THREE.LatheGeometry(pts, 48);
 }
 
-/** Short ear flap. Thin along X, wide face on YZ, only long enough to cover an ear. */
-function earFlapGeometry(tall) {
-  const hx = 0.005 * tall;
-  const yT = 0.022 * tall;
-  const yB = -0.048 * tall;
-  const zT = 0.020 * tall;
-  const zB = 0.012 * tall;
-  const corners = [
-    [-hx, yT, -zT], [hx, yT, -zT], [hx, yT, zT], [-hx, yT, zT],
-    [-hx, yB, -zB], [hx, yB, -zB], [hx, yB, zB], [-hx, yB, zB],
-  ];
-  const idx = [
-    0, 1, 2, 0, 2, 3,
-    4, 6, 5, 4, 7, 6,
-    0, 4, 5, 0, 5, 1,
-    3, 2, 6, 3, 6, 7,
-    0, 3, 7, 0, 7, 4,
-    1, 5, 6, 1, 6, 2,
-  ];
-  const pos = new Float32Array(idx.length * 3);
-  idx.forEach((i, n) => {
-    pos[n * 3] = corners[i][0];
-    pos[n * 3 + 1] = corners[i][1];
-    pos[n * 3 + 2] = corners[i][2];
-  });
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.computeVertexNormals();
-  return geo;
-}
-
-/** Low brown fur malgai. Wide brim and ear flaps. No cone, no pompon, no white trim. */
+/** Low brown fur malgai. One even rolled brim. No cone, no pompon, no boards over the eyes. */
 export function mongolHat(tall = 1) {
   const g = new THREE.Group();
   g.name = 'mongol-hat';
-  const fur = flat('#8a5a32');
-  const hide = flat('#6b4226');
+  const fur = flat('#c4a06a');
+  const hide = flat('#5c3a22');
   // Dome on the cut crown. Pulled back so it does not shelf over the eyes.
   const crown = new THREE.Mesh(
-    new THREE.SphereGeometry(0.10 * tall, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
+    new THREE.SphereGeometry(0.10 * tall, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5),
     hide
   );
-  crown.scale.set(0.7, 1.9, 1);
-  crown.position.y = 1.33 * tall;
-  // Fur brim curls up around the crown. The outer lip is higher than the brow.
+  crown.scale.set(0.9, 1.55, 0.9);
+  crown.position.y = 1.32 * tall;
+  // One even roll. No ear boards in front of the eyes.
   const brim = new THREE.Mesh(curledBrimGeometry(tall), fur);
-  // Short flaps just under the brim, beside the ears. Forward is +X, ears are ±Z.
-  const flapGeo = earFlapGeometry(tall);
-  const flapL = new THREE.Mesh(flapGeo, fur);
-  flapL.name = 'ear-flap';
-  flapL.position.set(0.0, 1.31 * tall, 0.12 * tall);
-  flapL.rotation.x = 0.22;
-  const flapR = new THREE.Mesh(flapGeo, fur);
-  flapR.name = 'ear-flap';
-  flapR.position.set(0.0, 1.31 * tall, -0.12 * tall);
-  flapR.rotation.x = -0.22;
-  g.add(brim, crown, flapL, flapR);
+  g.add(brim, crown);
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return g;
 }
@@ -235,8 +183,8 @@ const _seatInv = new THREE.Matrix4();
 
 export function horse(color = '#6b4228', opts = {}) {
   const g = new THREE.Group();
-  const m = flat(color);
-  const dark = flat('#3a2418');
+  const m = new THREE.MeshLambertMaterial({ color });
+  const dark = new THREE.MeshLambertMaterial({ color: '#3a2418' });
   const leather = flat('#9a5430');
   const metal = flat('#c5c8cc');
   // Barrel along +X. Top of the back is about y=1.42. Head is further forward.
@@ -249,20 +197,23 @@ export function horse(color = '#6b4228', opts = {}) {
   const chest = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), m);
   chest.scale.set(0.9, 0.92, 0.75);
   chest.position.set(0.48, 1.08, 0);
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 0.52, 8), m);
-  neck.position.set(0.86, 1.38, 0);
-  neck.rotation.z = -0.85;
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.14), m);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.18, 0.58, 10), m);
+  neck.position.set(0.78, 1.34, 0);
+  neck.rotation.z = -0.95;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), m);
   head.name = 'horse-head';
-  head.position.set(1.28, 1.52, 0);
-  const muzzle = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.12), m);
-  muzzle.position.set(1.52, 1.46, 0);
+  head.scale.set(1.65, 0.82, 0.7);
+  head.position.set(1.16, 1.52, 0);
+  const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), m);
+  muzzle.scale.set(1.55, 0.72, 0.66);
+  muzzle.position.set(1.46, 1.46, 0);
   const earGeo = new THREE.ConeGeometry(0.04, 0.14, 5);
   const earL = new THREE.Mesh(earGeo, dark);
   earL.position.set(1.16, 1.68, -0.05);
   const earR = new THREE.Mesh(earGeo, dark);
   earR.position.set(1.16, 1.68, 0.05);
-  const mane = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.06, 0.08), dark);
+  const mane = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), dark);
+  mane.scale.set(2.4, 0.55, 0.6);
   mane.position.set(0.78, 1.58, 0);
   mane.rotation.z = -0.7;
   const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.02, 0.7, 6), dark);
@@ -276,14 +227,14 @@ export function horse(color = '#6b4228', opts = {}) {
     const hip = new THREE.Group();
     hip.name = side;
     hip.position.set(x, 0.86, z);
-    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.05, 0.4, 6), m);
+    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.055, 0.4, 8), m);
     upper.position.y = -0.2;
     const hock = new THREE.Group();
     hock.position.y = -0.4;
     hock.rotation.z = side === 'hip-back' ? 0.4 : -0.28;
-    const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.38, 6), m);
+    const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.38, 8), m);
     lower.position.y = -0.16;
-    const hoof = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.08), dark);
+    const hoof = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.05, 0.06, 8), dark);
     hoof.position.y = -0.36;
     hock.add(lower, hoof);
     hip.add(upper, hock);

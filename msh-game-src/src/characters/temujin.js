@@ -99,8 +99,8 @@ export function createTemujin(opts = {}) {
         group.remove(placeholder.root);
         group.add(wrap);
         const malgai = mongolHat(1);
-        // Local 1.33 meets the cut. A few centimetres lower tucks the brim onto the hair.
-        malgai.position.y = HEAD_CUT * s - 1.33 - 0.03;
+        // Local 1.33 meets the cut. Sit the roll on the brow so it stays above both eyes.
+        malgai.position.y = HEAD_CUT * s - 1.33 + 0.02;
         malgai.rotation.y = Math.PI / 2;
         group.add(malgai);
 
@@ -222,7 +222,9 @@ function hideSculptHat(root) {
       const templeFur = white && cy > 1.40 && cy < 1.76 && Math.abs(cx) > 0.04 && Math.abs(cx) < 0.24;
       // The pale block under the brim on the viewer's left. Local −X, just above the brow.
       const leftTemple = cx < -0.09 && cx > -0.2 && cy > 1.705 && cy < 1.78 && cz > 0.06 && cz < 0.2;
-      if ((!face && hood && (white || orange)) || tallCollar || templeFur || leftTemple) { furDropped += 1; continue; }
+      // Dark hair card on the viewer's right, in front of that eye. Keep the face itself.
+      const sideCard = cx > 0.09 && cx < 0.17 && cy > 1.60 && cy < 1.76 && cz < 0.10 && cz > -0.06;
+      if ((!face && hood && (white || orange)) || tallCollar || templeFur || leftTemple || sideCard) { furDropped += 1; continue; }
       kept.push(a, b, c);
     }
     o.userData.furDropped = furDropped;
@@ -321,23 +323,6 @@ function hideSculptHat(root) {
       o.material.emissiveMap = tex;
       o.material.needsUpdate = true;
     }
-    // Cover the slit left when the pale temple shell is removed.
-    if (!o.parent?.getObjectByName('temple-fill')) {
-      const fill = new THREE.Mesh(
-        new THREE.CircleGeometry(0.068, 10),
-        new THREE.MeshBasicMaterial({ color: '#2a160f', side: THREE.DoubleSide, depthWrite: true })
-      );
-      fill.name = 'temple-fill';
-      fill.position.set(-0.09, 1.7, 0.158);
-      o.add(fill);
-      const fillR = new THREE.Mesh(
-        new THREE.CircleGeometry(0.026, 8),
-        new THREE.MeshBasicMaterial({ color: '#2a160f', side: THREE.DoubleSide })
-      );
-      fillR.name = 'temple-fill-r';
-      fillR.position.set(0.022, 1.722, 0.165);
-      o.add(fillR);
-    }
     done = true;
   });
   return done;
@@ -413,20 +398,25 @@ export function poseRidingGeometry(geo) {
         if (z > slot.z) slot.z = z, slot.p = [x, y, z];
       }
     } else if (oy < HIP) {
-      const side = Math.max(-1, Math.min(1, ox / 0.12));
-      const hw = fadeDown(oy, HIP, 0.14);
-      const spread = side * 0.22 * hw;
+      const side = ox < 0 ? -1 : 1;
+      const hw = fadeDown(oy, HIP, 0.18);
+      const spread = side * 0.55 * hw;
       const fold = -0.92 * hw;
       [x, y, z] = rotZ(x, y, z, 0, HIP, 0, spread);
       [x, y, z] = rotX(x, y, z, 0, HIP, 0, fold);
       if (oy < KNEE) {
         const kw = fadeDown(oy, KNEE, 0.12);
-        let kx = Math.max(-0.1, Math.min(0.1, ox));
+        let kx = side * 0.08;
         let ky = KNEE;
         let kz = 0;
-        [kx, ky, kz] = rotZ(kx, ky, kz, 0, HIP, 0, side * 0.22);
+        [kx, ky, kz] = rotZ(kx, ky, kz, 0, HIP, 0, side * 0.55);
         [kx, ky, kz] = rotX(kx, ky, kz, 0, HIP, 0, -0.92);
         [x, y, z] = rotX(x, y, z, kx, ky, kz, 1.35 * kw);
+      }
+      // Part the robe. Both shins stay outside the barrel, in the stirrups.
+      if (oy < 0.72) {
+        const want = 0.22 + fadeDown(oy, 0.72, 0.44) * 0.34;
+        if (Math.abs(x) < want) x = side * want;
       }
       if (oy < 0.16) {
         const slot = ox < 0 ? feet.L : feet.R;
