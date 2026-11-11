@@ -28,6 +28,12 @@ export function createCinematic(camera, opts = {}) {
     camera.lookAt(lookFrom);
   }
 
+  function skip() {
+    if (!active) return;
+    t = duration;
+    update(0);
+  }
+
   function update(dt) {
     if (!active) return false;
     t += dt;
@@ -47,6 +53,7 @@ export function createCinematic(camera, opts = {}) {
   return {
     start,
     update,
+    skip,
     get active() { return active; },
   };
 }

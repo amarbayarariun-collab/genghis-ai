@@ -1,22 +1,7 @@
 // Act II — Боорчи · Бөртэ (friendship / marriage beat). One playable steppe camp.
 import * as THREE from 'three';
 import { createTemujin } from '../characters/temujin.js';
-
-function person({ deel, hat, fur = '#e2d0b0', skin = '#c48a5e', tall = 1 }) {
-  const flat = (c) => new THREE.MeshLambertMaterial({ color: c, flatShading: true });
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * tall, 0.28 * tall, 0.85 * tall, 8), flat(deel));
-  body.position.y = 0.7 * tall;
-  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13 * tall, 1), flat(skin));
-  head.position.y = 1.25 * tall;
-  const h = new THREE.Mesh(new THREE.CylinderGeometry(0.1 * tall, 0.16 * tall, 0.28 * tall, 8), flat(hat));
-  h.position.y = 1.45 * tall;
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.2 * tall, 0.06 * tall, 5, 10), flat(fur));
-  collar.rotation.x = Math.PI / 2;
-  collar.position.y = 1.05 * tall;
-  g.add(body, head, h, collar);
-  return g;
-}
+import { person } from '../world-kit.js';
 
 function glowRing() {
   const ring = new THREE.Mesh(
@@ -32,9 +17,9 @@ export function buildAct2World(scene) {
   const skyGeo = new THREE.SphereGeometry(300, 24, 16);
   const skyMat = new THREE.ShaderMaterial({
     uniforms: {
-      top: { value: new THREE.Color('#4a5a7a') },
-      horizon: { value: new THREE.Color('#f0a868') },
-      bottom: { value: new THREE.Color('#b87850') },
+      top: { value: new THREE.Color('#5d86b4') },
+      horizon: { value: new THREE.Color('#f0e2c0') },
+      bottom: { value: new THREE.Color('#7aa06a') },
     },
     vertexShader: `varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
     fragmentShader: `
@@ -48,11 +33,11 @@ export function buildAct2World(scene) {
     depthWrite: false,
   });
   scene.add(new THREE.Mesh(skyGeo, skyMat));
-  scene.fog = new THREE.Fog('#d4926a', 35, 150);
+  scene.fog = new THREE.Fog('#c5d4c4', 42, 175);
 
-  scene.add(new THREE.HemisphereLight('#ffd2a8', '#3a2a22', 0.9));
-  const sun = new THREE.DirectionalLight('#ffb26b', 2.0);
-  sun.position.set(70, 30, -40);
+  scene.add(new THREE.HemisphereLight('#eef4ff', '#3a4a32', 0.82));
+  const sun = new THREE.DirectionalLight('#fff4e0', 1.85);
+  sun.position.set(18, 58, 24);
   scene.add(sun);
 
   const heightAt = (x, z) => {

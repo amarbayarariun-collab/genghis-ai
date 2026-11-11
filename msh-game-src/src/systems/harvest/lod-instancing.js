@@ -193,8 +193,10 @@ export function createAdaptiveQuality(renderer, { targetMs = 16.7, min = 0.6, ma
       if (cool < every) return;
       const avg = (acc / n) * 1000; cool = 0; acc = 0; n = 0;
       const peak = worst * 1000; worst = 0;
-      if (avg > targetMs * 1.15 && i > 0) renderer.setPixelRatio(ladder[--i]);
-      else if (avg < targetMs * 0.7 && peak < targetMs * 1.6 && i < ladder.length - 1) renderer.setPixelRatio(ladder[++i]);
+      if (peak > targetMs * 2.4 && i > 1) i -= 2;
+      else if ((avg > targetMs * 1.15 || peak > targetMs * 1.8) && i > 0) i -= 1;
+      else if (avg < targetMs * 0.72 && peak < targetMs * 1.45 && i < ladder.length - 1) i += 1;
+      renderer.setPixelRatio(ladder[i]);
     },
   };
 }
