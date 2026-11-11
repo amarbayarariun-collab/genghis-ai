@@ -241,6 +241,32 @@ export function horse(color = '#6b4228') {
   g.userData.saddle = saddle;
   g.userData.head = head;
   g.userData.bit = bit;
+  g.userData.phase = 0;
+  g.userData.gait = 'idle';
+  // Leg order: back z-, back z+, front z-, front z+. Swing is around Z, in the horse's side plane.
+  const offsets = {
+    walk: [0, Math.PI, Math.PI * 0.5, Math.PI * 1.5],
+    trot: [0, Math.PI, Math.PI, 0],
+    canter: [0.15, Math.PI * 0.9, 0, Math.PI],
+    gallop: [0, 0.4, Math.PI + 0.15, Math.PI + 0.5],
+  };
+  g.userData.step = (dt, speed = 0) => {
+    const s = Math.max(0, speed || 0);
+    const gait = s < 0.4 ? 'idle' : s < 3.2 ? 'walk' : s < 6.2 ? 'trot' : s < 10 ? 'canter' : 'gallop';
+    g.userData.gait = gait;
+    if (gait === 'idle') {
+      for (const hip of legPivots) hip.rotation.z += (0 - hip.rotation.z) * Math.min(1, (dt || 0) * 6);
+      return gait;
+    }
+    const freq = gait === 'walk' ? 1.35 : gait === 'trot' ? 2.15 : gait === 'canter' ? 2.55 : 3.3;
+    const amp = gait === 'walk' ? 0.5 : gait === 'trot' ? 0.72 : gait === 'canter' ? 0.9 : 1.05;
+    g.userData.phase += Math.max(0, dt || 0) * freq * Math.PI * 2;
+    const off = offsets[gait];
+    legPivots.forEach((hip, i) => {
+      hip.rotation.z = Math.sin(g.userData.phase + off[i]) * amp;
+    });
+    return gait;
+  };
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return g;
 }

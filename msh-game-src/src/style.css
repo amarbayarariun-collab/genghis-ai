@@ -646,6 +646,14 @@ button:disabled {
   text-align: center;
 }
 
+#muteBtn {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: 176px;
+  pointer-events: auto;
+  font-size: 13px;
+  padding: 7px 12px;
+}
 #sourceBtn {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
