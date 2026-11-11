@@ -3,6 +3,8 @@ import { estimateCostUsd, planForTier, resolvePlanTier } from "@/lib/plans";
 import { newId } from "@/lib/usage/ids";
 import type {
   AuthProvider,
+  InvoiceRecord,
+  InvoiceStatus,
   PlanUsageSnapshot,
   TokenUsageTotals,
   UsageEventType,
@@ -35,6 +37,9 @@ type MemoryStore = {
     estimatedCostUsd: number;
     createdAt: string;
   }>;
+  invoices: Map<string, InvoiceRecord>;
+  invoicesBySender: Map<string, string>;
+  invoicesByQpay: Map<string, string>;
 };
 
 declare global {
@@ -48,9 +53,18 @@ function memory(): MemoryStore {
       usersByEmail: new Map(),
       events: [],
       tokenUsage: [],
+      invoices: new Map(),
+      invoicesBySender: new Map(),
+      invoicesByQpay: new Map(),
     };
   }
-  return globalThis.__genghisUsageMemory;
+  const store = globalThis.__genghisUsageMemory;
+  if (!store.invoices) {
+    store.invoices = new Map();
+    store.invoicesBySender = new Map();
+    store.invoicesByQpay = new Map();
+  }
+  return store;
 }
 
 function todayUtc(): string {
@@ -130,6 +144,27 @@ async function ensureSchema(): Promise<Sql | null> {
       await sql`
         CREATE INDEX IF NOT EXISTS genghis_token_usage_created
         ON genghis_token_usage (created_at DESC)
+      `;
+      await sql`
+        CREATE TABLE IF NOT EXISTS genghis_invoices (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES genghis_users(id) ON DELETE CASCADE,
+          sender_invoice_no TEXT UNIQUE NOT NULL,
+          qpay_invoice_id TEXT,
+          amount_mnt INT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          mock BOOLEAN NOT NULL DEFAULT FALSE,
+          paid_at TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS genghis_invoices_user
+        ON genghis_invoices (user_id, created_at DESC)
+      `;
+      await sql`
+        CREATE INDEX IF NOT EXISTS genghis_invoices_qpay
+        ON genghis_invoices (qpay_invoice_id)
       `;
     })().catch((err) => {
       schemaReady = null;
@@ -506,6 +541,141 @@ export async function getTokenUsageTotals(): Promise<TokenUsageTotals> {
     estimatedCostUsd: Number(row.estimated_cost_usd || 0),
     asOf: new Date().toISOString(),
   };
+}
+
+function mapInvoice(row: Row): InvoiceRecord {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    senderInvoiceNo: String(row.sender_invoice_no),
+    qpayInvoiceId:
+      row.qpay_invoice_id == null ? null : String(row.qpay_invoice_id),
+    amountMnt: Number(row.amount_mnt || 0),
+    status: (String(row.status || "pending") as InvoiceStatus) || "pending",
+    mock: Boolean(row.mock),
+    paidAt:
+      row.paid_at == null ? null : new Date(String(row.paid_at)).toISOString(),
+    createdAt: new Date(String(row.created_at)).toISOString(),
+  };
+}
+
+export async function createInvoiceRecord(input: {
+  userId: string;
+  senderInvoiceNo: string;
+  qpayInvoiceId?: string | null;
+  amountMnt: number;
+  mock?: boolean;
+}): Promise<InvoiceRecord> {
+  const id = newId("inv");
+  const createdAt = new Date().toISOString();
+  const record: InvoiceRecord = {
+    id,
+    userId: input.userId,
+    senderInvoiceNo: input.senderInvoiceNo,
+    qpayInvoiceId: input.qpayInvoiceId || null,
+    amountMnt: input.amountMnt,
+    status: "pending",
+    mock: Boolean(input.mock),
+    paidAt: null,
+    createdAt,
+  };
+
+  const sql = await ensureSchema();
+  if (!sql) {
+    memory().invoices.set(id, record);
+    memory().invoicesBySender.set(record.senderInvoiceNo, id);
+    if (record.qpayInvoiceId) {
+      memory().invoicesByQpay.set(record.qpayInvoiceId, id);
+    }
+    return record;
+  }
+
+  await sql`
+    INSERT INTO genghis_invoices (
+      id, user_id, sender_invoice_no, qpay_invoice_id, amount_mnt, status, mock, paid_at, created_at
+    )
+    VALUES (
+      ${id},
+      ${record.userId},
+      ${record.senderInvoiceNo},
+      ${record.qpayInvoiceId},
+      ${record.amountMnt},
+      ${record.status},
+      ${record.mock},
+      NULL,
+      ${createdAt}
+    )
+  `;
+  return record;
+}
+
+export async function findInvoiceById(id: string): Promise<InvoiceRecord | null> {
+  const sql = await ensureSchema();
+  if (!sql) return memory().invoices.get(id) || null;
+  const rows = asRows(
+    await sql`
+      SELECT id, user_id, sender_invoice_no, qpay_invoice_id, amount_mnt, status, mock, paid_at, created_at
+      FROM genghis_invoices WHERE id = ${id} LIMIT 1
+    `
+  );
+  return rows[0] ? mapInvoice(rows[0]) : null;
+}
+
+export async function findInvoiceByQpayId(
+  qpayInvoiceId: string
+): Promise<InvoiceRecord | null> {
+  const sql = await ensureSchema();
+  if (!sql) {
+    const id = memory().invoicesByQpay.get(qpayInvoiceId);
+    return id ? memory().invoices.get(id) || null : null;
+  }
+  const rows = asRows(
+    await sql`
+      SELECT id, user_id, sender_invoice_no, qpay_invoice_id, amount_mnt, status, mock, paid_at, created_at
+      FROM genghis_invoices WHERE qpay_invoice_id = ${qpayInvoiceId} LIMIT 1
+    `
+  );
+  return rows[0] ? mapInvoice(rows[0]) : null;
+}
+
+export async function findInvoiceBySenderNo(
+  senderInvoiceNo: string
+): Promise<InvoiceRecord | null> {
+  const sql = await ensureSchema();
+  if (!sql) {
+    const id = memory().invoicesBySender.get(senderInvoiceNo);
+    return id ? memory().invoices.get(id) || null : null;
+  }
+  const rows = asRows(
+    await sql`
+      SELECT id, user_id, sender_invoice_no, qpay_invoice_id, amount_mnt, status, mock, paid_at, created_at
+      FROM genghis_invoices WHERE sender_invoice_no = ${senderInvoiceNo} LIMIT 1
+    `
+  );
+  return rows[0] ? mapInvoice(rows[0]) : null;
+}
+
+export async function markInvoicePaid(
+  invoiceId: string
+): Promise<InvoiceRecord | null> {
+  const existing = await findInvoiceById(invoiceId);
+  if (!existing) return null;
+  if (existing.status === "paid") return existing;
+
+  const paidAt = new Date().toISOString();
+  const sql = await ensureSchema();
+  if (!sql) {
+    const next: InvoiceRecord = { ...existing, status: "paid", paidAt };
+    memory().invoices.set(invoiceId, next);
+    return next;
+  }
+
+  await sql`
+    UPDATE genghis_invoices
+    SET status = 'paid', paid_at = ${paidAt}
+    WHERE id = ${invoiceId}
+  `;
+  return findInvoiceById(invoiceId);
 }
 
 export async function getUsageStats(): Promise<UsageStats> {

@@ -68,3 +68,17 @@ export type PlanUsageSnapshot = {
   paidUntil: string | null;
   period: string;
 };
+
+export type InvoiceStatus = "pending" | "paid" | "cancelled" | "expired";
+
+export type InvoiceRecord = {
+  id: string;
+  userId: string;
+  senderInvoiceNo: string;
+  qpayInvoiceId: string | null;
+  amountMnt: number;
+  status: InvoiceStatus;
+  mock: boolean;
+  paidAt: string | null;
+  createdAt: string;
+};
