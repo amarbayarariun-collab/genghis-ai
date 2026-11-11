@@ -32,7 +32,9 @@ export async function POST(request: Request) {
         error: locale === "en" ? quota.block.errorEn : quota.block.error,
         code: quota.block.code,
         usage: quota.block.usage,
-        upgradePath: quota.block.upgradePath,
+        ...(quota.block.upgradePath
+          ? { upgradePath: quota.block.upgradePath }
+          : {}),
       },
       { status: quota.block.status }
     );

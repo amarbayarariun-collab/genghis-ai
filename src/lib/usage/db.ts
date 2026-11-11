@@ -57,14 +57,16 @@ function todayUtc(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** First day of current UTC calendar month (YYYY-MM-01). */
-export function monthStartUtc(d = new Date()): string {
-  return `${d.toISOString().slice(0, 7)}-01`;
-}
-
-export function monthKeyUtc(d = new Date()): string {
-  return d.toISOString().slice(0, 7);
-}
+export {
+  monthKeyUtc,
+  monthResetsAtUtc,
+  monthStartUtc,
+} from "@/lib/usage/period";
+import {
+  monthKeyUtc,
+  monthResetsAtUtc,
+  monthStartUtc,
+} from "@/lib/usage/period";
 
 function databaseUrl(): string | undefined {
   return (
@@ -395,6 +397,7 @@ export async function getPlanUsage(userId: string): Promise<PlanUsageSnapshot> {
     model: plan.chatModel,
     paidUntil: user?.paidUntil || null,
     period: monthKeyUtc(),
+    resetsAt: monthResetsAtUtc(),
   };
 }
 

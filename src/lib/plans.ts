@@ -28,7 +28,8 @@ export const FREE_PLAN: PlanDefinition = {
   imagesPerMonth: 0,
   priceUsd: 0,
   priceMnt: 0,
-  reasoningEffort: "low",
+  // Free stays on grok-4.3 without an explicit reasoning knob.
+  reasoningEffort: null,
 };
 
 export const PAID_PLAN: PlanDefinition = {

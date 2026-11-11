@@ -7,6 +7,11 @@ import {
   recordEvent,
 } from "@/lib/usage/db";
 import { newId } from "@/lib/usage/ids";
+import {
+  imageLimitBlock,
+  messageLimitBlock,
+  type QuotaBlock,
+} from "@/lib/usage/quota-messages";
 import { readSession } from "@/lib/usage/session";
 import type { PlanUsageSnapshot, UserRecord } from "@/lib/usage/types";
 
@@ -18,14 +23,13 @@ export type QuotaSubject = {
   isGuest: boolean;
 };
 
-export type QuotaBlock = {
-  code: "MESSAGE_LIMIT" | "IMAGE_LIMIT" | "IMAGE_NOT_ALLOWED";
-  status: 402;
-  error: string;
-  errorEn: string;
-  usage: PlanUsageSnapshot;
-  upgradePath: "/pricing";
-};
+export type { QuotaBlock };
+export {
+  buildImageLimitCopy,
+  buildMessageLimitCopy,
+  imageLimitBlock,
+  messageLimitBlock,
+} from "@/lib/usage/quota-messages";
 
 async function readOrCreateGuestId(): Promise<string> {
   const jar = await cookies();
@@ -57,48 +61,6 @@ export async function resolveQuotaSubject(): Promise<QuotaSubject> {
   const user = await ensureGuestUser(guestId);
   const usage = await getPlanUsage(user.id);
   return { user, usage, isGuest: true };
-}
-
-export function messageLimitBlock(usage: PlanUsageSnapshot): QuotaBlock {
-  const plan = planForTier(usage.tier);
-  return {
-    code: "MESSAGE_LIMIT",
-    status: 402,
-    error:
-      usage.tier === "paid"
-        ? `Энэ сарын мессежийн хязгаарт хүрлээ (${usage.messagesUsed}/${plan.messagesPerMonth}). Шинэ сар хүртэл хүлээнэ үү, эсвэл дэмжлэгтэй холбогдоно уу.`
-        : `Үнэгүй багцын сарын хязгаарт хүрлээ (${usage.messagesUsed}/${plan.messagesPerMonth} мессеж). Үргэлжлүүлэхийн тулд Pro руу шилжээрэй.`,
-    errorEn:
-      usage.tier === "paid"
-        ? `Monthly message limit reached (${usage.messagesUsed}/${plan.messagesPerMonth}).`
-        : `Free monthly message limit reached (${usage.messagesUsed}/${plan.messagesPerMonth}). Upgrade to Pro to continue.`,
-    usage,
-    upgradePath: "/pricing",
-  };
-}
-
-export function imageLimitBlock(usage: PlanUsageSnapshot): QuotaBlock {
-  const plan = planForTier(usage.tier);
-  if (plan.imagesPerMonth <= 0) {
-    return {
-      code: "IMAGE_NOT_ALLOWED",
-      status: 402,
-      error:
-        "Үнэгүй багцад зураг үүсгэх боломжгүй. Pro ($20/сар · ~72,000₮) дээр сард 10 зураг ашиглана.",
-      errorEn:
-        "Image generation is not included on Free. Upgrade to Pro ($20/mo) for 10 images/month.",
-      usage,
-      upgradePath: "/pricing",
-    };
-  }
-  return {
-    code: "IMAGE_LIMIT",
-    status: 402,
-    error: `Энэ сарын зургийн хязгаарт хүрлээ (${usage.imagesUsed}/${plan.imagesPerMonth}).`,
-    errorEn: `Monthly image limit reached (${usage.imagesUsed}/${plan.imagesPerMonth}).`,
-    usage,
-    upgradePath: "/pricing",
-  };
 }
 
 export async function assertCanSendMessage(): Promise<

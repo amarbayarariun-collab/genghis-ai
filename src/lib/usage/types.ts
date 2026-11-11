@@ -66,5 +66,8 @@ export type PlanUsageSnapshot = {
   imagesLimit: number;
   model: string;
   paidUntil: string | null;
+  /** UTC month key YYYY-MM. */
   period: string;
+  /** First day of next UTC month (YYYY-MM-DD) when counters reset. */
+  resetsAt: string;
 };

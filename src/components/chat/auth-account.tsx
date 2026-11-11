@@ -21,6 +21,7 @@ type PlanUsage = {
   imagesLimit: number;
   model: string;
   period: string;
+  resetsAt?: string;
 };
 
 export function AuthAccount() {

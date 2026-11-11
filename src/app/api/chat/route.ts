@@ -3,12 +3,11 @@ import {
   resolveChatProvider,
   type ChatProviderConfig,
 } from "@/lib/chat-provider";
+import { shapeChatCompletionRequest } from "@/lib/chat-request-shape";
 import { isLocale, type Locale } from "@/lib/locale";
 import { streamMockReply } from "@/lib/mock-chat";
 import {
   attachTextLimit,
-  chatHistoryLimit,
-  chatMaxTokens,
   estimateCostUsd,
   planForTier,
 } from "@/lib/plans";
@@ -128,12 +127,6 @@ function lastUserText(messages: IncomingMessage[]): string {
   return "";
 }
 
-function trimHistory(messages: IncomingMessage[]): IncomingMessage[] {
-  const limit = chatHistoryLimit();
-  if (messages.length <= limit) return messages;
-  return messages.slice(-limit);
-}
-
 function parseUsage(raw: unknown): StreamUsage | null {
   if (!raw || typeof raw !== "object") return null;
   const u = raw as Record<string, unknown>;
@@ -189,37 +182,24 @@ async function* streamChatCompletion(
         : `\n\n[Вэб хайлтын үр дүн]\n${webContext}`;
   }
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+  const shaped = shapeChatCompletionRequest({
+    model,
+    system,
+    messages,
+    isXai,
+    conversationId: options.conversationId,
+    userId: options.userId,
+    reasoningEffort: options.reasoningEffort,
+  });
+  const headers = { ...shaped.headers };
   if (apiKey) {
     headers.Authorization = `Bearer ${apiKey}`;
-  }
-  // xAI Chat Completions: sticky routing for prompt-cache reuse.
-  if (isXai && options.conversationId) {
-    headers["x-grok-conv-id"] = options.conversationId.slice(0, 128);
-  }
-
-  const body: Record<string, unknown> = {
-    model,
-    stream: true,
-    stream_options: { include_usage: true },
-    max_tokens: chatMaxTokens(),
-    messages: [{ role: "system", content: system }, ...messages],
-  };
-
-  if (options.reasoningEffort) {
-    body.reasoning_effort = options.reasoningEffort;
-  }
-  // Also set prompt_cache_key for providers that honor body field on chat completions.
-  if (isXai && options.conversationId) {
-    body.prompt_cache_key = options.conversationId.slice(0, 128);
   }
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers,
-    body: JSON.stringify(body),
+    body: JSON.stringify(shaped.body),
     signal: options.signal,
   });
 
@@ -311,7 +291,9 @@ export async function POST(request: Request) {
         error: locale === "en" ? quota.block.errorEn : quota.block.error,
         code: quota.block.code,
         usage: quota.block.usage,
-        upgradePath: quota.block.upgradePath,
+        ...(quota.block.upgradePath
+          ? { upgradePath: quota.block.upgradePath }
+          : {}),
       },
       { status: quota.block.status }
     );
@@ -338,14 +320,13 @@ export async function POST(request: Request) {
     });
   }
 
-  const history = trimHistory(messages);
-  const prompt = lastUserText(history);
+  const prompt = lastUserText(messages);
   const chat = resolveChatProvider({ modelOverride: plan.chatModel });
 
   try {
     if (chat.configured) {
       const stream = encoderStream(
-        streamChatCompletion(history, chat, mode, webContext, locale, {
+        streamChatCompletion(messages, chat, mode, webContext, locale, {
           reasoningEffort: plan.reasoningEffort,
           conversationId,
           userId: quota.subject.user.id,
