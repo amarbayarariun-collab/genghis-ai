@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start -p 4317 -H 127.0.0.1",
     "lint": "eslint",
-    "test:legal": "node scripts/verify-legal-launch.mjs"
+    "test:legal": "node scripts/verify-legal-launch.mjs",
+    "test:translit": "node --experimental-strip-types --test src/lib/transliterate-mn.test.mts",
+    "test": "npm run test:legal && npm run test:translit"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
