@@ -242,16 +242,23 @@ export function ChatApp() {
           const response = await fetch("/api/image", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: userMessage.content }),
+            body: JSON.stringify({
+              prompt: userMessage.content,
+              locale: uiLocale,
+            }),
             signal: controller.signal,
           });
           const data = (await response.json().catch(() => null)) as {
             imageUrl?: string;
             error?: string;
             model?: string;
+            upgradePath?: string;
           } | null;
           if (!response.ok || !data?.imageUrl) {
-            throw new Error(data?.error || t("imageFail"));
+            const base = data?.error || t("imageFail");
+            throw new Error(
+              data?.upgradePath ? `${base} → ${data.upgradePath}` : base
+            );
           }
           patchAssistant({
             content: `${t("imageOk")}${data.model ? ` (${data.model})` : ""}.`,
@@ -299,6 +306,7 @@ export function ChatApp() {
             messages: history,
             mode: activeMode,
             locale: uiLocale,
+            conversationId: currentId,
             attachments: activeAttachments.map((a) => ({
               name: a.name,
               mime: a.mime,
@@ -314,9 +322,12 @@ export function ChatApp() {
         if (!response.ok) {
           const data = (await response.json().catch(() => null)) as {
             error?: string;
+            upgradePath?: string;
           } | null;
+          const base =
+            data?.error || `${t("errorPrefix")} (${response.status})`;
           throw new Error(
-            data?.error || `${t("errorPrefix")} (${response.status})`
+            data?.upgradePath ? `${base} → ${data.upgradePath}` : base
           );
         }
 
