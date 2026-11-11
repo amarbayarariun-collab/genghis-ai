@@ -26,6 +26,7 @@ jobs:
       QPAY_INVOICE_CODE: ""
       DATABASE_URL: ""
       AUTH_SECRET: genghis-ci-auth-secret-not-for-prod
+      ADMIN_SECRET: genghis-ci-admin-secret-not-for-prod
       CI: "1"
     steps:
       - uses: actions/checkout@v4

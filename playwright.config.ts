@@ -41,12 +41,15 @@ export default defineConfig({
           QPAY_INVOICE_CODE: "",
           DATABASE_URL: "",
           AUTH_SECRET: process.env.AUTH_SECRET || "genghis-dev-auth-secret-change-me",
+          ADMIN_SECRET:
+            process.env.ADMIN_SECRET || "genghis-dev-admin-secret-change-me",
           PORT: String(PORT),
         },
       },
   projects: [
     {
       name: "desktop",
+      testIgnore: "**/launch-phone-layout.spec.ts",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } },
     },
     {
@@ -54,6 +57,29 @@ export default defineConfig({
       use: {
         ...devices["Pixel 5"],
         viewport: { width: 360, height: 740 },
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+    // Phone-size layout + PWA only (see e2e/launch-phone-layout.spec.ts).
+    // Chromium + phone viewport (avoid WebKit install in CI/smoke).
+    {
+      name: "iphone-390",
+      testMatch: "**/launch-phone-layout.spec.ts",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+        userAgent: devices["iPhone 13"].userAgent,
+      },
+    },
+    {
+      name: "android-412",
+      testMatch: "**/launch-phone-layout.spec.ts",
+      use: {
+        ...devices["Pixel 7"],
+        viewport: { width: 412, height: 915 },
         isMobile: true,
         hasTouch: true,
       },
