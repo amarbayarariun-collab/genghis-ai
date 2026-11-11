@@ -1,43 +1,85 @@
-// Тэмүжин — Mixamo GLB with SkeletonUtils + outer-group scale (safer on three@0.170).
+// Тэмүжин — clothed Rodin sculpt. Neither this GLB nor hoelun.glb has a skeleton or clips.
+// temujin.glb is an untextured Mixamo bind pose with no animation tracks, so it is not the body.
+// Idle and walk below are a temporary whole-body motion until a rigged clip exists.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { mongolHat } from '../world-kit.js';
 
-// SkeletonUtils.clone + outer scale still giant/explode in cinematic on three@0.170.
-export const USE_TEMUJIN_GLB = false;
-export const TEMUJIN_GLB_URL = './models/temujin.glb';
+export const USE_TEMUJIN_GLB = true;
+export const TEMUJIN_GLB_URL = './models/base_basic_shaded.glb';
 export const TEMUJIN_ANIM_DIR = './anims/';
 const TARGET_HEIGHT = 1.72;
 
 const mat = (hex) => new THREE.MeshLambertMaterial({ color: hex, flatShading: true });
 
-export function createTemujin() {
+export function createTemujin(opts = {}) {
+  const shadows = opts.shadows === true;
   const group = new THREE.Group();
   const placeholder = buildPlaceholder();
   group.add(placeholder.root);
   let speed = 0;
   let moving = false;
+  let slope = 0;
+  let phase = 0;
   group.userData.setMoving = (v) => { moving = !!v; };
   group.userData.setSpeed = (s) => { speed = Math.max(0, s || 0); };
-  group.userData.update = (dt, t) => placeholder.update(dt, t, moving ? Math.max(speed, 1.6) : 0);
+  group.userData.setSlope = (s) => { slope = s || 0; };
+  const motion = (node, dt, baseY) => {
+    const sp = moving ? speed : 0;
+    const walking = sp > 0.08;
+    const g = THREE.MathUtils.clamp(sp / 3.4, 0, 1);
+    // One sway is two steps. Pivot stays at the planted feet, so Y never leaves baseY.
+    phase += dt * (walking ? 6.2 + sp * 1.35 : 1.15);
+    const sway = Math.sin(phase);
+    const step = Math.sin(phase * 2);
+    node.position.y = baseY;
+    const lean = walking ? 0.055 * Math.max(g, 0.45) : 0.016;
+    node.rotation.z = sway * lean;
+    const climb = THREE.MathUtils.clamp(slope / 1.6, -0.1, 0.1);
+    node.rotation.x = (walking ? step * 0.04 * Math.max(g, 0.45) : Math.sin(phase * 0.5) * 0.012) + climb;
+    node.rotation.y = 0;
+  };
+  group.userData.update = (dt, t) => {
+    placeholder.update(dt, t, moving ? speed : 0);
+    motion(placeholder.root, dt, 0);
+  };
 
   if (!USE_TEMUJIN_GLB) return group;
 
-  new GLTFLoader().load(
+  const draco = new DRACOLoader();
+  draco.setDecoderPath('./draco/');
+  const loader = new GLTFLoader();
+  loader.setDRACOLoader(draco);
+  loader.load(
     TEMUJIN_GLB_URL,
     (gltf) => {
+      draco.dispose();
       try {
-        // Clone skeleton safely; scale OUTER wrapper only (never the skinned root alone)
-        const raw = cloneSkinned(gltf.scene);
+        // One instance: scale the scene, then rebind so bone matrices share that scale.
+        const raw = gltf.scene;
         const wrap = new THREE.Group();
         wrap.add(raw);
 
-        // Measure unscaled, then scale wrap
         raw.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(raw);
         const size = box.getSize(new THREE.Vector3());
         const s = TARGET_HEIGHT / (size.y || 1);
-        wrap.scale.setScalar(s);
+        raw.scale.setScalar(s);
+        raw.updateMatrixWorld(true);
+        let skinned = false;
+        raw.traverse((o) => {
+          if (o.isBone) skinned = true;
+          if (!o.isMesh) return;
+          o.castShadow = shadows;
+          o.receiveShadow = shadows;
+          o.geometry?.computeBoundingSphere?.();
+          o.frustumCulled = true;
+          if (o.isSkinnedMesh) {
+            skinned = true;
+            o.bind(o.skeleton, o.bindMatrix);
+          }
+        });
         wrap.updateMatrixWorld(true);
         const box2 = new THREE.Box3().setFromObject(wrap);
         wrap.position.set(
@@ -46,34 +88,40 @@ export function createTemujin() {
           -((box2.min.z + box2.max.z) / 2)
         );
 
-        raw.traverse((o) => {
-          if (!o.isMesh) return;
-          o.castShadow = true;
-          o.receiveShadow = true;
-          o.frustumCulled = false;
-          if (o.isSkinnedMesh) {
-            o.frustumCulled = false;
-            o.skeleton?.calculateInverses?.();
-          }
-        });
-
         group.remove(placeholder.root);
         group.add(wrap);
 
-        let phase = 0;
         const baseY = wrap.position.y;
+        const clips = gltf.animations?.length || 0;
+        // Play a clip only when this mesh already has both a skeleton and tracks.
+        // The clothed Draco file has neither. Inventing a Mixamo rig for it would
+        // miss the sculpt, so the whole-body lean stays.
+        let mixer = null;
+        if (skinned && clips > 0) {
+          mixer = new THREE.AnimationMixer(raw);
+          mixer.clipAction(gltf.animations[0]).play();
+        }
+        group.userData.clipGate = {
+          applied: !!mixer,
+          skinned,
+          clips,
+          reason: mixer
+            ? 'Skeleton and a clip were on this mesh, so the first clip plays.'
+            : 'The clothed Draco mesh has no skeleton and no clips. temujin.glb is a Mixamo bind with no tracks and is not this body. A made-up rig would not match the sculpt.',
+        };
         group.userData.update = (dt) => {
-          const sp = moving ? Math.max(speed, 0.5) : speed;
-          const g = THREE.MathUtils.clamp(sp / 3.4, 0, 1);
-          phase += dt * (sp > 0.05 ? 3.2 + sp * 1.5 : 0);
-          wrap.position.y = baseY + Math.abs(Math.sin(phase)) * 0.035 * g;
+          if (mixer) mixer.update(dt);
+          else motion(wrap, dt, baseY);
         };
       } catch (err) {
         console.error('[temujin] GLB setup failed, procedural kept', err);
       }
     },
     undefined,
-    (err) => console.warn('[temujin] GLB failed:', err)
+    (err) => {
+      draco.dispose();
+      console.warn('[temujin] GLB failed:', err);
+    }
   );
 
   return group;
@@ -103,7 +151,7 @@ function buildPlaceholder() {
   add(root, new THREE.CylinderGeometry(0.22, 0.28, 0.85, 8), C.deel, [0, 1.05, 0]);
   add(root, new THREE.TorusGeometry(0.2, 0.06, 5, 10), C.fur, [0, 1.4, 0], [Math.PI / 2, 0, 0]);
   add(root, new THREE.IcosahedronGeometry(0.13, 1), C.skin, [0, 1.55, 0]);
-  add(root, new THREE.CylinderGeometry(0.1, 0.16, 0.28, 8), C.hat, [0, 1.72, 0]);
+  root.add(mongolHat(1));
   return {
     root,
     update(dt, t, sp) {
