@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { SiteLegalLinks } from "@/components/legal/site-legal-links";
 import { useLocale } from "@/components/locale-provider";
 import { Button } from "@/components/ui/button";
 
@@ -281,6 +282,7 @@ export function AuthAccount() {
                   {t("authGoogle")}
                 </a>
               ) : null}
+              <SiteLegalLinks tone="muted" className="pt-1" />
             </form>
           ) : null}
         </div>

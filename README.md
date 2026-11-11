@@ -64,6 +64,16 @@ Cost controls on `/api/chat`: history trim (`CHAT_HISTORY_LIMIT`), `max_tokens`,
 
 Pricing + checkout: `/pricing`. Invoice create → callback → `POST /v2/payment/check` verify → mark Pro for 30 days (`paid_until`). Without `QPAY_CLIENT_ID` / `QPAY_CLIENT_SECRET` / `QPAY_INVOICE_CODE` the flow stays **mock** (no live charges). Domestic QPay merchant fee is typically **~1%** (confirm in contract).
 
+## Legal (drafts)
+
+Mongolian-first drafts for owner review: [`/privacy`](./src/app/privacy/page.tsx) (Нууцлалын бодлого), [`/terms`](./src/app/terms/page.tsx) (Үйлчилгээний нөхцөл, including short refund/cancellation). Company reg/address are labelled `[PLACEHOLDER · …]`. Linked from landing, pricing, and signup.
+
+Launch merge order + owner-only env/OAuth/QPay/xAI steps: [`docs/LAUNCH_CHECKLIST.md`](./docs/LAUNCH_CHECKLIST.md) (see also [`docs/MERGE_ORDER.md`](./docs/MERGE_ORDER.md)). Leave #39/#40 untouched.
+
+```bash
+npm run test:legal
+```
+
 ## What’s in this slice
 
 - Full-screen chat UI (desktop + mobile)

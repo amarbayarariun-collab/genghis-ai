@@ -14,6 +14,7 @@ import { LiveHeroBackdrop } from "@/components/chat/live-hero-backdrop";
 import { LocaleToggle } from "@/components/chat/locale-toggle";
 import { ThemeToggle } from "@/components/chat/theme-toggle";
 import { WallpaperPickerButton } from "@/components/chat/wallpaper-picker";
+import { SiteLegalLinks } from "@/components/legal/site-legal-links";
 import Link from "next/link";
 import { useLocale } from "@/components/locale-provider";
 import { useWallpaper } from "@/hooks/use-wallpaper";
@@ -243,6 +244,9 @@ export function HomeHero({
                 </p>
               </button>
             ))}
+          </div>
+          <div className="mx-auto mt-4 flex max-w-5xl justify-center sm:mt-5">
+            <SiteLegalLinks tone="onDark" />
           </div>
         </div>
       </div>
