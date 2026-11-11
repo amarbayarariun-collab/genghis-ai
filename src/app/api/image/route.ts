@@ -1,7 +1,92 @@
 import {
-  resolveImageApiConfig,
+  listImageApiConfigs,
+  resolveImageProviderPreference,
   sanitizeApiError,
+  type ImageApiConfig,
 } from "@/lib/api-config";
+
+function missingKeyError(preference: ReturnType<typeof resolveImageProviderPreference>): string {
+  if (preference === "xai") {
+    return "Зураг үүсгэхэд xAI түлхүүр хэрэгтэй. Vercel дээр OPENAI_API_KEY эсвэл AP (xai-…) тохируулаад Production Redeploy хийнэ үү. IMAGE_PROVIDER=xai.";
+  }
+  if (preference === "openai") {
+    return "Зураг үүсгэхэд OpenAI image түлхүүр хэрэгтэй. Vercel дээр OPENAI_IMAGE_API_KEY тохируулаад Production Redeploy хийнэ үү. IMAGE_PROVIDER=openai.";
+  }
+  return "Зураг үүсгэхэд API түлхүүр хэрэгтэй. xAI-д OPENAI_API_KEY / AP (xai-…) эсвэл OpenAI-д OPENAI_IMAGE_API_KEY тохируулаад Production Redeploy хийнэ үү.";
+}
+
+function allFailedError(configs: ImageApiConfig[]): string {
+  const triedXai = configs.some((c) => c.provider === "xai");
+  const triedOpenAI = configs.some((c) => c.provider === "openai");
+
+  if (triedXai && triedOpenAI) {
+    return "Зураг үүсгэж чадсангүй. OpenAI image болон xAI Imagine (grok-imagine-image) аль аль нь амжилтгүй. IMAGE_PROVIDER=xai (зөвхөн одоогийн xAI түлхүүр) эсвэл openai сонгоод, model/эрхээ шалгаад Redeploy хийнэ үү.";
+  }
+  if (triedXai) {
+    return "Зураг үүсгэж чадсангүй. xAI Imagine model (grok-imagine-image) эсвэл түлхүүрийн эрх буруу байна. OPENAI_API_KEY / AP (xai-…) болон IMAGE_PROVIDER=xai шалгаад Production Redeploy хийнэ үү.";
+  }
+  return "Зураг үүсгэж чадсангүй. OpenAI image model эрх/billing эсвэл загварын нэр буруу байна. dall-e-3 болон gpt-image-1 retired. OPENAI_IMAGE_API_KEY + OPENAI_IMAGE_MODEL=gpt-image-2.5-flare тавиад credits шалгаад Redeploy хийнэ үү. Эсвэл IMAGE_PROVIDER=xai гэж xAI түлхүүрээр зураг үүсгэнэ.";
+}
+
+async function tryGenerateWithConfig(
+  config: ImageApiConfig,
+  prompt: string,
+  signal: AbortSignal
+): Promise<{ imageUrl: string; model: string } | { errors: string[] }> {
+  const errors: string[] = [];
+
+  for (const model of config.imageModelCandidates) {
+    const payload: Record<string, unknown> = {
+      model,
+      prompt,
+      n: 1,
+    };
+    if (!config.isXai) {
+      // OpenAI Images API rejects response_format on current models.
+      payload.size = "1024x1024";
+    }
+
+    const response = await fetch(`${config.baseUrl}/images/generations`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal,
+    });
+
+    const raw = await response.text();
+    if (!response.ok) {
+      errors.push(
+        `${config.provider}/${model}: ${sanitizeApiError(raw) || response.statusText}`
+      );
+      continue;
+    }
+
+    let data: { data?: Array<{ url?: string; b64_json?: string }> };
+    try {
+      data = JSON.parse(raw) as typeof data;
+    } catch {
+      errors.push(`${config.provider}/${model}: буруу JSON хариу`);
+      continue;
+    }
+
+    const first = data.data?.[0];
+    const imageUrl =
+      first?.url ||
+      (first?.b64_json ? `data:image/png;base64,${first.b64_json}` : null);
+
+    if (!imageUrl) {
+      errors.push(`${config.provider}/${model}: хоосон хариу`);
+      continue;
+    }
+
+    return { imageUrl, model };
+  }
+
+  return { errors };
+}
 
 export async function POST(request: Request) {
   let body: { prompt?: string };
@@ -19,84 +104,39 @@ export async function POST(request: Request) {
     );
   }
 
-  const config = resolveImageApiConfig();
-  if (!config) {
+  const preference = resolveImageProviderPreference();
+  const configs = listImageApiConfigs(preference);
+  if (!configs.length) {
     return Response.json(
-      {
-        error:
-          "Зураг үүсгэхэд API түлхүүр хэрэгтэй. Vercel дээр OPENAI_IMAGE_API_KEY тохируулаад Production Redeploy хийнэ үү (эсвэл OPENAI_API_KEY / AP).",
-      },
+      { error: missingKeyError(preference), imageProvider: preference },
       { status: 503 }
     );
   }
 
-  const {
-    apiKey,
-    baseUrl,
-    imageModelCandidates,
-    isXai,
-    usingDedicatedImageKey,
-  } = config;
   const errors: string[] = [];
 
   try {
-    for (const model of imageModelCandidates) {
-      const payload: Record<string, unknown> = {
-        model,
-        prompt,
-        n: 1,
-      };
-      if (!isXai) {
-        // OpenAI Images API rejects response_format on current models.
-        payload.size = "1024x1024";
+    for (const config of configs) {
+      const result = await tryGenerateWithConfig(config, prompt, request.signal);
+      if ("imageUrl" in result) {
+        return Response.json({
+          ok: true,
+          imageUrl: result.imageUrl,
+          model: result.model,
+          provider: config.provider,
+          usingDedicatedImageKey: config.usingDedicatedImageKey,
+        });
       }
-
-      const response = await fetch(`${baseUrl}/images/generations`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-        signal: request.signal,
-      });
-
-      const raw = await response.text();
-      if (!response.ok) {
-        errors.push(`${model}: ${sanitizeApiError(raw) || response.statusText}`);
-        continue;
-      }
-
-      let data: { data?: Array<{ url?: string; b64_json?: string }> };
-      try {
-        data = JSON.parse(raw) as typeof data;
-      } catch {
-        errors.push(`${model}: буруу JSON хариу`);
-        continue;
-      }
-
-      const first = data.data?.[0];
-      const imageUrl =
-        first?.url ||
-        (first?.b64_json ? `data:image/png;base64,${first.b64_json}` : null);
-
-      if (!imageUrl) {
-        errors.push(`${model}: хоосон хариу`);
-        continue;
-      }
-
-      return Response.json({ ok: true, imageUrl, model });
+      errors.push(...result.errors);
     }
-
-    const error = !usingDedicatedImageKey
-      ? "Зураг үүсгэж чадсангүй. OPENAI_IMAGE_API_KEY Vercel дээр тохируулаагүй (эсвэл Redeploy хийгээгүй) байна. Env нэрийг яг OPENAI_IMAGE_API_KEY гэж тавиад Production Redeploy хийнэ үү."
-      : "Зураг үүсгэж чадсангүй. OpenAI image model эрх/billing эсвэл загварын нэр буруу байна. dall-e-3 болон gpt-image-1 retired. Vercel дээр OPENAI_IMAGE_MODEL=gpt-image-2.5-flare (эсвэл хуучин dall-e-3-ийг авч хаяад) тавиад credits шалгаад Production Redeploy хийнэ үү.";
 
     return Response.json(
       {
-        error,
+        error: allFailedError(configs),
         detail: sanitizeApiError(errors.join(" · ")),
-        usingDedicatedImageKey,
+        imageProvider: preference,
+        triedProviders: configs.map((c) => c.provider),
+        usingDedicatedImageKey: configs.some((c) => c.usingDedicatedImageKey),
       },
       { status: 502 }
     );
