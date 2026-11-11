@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { SiteLegalLinks } from "@/components/legal/site-legal-links";
 import { useLocale } from "@/components/locale-provider";
 import { Button } from "@/components/ui/button";
 
@@ -35,6 +36,13 @@ export function AuthAccount() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [googleEnabled, setGoogleEnabled] = useState(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    // Keep signup/login fields on-screen when the sidebar is short (mobile 360px).
+    formRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [open, mode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -201,7 +209,11 @@ export function AuthAccount() {
           </button>
 
           {open ? (
-            <form onSubmit={submit} className="space-y-2 rounded-xl bg-zinc-50 p-2.5 dark:bg-zinc-900">
+            <form
+              ref={formRef}
+              onSubmit={submit}
+              className="space-y-2 rounded-xl bg-zinc-50 p-2.5 dark:bg-zinc-900"
+            >
               <div className="flex gap-1 text-[11px]">
                 <button
                   type="button"
@@ -281,6 +293,7 @@ export function AuthAccount() {
                   {t("authGoogle")}
                 </a>
               ) : null}
+              <SiteLegalLinks tone="muted" className="pt-1" />
             </form>
           ) : null}
         </div>

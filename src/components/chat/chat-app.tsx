@@ -10,6 +10,7 @@ import { LocaleToggle } from "@/components/chat/locale-toggle";
 import { MessageList } from "@/components/chat/message-list";
 import { ThemeToggle } from "@/components/chat/theme-toggle";
 import { useLocale } from "@/components/locale-provider";
+import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import { createId } from "@/lib/id";
 import { toolLabel, type Locale } from "@/lib/locale";
 import type {
@@ -62,6 +63,7 @@ type SubmitMeta = { mode: ToolMode; attachments: ChatAttachment[] };
 
 export function ChatApp() {
   const { locale, t } = useLocale();
+  useVisualViewport();
   const localeRef = useRef(locale);
   const [sessions, setSessions] = useState<ChatSession[]>([BOOTSTRAP_SESSION]);
   const [activeId, setActiveId] = useState(BOOTSTRAP_SESSION_ID);
@@ -415,7 +417,13 @@ export function ChatApp() {
   const isHome = messages.length === 0;
 
   return (
-    <div className="flex h-dvh min-h-0 overflow-hidden bg-white dark:bg-zinc-950">
+    <div
+      className="flex min-h-0 overflow-hidden bg-white dark:bg-zinc-950"
+      style={{
+        height: "var(--app-vv-height, 100dvh)",
+        transform: "translateY(var(--app-vv-offset, 0px))",
+      }}
+    >
       <LimitUpgradeDialog
         open={Boolean(limitPrompt)}
         message={limitPrompt || t("planLimitTitle")}
@@ -435,7 +443,7 @@ export function ChatApp() {
       <div className="relative flex min-w-0 flex-1 flex-col bg-white dark:bg-zinc-950">
         <button
           type="button"
-          className="absolute top-3 left-3 z-20 inline-flex size-10 items-center justify-center rounded-full bg-white/95 text-ink shadow dark:bg-zinc-900 dark:text-zinc-100 md:hidden"
+          className="absolute top-3 left-3 z-20 inline-flex size-11 items-center justify-center rounded-full bg-white/95 text-ink shadow dark:bg-zinc-900 dark:text-zinc-100 md:hidden"
           onClick={() => setSidebarOpen(true)}
           aria-label={t("openMenu")}
         >
@@ -458,8 +466,8 @@ export function ChatApp() {
           />
         ) : (
           <>
-            <header className="relative flex items-center justify-center border-b border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950">
-              <p className="truncate text-sm font-medium text-ink dark:text-zinc-100">
+            <header className="relative flex items-center justify-center border-b border-zinc-200 bg-white py-3 pr-3 pl-14 dark:border-zinc-800 dark:bg-zinc-950 sm:px-4 md:pl-4">
+              <p className="max-w-[min(100%,18rem)] truncate text-sm font-medium text-ink dark:text-zinc-100 sm:max-w-md">
                 {activeSession?.title || t("newChat")}
               </p>
               <div className="absolute top-1/2 right-3 hidden -translate-y-1/2 items-center gap-2 sm:flex [&_button]:text-ink [&_div]:border-zinc-200 [&_div]:bg-zinc-100 dark:[&_button]:text-zinc-100 dark:[&_div]:border-zinc-700 dark:[&_div]:bg-zinc-900">
@@ -473,15 +481,15 @@ export function ChatApp() {
               isLoading={isLoading}
             />
             {error ? (
-              <div className="mx-auto w-full max-w-2xl px-4 pb-2">
+              <div className="mx-auto w-full max-w-2xl px-3 pb-2 sm:px-4">
                 <div
                   role="alert"
-                  className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                  className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm break-words text-destructive"
                 >
                   {error}
                   <button
                     type="button"
-                    className="ml-2 underline"
+                    className="ml-2 inline-flex min-h-11 items-center underline"
                     onClick={() => setError(null)}
                   >
                     {t("closeDialog")}
@@ -489,7 +497,7 @@ export function ChatApp() {
                 </div>
               </div>
             ) : null}
-            <div className="border-t border-zinc-200 bg-white px-3 py-3 dark:border-zinc-800 dark:bg-zinc-950 md:px-6 md:py-4">
+            <div className="border-t border-zinc-200 bg-white px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-zinc-800 dark:bg-zinc-950 sm:px-4 md:px-6 md:pt-4 md:pb-4">
               <div className="mx-auto max-w-2xl">
                 <ChatComposer
                   value={input}
