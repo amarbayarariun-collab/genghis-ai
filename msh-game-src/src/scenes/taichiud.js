@@ -53,6 +53,7 @@ export function buildTaichiudCapture(scene) {
   scene.add(th);
   colliders.push({ x: 2.2, z: -2, r: 1.2 });
 
+  const mounts = [th];
   const riders = [];
   for (let i = 0; i < 4; i++) {
     const hx = -4 - i * 2.4;
@@ -63,6 +64,7 @@ export function buildTaichiudCapture(scene) {
     const r = person({ deel: '#5a3428', hat: '#2a1810' });
     seatRider(h, r);
     scene.add(h);
+    mounts.push(h);
     scene.add(banner(hx - 0.3, hz - 0.8, heightAt));
     riders.push(r);
     colliders.push({ x: hx, z: hz, r: 1.0 });
@@ -100,6 +102,7 @@ export function buildTaichiudCapture(scene) {
         const on = near?.has(n.obj);
         n.glow.material.opacity += ((on ? 0.85 : 0) - n.glow.material.opacity) * Math.min(1, 8 * dt);
       }
+      for (const mount of mounts) mount.userData.step?.(dt, 1.6);
     },
   };
 }
@@ -300,6 +303,7 @@ export function buildTaichiudRiver(scene) {
       temujin.userData.setMoving?.(moving);
       temujin.userData.update?.(dt, t);
       scene.fog.density = 0.012 + Math.sin(t * 0.4) * 0.0012;
+      sh.userData.step?.(dt, 0.9);
       for (const n of npcs) {
         if (!n.glow) continue;
         const on = near?.has(n.obj);
