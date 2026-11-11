@@ -12,7 +12,8 @@ concurrency:
 jobs:
   smoke:
     name: Playwright launch smoke
-    runs-on: ubuntu-latest
+    # Pin 24.04: ubuntu-latest can be 26.04, which older Playwright can't install.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       # No live xAI / QPay / DB — mock paths only (no spend).
