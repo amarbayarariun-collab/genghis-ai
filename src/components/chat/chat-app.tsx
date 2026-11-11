@@ -11,6 +11,11 @@ import { MessageList } from "@/components/chat/message-list";
 import { ThemeToggle } from "@/components/chat/theme-toggle";
 import { useLocale } from "@/components/locale-provider";
 import { useVisualViewport } from "@/hooks/use-visual-viewport";
+import {
+  prepareEditResend,
+  prepareRegenerate,
+  renameSession,
+} from "@/lib/chat-actions";
 import { createId } from "@/lib/id";
 import { toolLabel, type Locale } from "@/lib/locale";
 import type {
@@ -145,72 +150,24 @@ export function ChatApp() {
     setStreamingId(null);
   }, []);
 
-  const sendMessage = useCallback(
-    async (raw: string, meta?: SubmitMeta) => {
-      const content = raw.trim();
-      const activeMode = meta?.mode || mode;
-      const activeAttachments = meta?.attachments ?? attachments;
-      if (
-        (!content && activeAttachments.length === 0) ||
-        loadingRef.current ||
-        !hydrated
-      ) {
-        return;
-      }
-
-      const currentId = activeIdRef.current;
-      if (!currentId || currentId === BOOTSTRAP_SESSION_ID) return;
-      const current =
-        sessionsRef.current.find((s) => s.id === currentId) ??
-        sessionsRef.current[0];
-      if (!current || current.id === BOOTSTRAP_SESSION_ID) return;
-
-      setError(null);
-      setLimitPrompt(null);
-      setInput("");
-      setAttachments([]);
-      setMode("chat");
-
-      const uiLocale = localeRef.current;
-      const userMessage: ChatMessage = {
-        id: createId("msg"),
-        role: "user",
-        content:
-          content ||
-          (activeAttachments.length
-            ? uiLocale === "en"
-              ? "Please review the attachments."
-              : "Хавсралтыг үзэж өгнө үү."
-            : ""),
-        attachments: activeAttachments.length ? activeAttachments : undefined,
-        tool: activeMode,
-      };
-      const assistantId = createId("msg");
-      const assistantMessage: ChatMessage = {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        tool: activeMode,
-      };
-
-      const nextMessages = [
-        ...current.messages,
-        userMessage,
-        assistantMessage,
-      ];
-
+  const streamTurn = useCallback(
+    async (
+      currentId: string,
+      nextMessages: ChatMessage[],
+      assistantId: string,
+      userMessage: ChatMessage,
+      activeMode: ToolMode,
+      activeAttachments: ChatAttachment[],
+      titleIfEmpty?: string
+    ) => {
       setSessions((prev) =>
         prev.map((s) =>
           s.id === currentId
             ? {
                 ...s,
                 title:
-                  s.messages.length === 0
-                    ? titleFromPrompt(
-                        userMessage.content,
-                        activeMode,
-                        uiLocale
-                      )
+                  titleIfEmpty && s.messages.length === 0
+                    ? titleIfEmpty
                     : s.title,
                 messages: nextMessages,
                 updatedAt: Date.now(),
@@ -241,6 +198,8 @@ export function ChatApp() {
           )
         );
       };
+
+      const uiLocale = localeRef.current;
 
       try {
         if (activeMode === "image") {
@@ -373,7 +332,152 @@ export function ChatApp() {
         abortRef.current = null;
       }
     },
-    [attachments, hydrated, mode, t]
+    [t]
+  );
+
+  const sendMessage = useCallback(
+    async (raw: string, meta?: SubmitMeta) => {
+      const content = raw.trim();
+      const activeMode = meta?.mode || mode;
+      const activeAttachments = meta?.attachments ?? attachments;
+      if (
+        (!content && activeAttachments.length === 0) ||
+        loadingRef.current ||
+        !hydrated
+      ) {
+        return;
+      }
+
+      const currentId = activeIdRef.current;
+      if (!currentId || currentId === BOOTSTRAP_SESSION_ID) return;
+      const current =
+        sessionsRef.current.find((s) => s.id === currentId) ??
+        sessionsRef.current[0];
+      if (!current || current.id === BOOTSTRAP_SESSION_ID) return;
+
+      setError(null);
+      setLimitPrompt(null);
+      setInput("");
+      setAttachments([]);
+      setMode("chat");
+
+      const uiLocale = localeRef.current;
+      const userMessage: ChatMessage = {
+        id: createId("msg"),
+        role: "user",
+        content:
+          content ||
+          (activeAttachments.length
+            ? uiLocale === "en"
+              ? "Please review the attachments."
+              : "Хавсралтыг үзэж өгнө үү."
+            : ""),
+        attachments: activeAttachments.length ? activeAttachments : undefined,
+        tool: activeMode,
+      };
+      const assistantId = createId("msg");
+      const assistantMessage: ChatMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        tool: activeMode,
+      };
+
+      const nextMessages = [
+        ...current.messages,
+        userMessage,
+        assistantMessage,
+      ];
+
+      await streamTurn(
+        currentId,
+        nextMessages,
+        assistantId,
+        userMessage,
+        activeMode,
+        activeAttachments,
+        titleFromPrompt(userMessage.content, activeMode, uiLocale)
+      );
+    },
+    [attachments, hydrated, mode, streamTurn]
+  );
+
+  const regenerateLast = useCallback(async () => {
+    if (loadingRef.current || !hydrated) return;
+    const currentId = activeIdRef.current;
+    if (!currentId || currentId === BOOTSTRAP_SESSION_ID) return;
+    const current = sessionsRef.current.find((s) => s.id === currentId);
+    if (!current) return;
+
+    const prep = prepareRegenerate(current.messages);
+    if (!prep) return;
+
+    setError(null);
+    setLimitPrompt(null);
+
+    const activeMode = prep.user.tool ?? "chat";
+    const activeAttachments = prep.user.attachments ?? [];
+    const assistantId = createId("msg");
+    const assistantMessage: ChatMessage = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+      tool: activeMode,
+    };
+    const nextMessages = [...prep.kept, assistantMessage];
+
+    // Hits /api/chat (or /api/image) again → counts against #44 plan limits.
+    await streamTurn(
+      currentId,
+      nextMessages,
+      assistantId,
+      prep.user,
+      activeMode,
+      activeAttachments
+    );
+  }, [hydrated, streamTurn]);
+
+  const editAndResend = useCallback(
+    async (messageId: string, content: string) => {
+      if (loadingRef.current || !hydrated) return;
+      const currentId = activeIdRef.current;
+      if (!currentId || currentId === BOOTSTRAP_SESSION_ID) return;
+      const current = sessionsRef.current.find((s) => s.id === currentId);
+      if (!current) return;
+
+      const lastUser = [...current.messages]
+        .reverse()
+        .find((m) => m.role === "user");
+      if (!lastUser || lastUser.id !== messageId) return;
+
+      const prep = prepareEditResend(current.messages, content);
+      if (!prep) return;
+
+      setError(null);
+      setLimitPrompt(null);
+
+      const activeMode = prep.user.tool ?? "chat";
+      const activeAttachments = prep.user.attachments ?? [];
+      const assistantId = createId("msg");
+      const assistantMessage: ChatMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        tool: activeMode,
+      };
+      const nextMessages = [...prep.kept, assistantMessage];
+
+      // Edit-resend is a fresh model turn → counts against #44 plan limits.
+      await streamTurn(
+        currentId,
+        nextMessages,
+        assistantId,
+        prep.user,
+        activeMode,
+        activeAttachments
+      );
+    },
+    [hydrated, streamTurn]
   );
 
   const handleTool = useCallback(
@@ -402,7 +506,7 @@ export function ChatApp() {
     setSessions((prev) => {
       const next = prev.filter((s) => s.id !== id);
       if (next.length === 0) {
-        const fresh = createSession();
+        const fresh = createSession(locale);
         setActiveId(fresh.id);
         return [fresh];
       }
@@ -411,6 +515,10 @@ export function ChatApp() {
       }
       return next;
     });
+  };
+
+  const handleRename = (id: string, title: string) => {
+    setSessions((prev) => renameSession(prev, id, title, newChatTitle(locale)));
   };
 
   const messages = activeSession?.messages ?? [];
@@ -437,6 +545,7 @@ export function ChatApp() {
         onSelect={setActiveId}
         onNew={handleNew}
         onDelete={handleDelete}
+        onRename={handleRename}
         onTool={handleTool}
       />
 
@@ -479,7 +588,21 @@ export function ChatApp() {
               messages={messages}
               streamingId={streamingId}
               isLoading={isLoading}
+              onRegenerate={() => void regenerateLast()}
+              onEditResend={(id, content) => void editAndResend(id, content)}
             />
+            {isLoading ? (
+              <div className="mx-auto flex w-full max-w-2xl justify-center px-3 pb-1 sm:px-4">
+                <button
+                  type="button"
+                  onClick={stop}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 text-sm text-ink shadow-sm dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+                  aria-label={t("stopGenerating")}
+                >
+                  {t("stopGenerating")}
+                </button>
+              </div>
+            ) : null}
             {error ? (
               <div className="mx-auto w-full max-w-2xl px-3 pb-2 sm:px-4">
                 <div

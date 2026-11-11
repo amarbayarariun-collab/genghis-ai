@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { FileIcon } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Check, Copy, FileIcon, Pencil, RefreshCw } from "lucide-react";
 import { MarkdownMessage } from "@/components/chat/markdown-message";
 import { ThinkingIndicator } from "@/components/chat/thinking-indicator";
 import { useLocale } from "@/components/locale-provider";
+import {
+  lastAssistantMessageIndex,
+  lastUserMessageIndex,
+  messageCopyText,
+} from "@/lib/chat-actions";
 import type { ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -12,17 +17,27 @@ type MessageListProps = {
   messages: ChatMessage[];
   streamingId?: string | null;
   isLoading?: boolean;
+  onRegenerate?: () => void;
+  onEditResend?: (messageId: string, content: string) => void;
 };
 
 export function MessageList({
   messages,
   streamingId,
   isLoading,
+  onRegenerate,
+  onEditResend,
 }: MessageListProps) {
   const { t } = useLocale();
   const scrollerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+
+  const lastUserIdx = lastUserMessageIndex(messages);
+  const lastAssistantIdx = lastAssistantMessageIndex(messages);
 
   useEffect(() => {
     const el = scrollerRef.current;
@@ -55,6 +70,40 @@ export function MessageList({
     endRef.current?.scrollIntoView({ behavior, block: "end" });
   }, [messages, isLoading, streamingId]);
 
+  useEffect(() => {
+    if (isLoading) {
+      setEditingId(null);
+    }
+  }, [isLoading]);
+
+  const copyMessage = async (message: ChatMessage) => {
+    const text = messageCopyText(message);
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedId(message.id);
+      window.setTimeout(() => {
+        setCopiedId((id) => (id === message.id ? null : id));
+      }, 1600);
+    } catch {
+      // ignore clipboard failures
+    }
+  };
+
+  const startEdit = (message: ChatMessage) => {
+    setEditingId(message.id);
+    setEditDraft(message.content);
+  };
+
+  const submitEdit = () => {
+    if (!editingId || !onEditResend) return;
+    const next = editDraft.trim();
+    if (!next) return;
+    onEditResend(editingId, next);
+    setEditingId(null);
+    setEditDraft("");
+  };
+
   return (
     <div
       ref={scrollerRef}
@@ -66,13 +115,17 @@ export function MessageList({
           const isStreaming = message.id === streamingId;
           const isThinking = isStreaming && !message.content;
           const isStreamingAnswer = isStreaming && Boolean(message.content);
+          const showActions = !isStreaming && !isLoading;
+          const isLastUser = index === lastUserIdx;
+          const isLastAssistant = index === lastAssistantIdx;
+          const isEditing = editingId === message.id;
 
           return (
             <div
               key={message.id}
               className={cn(
-                "animate-fade-up flex",
-                isUser ? "justify-end" : "justify-start"
+                "animate-fade-up flex flex-col",
+                isUser ? "items-end" : "items-start"
               )}
               style={{ animationDelay: `${Math.min(index, 6) * 30}ms` }}
             >
@@ -128,13 +181,41 @@ export function MessageList({
                   />
                 ) : null}
 
-                {isUser ? (
+                {isEditing ? (
+                  <div className="flex w-[min(92vw,20rem)] flex-col gap-2 sm:w-80">
+                    <textarea
+                      value={editDraft}
+                      onChange={(e) => setEditDraft(e.target.value)}
+                      rows={3}
+                      className="min-h-20 w-full resize-y rounded-xl bg-white/95 px-3 py-2 text-[15px] text-ink outline-none ring-1 ring-gold/50 dark:bg-zinc-900 dark:text-zinc-100"
+                      aria-label={t("editMessage")}
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex min-h-11 items-center rounded-full bg-gold px-3 text-sm font-medium text-ink"
+                        onClick={submitEdit}
+                      >
+                        {t("resendEdit")}
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex min-h-11 items-center rounded-full px-3 text-sm text-cream/90 underline-offset-2 hover:underline dark:text-zinc-700"
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditDraft("");
+                        }}
+                      >
+                        {t("cancel")}
+                      </button>
+                    </div>
+                  </div>
+                ) : isUser ? (
                   <div className="whitespace-pre-wrap break-words">
                     {message.content || null}
                   </div>
                 ) : (
                   <>
-                    {/* Only while waiting for tokens — hide once answer streams / done. */}
                     {isThinking ? (
                       <ThinkingIndicator mode={message.tool ?? "chat"} />
                     ) : null}
@@ -150,11 +231,73 @@ export function MessageList({
                   </>
                 )}
               </div>
+
+              {showActions && !isEditing ? (
+                <div
+                  className={cn(
+                    "mt-1.5 flex max-w-full flex-wrap items-center gap-1",
+                    isUser ? "justify-end" : "justify-start"
+                  )}
+                >
+                  <ActionButton
+                    label={
+                      copiedId === message.id
+                        ? t("copiedMessage")
+                        : t("copyMessage")
+                    }
+                    onClick={() => void copyMessage(message)}
+                    icon={
+                      copiedId === message.id ? (
+                        <Check className="size-3.5" />
+                      ) : (
+                        <Copy className="size-3.5" />
+                      )
+                    }
+                  />
+                  {isUser && isLastUser && onEditResend ? (
+                    <ActionButton
+                      label={t("editMessage")}
+                      onClick={() => startEdit(message)}
+                      icon={<Pencil className="size-3.5" />}
+                    />
+                  ) : null}
+                  {!isUser && isLastAssistant && onRegenerate ? (
+                    <ActionButton
+                      label={t("regenerate")}
+                      onClick={onRegenerate}
+                      icon={<RefreshCw className="size-3.5" />}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           );
         })}
         <div ref={endRef} className="h-px w-full shrink-0" aria-hidden />
       </div>
     </div>
+  );
+}
+
+function ActionButton({
+  label,
+  onClick,
+  icon,
+}: {
+  label: string;
+  onClick: () => void;
+  icon: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-2.5 text-[12px] text-ink/55 transition-colors hover:bg-zinc-100 hover:text-ink dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100 sm:min-h-9"
+    >
+      {icon}
+      <span className="max-w-[9rem] truncate">{label}</span>
+    </button>
   );
 }

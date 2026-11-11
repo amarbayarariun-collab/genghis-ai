@@ -22,7 +22,9 @@ Linear launch stack (base → tip):
 | 6 | [#47](https://github.com/amarbayarariun-collab/genghis-ai/pull/47) | `cursor/mn-error-messages-1b5e` | #46 | MN user-facing errors |
 | 7 | [#48](https://github.com/amarbayarariun-collab/genghis-ai/pull/48) | `cursor/limit-upgrade-flow-1b5e` | #47 | Limit → Pro dialog |
 | 8 | [#49](https://github.com/amarbayarariun-collab/genghis-ai/pull/49) | `cursor/mobile-chat-ux-150b` | #48 | Mobile chat UX |
-| 9 | This PR (legal + checklist) | `cursor/legal-launch-checklist-55ca` | #49 | `/privacy`, `/terms`, this doc |
+| 9 | [#54](https://github.com/amarbayarariun-collab/genghis-ai/pull/54) | `cursor/legal-launch-checklist-55ca` | #49 | `/privacy`, `/terms`, this doc |
+| 10 | [#56](https://github.com/amarbayarariun-collab/genghis-ai/pull/56) | `cursor/latin-cyrillic-seo-927a` | #54 | Latin→Cyrillic + SEO/PWA |
+| 11 | Chat actions + local history tip | `cursor/chat-actions-history-4a12` | #56 | Copy / regen / edit / stop / rename |
 
 ### Where #42 fits (known conflicts)
 
