@@ -313,4 +313,43 @@ test.describe("API mock gates", () => {
     const body = await res.json();
     expect(body.code).toBe("IMAGE_NOT_ALLOWED");
   });
+
+  test("Pro message limit shows MN reset date without upgrade dialog", async ({
+    page,
+  }) => {
+    // Mocked 402 (no spend / no burn-to-500). Matches #44 Pro copy shape:
+    // limit reached + resetsAt, and no upgradePath for paid caps.
+    await page.route("**/api/chat", async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 402,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error:
+            "Хязгаарт хүрлээ (500/500 мессеж). Хязгаар 2026-12-01 өдөр шинэчлэгдэнэ.",
+          code: "MESSAGE_LIMIT",
+          usage: {
+            tier: "paid",
+            messagesUsed: 500,
+            messagesLimit: 500,
+            imagesUsed: 0,
+            imagesLimit: 10,
+            model: "grok-4.7",
+            period: "2026-11",
+            resetsAt: "2026-12-01",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/");
+    await sendChat(page, "pro limit mock");
+    await expect(
+      page.getByText(/Хязгаарт хүрлээ.*2026-12-01.*шинэчлэгдэнэ/)
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
 });
