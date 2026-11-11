@@ -318,9 +318,18 @@ function disposeHarvestFx() {
   dust = null;
 }
 
+function clearToast() {
+  const el = document.getElementById('msh-toast');
+  if (!el) return;
+  clearTimeout(el._t);
+  el.textContent = '';
+  el.style.opacity = '0';
+}
+
 function loadScene(id, { cinematic = true, dialogueNode = null, remember = true } = {}) {
   walkFaceYaw = null;
   jumpY = 0; jumpV = 0;
+  clearToast();
   if (riding && world?.mount) world.mount.userData.ridden = false;
   riding = false;
   disposeHarvestFx();
@@ -332,7 +341,14 @@ function loadScene(id, { cinematic = true, dialogueNode = null, remember = true 
   chapterId = world.chapterId || CHAPTERS.find((c) => c.scene === id)?.id || id;
   NPCS = npcsFromWorld(world, id);
   world.bind?.(gameCtx);
-  $('endOverlay').classList.add('hidden');
+  const end = $('endOverlay');
+  end.classList.add('hidden');
+  end.innerHTML = '';
+  const obj = $('objective');
+  if (obj) {
+    obj.textContent = '';
+    obj.classList.add('hidden');
+  }
   $('chapter').textContent = world.chapterLabel || 'Бүлэг';
   const stealthOn = !!(world.stealth && world.stealth.torches);
   $('stealthHint').classList.add('hidden');
@@ -1071,12 +1087,21 @@ function btn(label, fn) {
   return b;
 }
 
+function titleIsUp() {
+  const home = $('title');
+  return state === 'title' && !!home && !home.classList.contains('hidden');
+}
+
 function endCard({ eyebrow, title, body, button, onNext, memory }) {
+  const home = $('title');
+  // A finished chapter never paints over the title of «Монголын Нууц Товчоо · Тэмүжин».
+  if (titleIsUp()) return;
   state = 'end';
+  clearToast();
   $('dialogue').classList.add('hidden');
   $('hud').classList.add('hidden');
   const o = $('endOverlay');
-  $('title').classList.add('hidden');
+  home?.classList.add('hidden');
   setTitleVideo(false);
   const mem = memory !== undefined ? memory : (END_LINES[flag] || '');
   o.innerHTML = `
@@ -1091,10 +1116,16 @@ function endCard({ eyebrow, title, body, button, onNext, memory }) {
       </div>
     </div>`;
   o.classList.remove('hidden');
-  $('nextBtn').onclick = onNext;
+  $('nextBtn').onclick = () => {
+    o.classList.add('hidden');
+    o.innerHTML = '';
+    clearToast();
+    onNext();
+  };
 }
 
 function endCampSlice() {
+  if (titleIsUp()) return;
   save = unlockNext('camp', CHAPTER_ORDER);
   endCard({
     eyebrow: 'Бүлэг дууслаа',
@@ -1105,6 +1136,7 @@ function endCampSlice() {
   });
 }
 function endBurkhanSlice() {
+  if (titleIsUp()) return;
   save = unlockNext('burkhan', CHAPTER_ORDER);
   endCard({
     eyebrow: 'Бүлэг дууслаа',
@@ -1115,6 +1147,7 @@ function endBurkhanSlice() {
   });
 }
 function endTaichiudSlice() {
+  if (titleIsUp()) return;
   save = unlockNext('taichiud', CHAPTER_ORDER);
   endCard({
     eyebrow: 'Бүлэг дууслаа',
@@ -1125,6 +1158,7 @@ function endTaichiudSlice() {
   });
 }
 function endAct2Slice() {
+  if (titleIsUp()) return;
   save = unlockNext('act2', CHAPTER_ORDER);
   endCard({
     eyebrow: 'Бүлэг дууслаа',
@@ -1135,6 +1169,7 @@ function endAct2Slice() {
   });
 }
 function endAct3Slice() {
+  if (titleIsUp()) return;
   save = unlockNext('act3', CHAPTER_ORDER);
   endCard({
     eyebrow: 'Тоглоом дууслаа',
