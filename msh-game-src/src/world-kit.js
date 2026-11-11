@@ -30,13 +30,13 @@ export function skyDome({ top, mid, horizon, bottom }, radius = 300) {
   return new THREE.Mesh(new THREE.SphereGeometry(Math.min(radius, 150), 28, 18), mat);
 }
 
-/** Tapered ear flap. Thin along X, wide face on YZ, narrower at the bottom. */
+/** Short ear flap. Thin along X, wide face on YZ, only long enough to cover an ear. */
 function earFlapGeometry(tall) {
-  const hx = 0.009 * tall;
-  const yT = 0.078 * tall;
-  const yB = -0.078 * tall;
-  const zT = 0.046 * tall;
-  const zB = 0.024 * tall;
+  const hx = 0.005 * tall;
+  const yT = 0.022 * tall;
+  const yB = -0.048 * tall;
+  const zT = 0.020 * tall;
+  const zB = 0.012 * tall;
   const corners = [
     [-hx, yT, -zT], [hx, yT, -zT], [hx, yT, zT], [-hx, yT, zT],
     [-hx, yB, -zB], [hx, yB, -zB], [hx, yB, zB], [-hx, yB, zB],
@@ -66,23 +66,31 @@ export function mongolHat(tall = 1) {
   const g = new THREE.Group();
   g.name = 'mongol-hat';
   const fur = flat('#8a5a32');
-  const hide = flat('#5c3a22');
-  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.27 * tall, 0.27 * tall, 0.03 * tall, 16), fur);
-  brim.position.y = 1.33 * tall;
-  const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * tall, 0.14 * tall, 0.055 * tall, 12), hide);
-  crown.position.y = 1.37 * tall;
-  // Ear flaps hang from the brim beside the ears. Forward is +X, ears are ±Z.
-  // Wide face is the YZ plane and the bottom is narrower, so they read as flaps.
+  const hide = flat('#6b4226');
+  // Dome on the cut crown. Pulled back so it does not shelf over the eyes.
+  const crown = new THREE.Mesh(
+    new THREE.SphereGeometry(0.10 * tall, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5),
+    hide
+  );
+  crown.scale.set(0.72, 1.45, 1);
+  crown.position.y = 1.33 * tall;
+  // Bottom of the brim is the brow line. The lip turns up, away from the eyes.
+  const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.16 * tall, 0.09 * tall, 0.022 * tall, 18), fur);
+  brim.position.y = 1.368 * tall;
+  const roll = new THREE.Mesh(new THREE.TorusGeometry(0.155 * tall, 0.012 * tall, 6, 18), fur);
+  roll.rotation.x = Math.PI / 2;
+  roll.position.y = 1.381 * tall;
+  // Short flaps just under the brim, beside the ears. Forward is +X, ears are ±Z.
   const flapGeo = earFlapGeometry(tall);
   const flapL = new THREE.Mesh(flapGeo, fur);
   flapL.name = 'ear-flap';
-  flapL.position.set(0.045 * tall, 1.235 * tall, 0.12 * tall);
-  flapL.rotation.x = 0.14;
+  flapL.position.set(0.0, 1.31 * tall, 0.12 * tall);
+  flapL.rotation.x = 0.22;
   const flapR = new THREE.Mesh(flapGeo, fur);
   flapR.name = 'ear-flap';
-  flapR.position.set(0.045 * tall, 1.235 * tall, -0.12 * tall);
-  flapR.rotation.x = -0.14;
-  g.add(brim, crown, flapL, flapR);
+  flapR.position.set(0.0, 1.31 * tall, -0.12 * tall);
+  flapR.rotation.x = -0.22;
+  g.add(brim, roll, crown, flapL, flapR);
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return g;
 }
@@ -109,7 +117,10 @@ export function person({ deel = '#8a1a22', skin = '#c48a5e', tall = 1 } = {}) {
   const collar = new THREE.Mesh(new THREE.TorusGeometry(0.14 * t, 0.018 * t, 5, 10), flat('#6a4428'));
   collar.rotation.x = Math.PI / 2;
   collar.position.y = 1.24 * t;
-  g.add(body, head, mongolHat(t), collar);
+  const hat = mongolHat(t);
+  // The low-poly head is a ball. Sit the brim on the brow so the crown covers it.
+  hat.position.y = 0.07 * t;
+  g.add(body, head, hat, collar);
 
   const leg = (z) => {
     const hip = pivot(g, 0.02 * t, 0.82 * t, z * t);
