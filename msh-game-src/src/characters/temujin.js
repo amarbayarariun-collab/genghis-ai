@@ -80,6 +80,12 @@ export function createTemujin(opts = {}) {
             o.bind(o.skeleton, o.bindMatrix);
           }
         });
+        let hatCut = false;
+        const cutHat = () => {
+          if (hatCut) return;
+          hatCut = hideSculptHat(raw);
+        };
+        cutHat();
         wrap.updateMatrixWorld(true);
         const box2 = new THREE.Box3().setFromObject(wrap);
         wrap.position.set(
@@ -90,6 +96,11 @@ export function createTemujin(opts = {}) {
 
         group.remove(placeholder.root);
         group.add(wrap);
+        const malgai = mongolHat(1);
+        // The sculpt crown is cut at local y 1.625. Sit this brim on that cut.
+        malgai.position.y = 1.625 * s - 1.33 + 0.06;
+        malgai.rotation.y = Math.PI / 2;
+        group.add(malgai);
 
         const baseY = wrap.position.y;
         const clips = gltf.animations?.length || 0;
@@ -110,6 +121,7 @@ export function createTemujin(opts = {}) {
             : 'The clothed Draco mesh has no skeleton and no clips. temujin.glb is a Mixamo bind with no tracks and is not this body. A made-up rig would not match the sculpt.',
         };
         group.userData.update = (dt) => {
+          cutHat();
           if (mixer) mixer.update(dt);
           else motion(wrap, dt, baseY);
         };
@@ -127,9 +139,87 @@ export function createTemujin(opts = {}) {
   return group;
 }
 
+function hideSculptHat(root) {
+  let done = false;
+  root.traverse((o) => {
+    const map = o.material?.emissiveMap;
+    const image = map?.image;
+    if (!o.isMesh || !o.geometry?.index || !image?.width) return;
+    const pos = o.geometry.attributes.position;
+    const uv = o.geometry.attributes.uv;
+    const src = o.geometry.index.array;
+    const drop = new Uint8Array(pos.count);
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i);
+      const wide = Math.hypot(pos.getX(i), pos.getZ(i)) > 0.24;
+      if (y > 1.625 || (y > 1.5 && wide)) drop[i] = 1;
+    }
+    const kept = [];
+    for (let i = 0; i < src.length; i += 3) {
+      if (drop[src[i]] && drop[src[i + 1]] && drop[src[i + 2]]) continue;
+      kept.push(src[i], src[i + 1], src[i + 2]);
+    }
+    const next = src instanceof Uint32Array ? new Uint32Array(kept) : new Uint16Array(kept);
+    o.geometry.setIndex(new THREE.BufferAttribute(next, 1));
+
+    // The white collar is painted on the same shell as the face. Dye the pale
+    // fur and leave the cheek texels alone, so the brown malgai sits on skin.
+    if (uv) {
+      const w = image.width;
+      const h = image.height;
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(image, 0, 0);
+      const img = ctx.getImageData(0, 0, w, h);
+      const pix = img.data;
+      const protect = new Uint8Array(w * h);
+      for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i);
+        if (y < 1.46 || y > 1.68) continue;
+        if (Math.hypot(pos.getX(i), pos.getZ(i)) > 0.19) continue;
+        const x = Math.min(w - 1, Math.max(0, (uv.getX(i) * w) | 0));
+        const yy = Math.min(h - 1, Math.max(0, ((1 - uv.getY(i)) * h) | 0));
+        for (let dy = -10; dy <= 10; dy++) {
+          for (let dx = -10; dx <= 10; dx++) {
+            const xx = x + dx;
+            const y2 = yy + dy;
+            if (xx < 0 || y2 < 0 || xx >= w || y2 >= h) continue;
+            protect[y2 * w + xx] = 1;
+          }
+        }
+      }
+      for (let p = 0; p < w * h; p++) {
+        if (protect[p]) continue;
+        const k = p * 4;
+        const r = pix[k];
+        const g = pix[k + 1];
+        const b = pix[k + 2];
+        if (!(r > 140 && g > 100 && b > 55 && r - g < 78 && g > r * 0.52)) continue;
+        pix[k] = 140;
+        pix[k + 1] = 32;
+        pix[k + 2] = 22;
+      }
+      ctx.putImageData(img, 0, 0);
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = map.colorSpace;
+      tex.flipY = false;
+      tex.wrapS = map.wrapS;
+      tex.wrapT = map.wrapT;
+      tex.channel = map.channel;
+      tex.anisotropy = map.anisotropy;
+      o.material.emissiveMap = tex;
+      o.material.needsUpdate = true;
+    }
+    done = true;
+  });
+  return done;
+}
+
 function buildPlaceholder() {
   const root = new THREE.Group();
-  const C = { deel: '#9a1e24', fur: '#e8d4b0', hat: '#8b1a20', boot: '#5c3a22', skin: '#c48a5e', pant: '#2e2218' };
+  const C = { deel: '#9a1e24', fur: '#6a4428', hat: '#8b1a20', boot: '#5c3a22', skin: '#c48a5e', pant: '#2e2218' };
   const add = (parent, geo, color, [x, y, z], rot) => {
     const mesh = new THREE.Mesh(geo, mat(color));
     mesh.castShadow = true;
