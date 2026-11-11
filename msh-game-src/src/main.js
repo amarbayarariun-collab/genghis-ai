@@ -815,7 +815,7 @@ $('quickBtn').onclick = () => {
   const ch = CHAPTERS.find((c) => c.id === save.lastChapter) || CHAPTERS[0];
   loadScene(ch.scene, { cinematic: false });
   if (world.intro) startDialogue(world.intro); else releasePlay();
-});
+};
 $('continueBtn').onclick = () => {
   audio.unlock();
   setInPlay(true);
