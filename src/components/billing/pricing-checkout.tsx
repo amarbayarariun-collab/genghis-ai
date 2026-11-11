@@ -58,10 +58,32 @@ export function PricingCheckout() {
   }, []);
 
   useEffect(() => {
-    void refreshMe().catch(() => {
-      setUser(null);
-    });
-  }, [refreshMe]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const data = (await res.json()) as {
+          user?: AuthUser | null;
+          usage?: { tier?: "free" | "paid"; paidUntil?: string | null };
+        };
+        if (cancelled) return;
+        setUser(data.user || null);
+        setPlan(
+          data.usage
+            ? {
+                tier: data.usage.tier || "free",
+                paidUntil: data.usage.paidUntil || null,
+              }
+            : null
+        );
+      } catch {
+        if (!cancelled) setUser(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!invoice || invoice.status === "paid") return;
