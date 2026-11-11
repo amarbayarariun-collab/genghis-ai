@@ -110,18 +110,22 @@ export function person({ deel = '#8a1a22', skin = '#c48a5e', tall = 1 } = {}) {
   return g;
 }
 
-/** Both thighs forward, both shins down, both hands out to the reins. Mesh pivots only. */
+/** Thighs fold forward along the barrel. Shins rake back into the stirrups. */
 export function poseRide(rider) {
   const L = rider?.userData?.limbs;
   if (!L) return;
-  const right = Math.PI / 2;
   const tall = rider.userData.tall || 1;
-  L.legL.hip.position.x = 0.36 * tall;
+  const thigh = 1.02;
+  const shin = -1.72;
+  L.legL.hip.position.x = 0.28 * tall;
   L.legR.hip.position.x = 0.02 * tall;
-  L.legL.hip.rotation.z = right;
-  L.legR.hip.rotation.z = right;
-  L.legL.knee.rotation.z = -right;
-  L.legR.knee.rotation.z = -right;
+  L.legL.hip.rotation.z = thigh;
+  L.legR.hip.rotation.z = thigh;
+  L.legL.knee.rotation.z = shin;
+  L.legR.knee.rotation.z = shin;
+  const footLevel = -(thigh + shin);
+  L.legL.foot.rotation.z = footLevel;
+  L.legR.foot.rotation.z = footLevel;
   L.armL.shoulder.rotation.z = 1.25;
   L.armR.shoulder.rotation.z = 1.25;
   L.armL.elbow.rotation.z = -0.7;
