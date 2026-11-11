@@ -33,6 +33,7 @@ import { createMistField } from './systems/sumiro/mist-field.js';
 import { createFootStains } from './systems/sumiro/foot-stains.js';
 import { createEncounter } from './systems/sumiro/encounter.js';
 import { createCrows } from './systems/sumiro/crows.js';
+import { horse, person, seatRider } from './world-kit.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -235,6 +236,8 @@ let state = 'title'; // title | chapters | cine | explore | dialogue | end | pau
 /** When true, freeze camera at aerialView (proof / cinematic hold) — spring rig must not overwrite. */
 let aerialLocked = false;
 let shotLock = false;
+let mounted = false;
+let playerHorse = null;
 let flag = null;
 let talkTarget = null;
 let spottedCooldown = 0;
@@ -361,7 +364,28 @@ function settlePlayCamera(pos, yaw) {
   };
 }
 
+function clearMount() {
+  mounted = false;
+  if (playerHorse) {
+    scene.remove(playerHorse);
+    playerHorse.traverse?.((c) => {
+      c.geometry?.dispose?.();
+      const mats = Array.isArray(c.material) ? c.material : c.material ? [c.material] : [];
+      mats.forEach((m) => m.dispose?.());
+    });
+    playerHorse = null;
+  }
+  if (world?.temujin) world.temujin.visible = true;
+  const pace = $('pace');
+  if (pace) {
+    pace.textContent = '';
+    pace.classList.add('hidden');
+  }
+}
+
 function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false } = {}) {
+  clearMount();
+  $('end')?.classList.add('hidden');
   disposeHarvestFx();
   clearScene();
   activeCine = null;
@@ -582,6 +606,7 @@ function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false }
 // Initial camp preload behind title
 loadScene('camp', { cinematic: false });
 state = 'title';
+$('end')?.classList.add('hidden');
 $('hud').classList.add('hidden');
 
 addEventListener('keydown', (e) => {
@@ -608,6 +633,7 @@ addEventListener('keydown', (e) => {
     const n = nearest();
     if (n) talk(n);
   }
+  if (e.code === 'KeyM' && !e.repeat && state === 'explore') setMounted(!mounted);
 });
 $('fxToggle')?.addEventListener('click', () => setFx(!fxOn));
 $('fpsToggle')?.addEventListener('click', (ev) => {
@@ -697,6 +723,62 @@ const endTouch = (e) => {
 canvas.addEventListener('touchend', endTouch);
 canvas.addEventListener('touchcancel', endTouch);
 
+const stick = $('stick');
+const stickKnob = $('stickKnob');
+if (stick && stickKnob) {
+  const moveStick = (clientX, clientY) => {
+    const r = stick.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    let dx = clientX - cx;
+    let dy = clientY - cy;
+    const max = r.width * 0.36;
+    const len = Math.hypot(dx, dy) || 1;
+    const clamped = Math.min(len, max);
+    dx = (dx / len) * clamped;
+    dy = (dy / len) * clamped;
+    stickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+    touchWish.x = dx / max;
+    touchWish.y = -dy / max;
+  };
+  const resetStick = () => {
+    stickKnob.style.transform = '';
+    touchWish.x = 0;
+    touchWish.y = 0;
+  };
+  stick.addEventListener('pointerdown', (e) => {
+    if (!document.body.classList.contains('in-play')) return;
+    stick.setPointerCapture?.(e.pointerId);
+    moveStick(e.clientX, e.clientY);
+    e.stopPropagation();
+  });
+  stick.addEventListener('pointermove', (e) => {
+    if (!stick.hasPointerCapture?.(e.pointerId)) return;
+    moveStick(e.clientX, e.clientY);
+  });
+  stick.addEventListener('pointerup', resetStick);
+  stick.addEventListener('pointercancel', resetStick);
+}
+
+function setMounted(on) {
+  if (!world?.temujin) return;
+  if (state !== 'explore' && state !== 'dialogue') return;
+  if (!!on === mounted) return;
+  if (!on) {
+    clearMount();
+    return;
+  }
+  const h = horse('#4e3424');
+  const y = world.heightAt?.(player.pos.x, player.pos.z) ?? 0;
+  h.position.set(player.pos.x, y, player.pos.z);
+  h.rotation.y = world.temujin.rotation.y;
+  seatRider(h, person({ deel: '#9a1e24', fur: '#e8d4b0', hat: '#5c3b24' }));
+  scene.add(h);
+  playerHorse = h;
+  mounted = true;
+  world.temujin.visible = false;
+}
+
 const ray = new THREE.Raycaster();
 canvas.addEventListener('click', (e) => {
   if (state !== 'explore') return;
@@ -752,6 +834,11 @@ function showTitle() {
   $('dialogue').classList.add('hidden');
   $('chapters').classList.add('hidden');
   $('chapters').classList.remove('settling', 'settled');
+  const end = $('end');
+  if (end) {
+    end.classList.add('hidden');
+    end.innerHTML = '';
+  }
   const title = $('title');
   title.classList.remove('hidden', 'settling', 'settled', 'fade-out');
   refreshContinue();
@@ -841,6 +928,7 @@ addEventListener('touchend', (ev) => {
   if (!btn || btn.disabled || btn.contains(ev.target)) return;
   btn.dispatchEvent(new Event('pointerup', { bubbles: true }));
 }, { passive: true });
+bindTap($('mountBtn'), () => setMounted(!mounted));
 bindTap($('fastPlayBtn'), () => {
   setQuality('low', { manual: true, reloadScene: false });
   beginCamp({ cinematic: false, dialogueNode: null, arrive: true });
@@ -863,6 +951,7 @@ bindTap($('chaptersBtn'), () => {
 });
 bindTap($('chaptersBack'), () => showTitle());
 bindTap($('creditsBtn'), () => {
+  $('title').classList.add('hidden');
   endCard({
     eyebrow: 'Зохиогчид',
     title: 'Монголын Нууц Товчоо · Тэмүжин',
@@ -1011,10 +1100,15 @@ function presentChapter(card) {
 }
 
 function endCard({ eyebrow, title, body, button, onNext, memory }) {
+  const home = $('title');
+  // Never paint the end panel over the title screen, and never because of an old save.
+  if (state === 'title' && home && !home.classList.contains('hidden')) return;
   state = 'end';
   $('dialogue').classList.add('hidden');
   $('hud').classList.add('hidden');
-  const o = $('title');
+  home?.classList.add('hidden');
+  const o = $('end');
+  if (!o) return;
   const mem = memory !== undefined ? memory : (END_LINES[flag] || '');
   o.innerHTML = `
     <div class="title-card end-card">
@@ -1181,6 +1275,7 @@ function tick() {
     if (keys.ArrowRight) cam.yaw -= dt * 1.8;
     player.yaw = cam.yaw;
     const lim = sceneId === 'burkhan' ? 45 : sceneId.includes('ger') ? 8 : 50;
+    const sprint = !!(keys.ShiftLeft || keys.ShiftRight);
     const result = mover.step(
       dt,
       {
@@ -1188,6 +1283,8 @@ function tick() {
         back: !!(keys.KeyS || keys.ArrowDown) || touchWish.y < -0.28,
         left: !!keys.KeyA || touchWish.x < -0.28,
         right: !!keys.KeyD || touchWish.x > 0.28,
+        sprint,
+        mounted,
       },
       resolveCollisions,
       { min: -lim, max: lim }
@@ -1231,13 +1328,25 @@ function tick() {
 
   const groundY = heightAt(player.pos.x, player.pos.z);
   player.pos.y = groundY;
-  temujin.position.set(player.pos.x, groundY, player.pos.z);
+  if (!mounted) temujin.position.set(player.pos.x, groundY, player.pos.z);
   {
     const face = cam.yaw + Math.PI;
     let dy = face - temujin.rotation.y;
     while (dy > Math.PI) dy -= Math.PI * 2;
     while (dy < -Math.PI) dy += Math.PI * 2;
     temujin.rotation.y += dy * Math.min(1, dt * 8);
+  }
+  if (mounted && playerHorse) {
+    playerHorse.position.set(player.pos.x, groundY, player.pos.z);
+    playerHorse.rotation.y = temujin.rotation.y;
+    playerHorse.userData.step?.(dt, moveSpeed);
+  }
+  const pace = $('pace');
+  if (pace) {
+    const sprint = !!(keys.ShiftLeft || keys.ShiftRight);
+    const label = mounted ? (sprint ? 'Давхилт' : 'Жороо') : (sprint ? 'Гүйлт' : '');
+    pace.textContent = label;
+    pace.classList.toggle('hidden', !label || state !== 'explore');
   }
   if (world.hoelun) world.hoelun.userData.talking = state === 'dialogue' && talkTarget === world.hoelun;
   temujin.userData.setMoving?.(moving && state === 'explore');
@@ -1396,13 +1505,54 @@ window.__mshAerial = (opts = {}) => {
   };
 };
 window.__mshUnlockAerial = () => { aerialLocked = false; };
-window.__mshFrame = (eye, look, fov = 36) => {
+window.__mshTryEnd = () => {
+  endCard({ eyebrow: 'Нотолгоо', title: 'Төгсгөл', body: '', button: 'Хаах', onNext: () => showTitle() });
+  return {
+    state,
+    titleHidden: $('title').classList.contains('hidden'),
+    endHidden: $('end')?.classList.contains('hidden'),
+    fastPlay: !!$('fastPlayBtn'),
+    heading: $('titleHeading')?.innerText || '',
+  };
+};
+window.__mshMount = (on = true, sprint = false) => {
+  if (state === 'title' || state === 'cine') {
+    state = 'explore';
+    document.body.classList.add('in-play');
+    $('title')?.classList.add('hidden');
+    $('hud')?.classList.remove('hidden');
+  }
+  keys.ShiftLeft = !!sprint;
+  keys.KeyW = !!sprint;
+  setMounted(!!on);
+  const p = playerHorse?.position;
+  if (playerHorse) {
+    window.__mshFrame(
+      [p.x + 2.4, p.y + 1.3, p.z + 2.2],
+      [p.x, p.y + 1.1, p.z],
+      32,
+      false
+    );
+  }
+  return { mounted, pace: $('pace')?.textContent || '', sprint: !!keys.ShiftLeft };
+};
+window.__mshStick = () => {
+  state = 'explore';
+  document.body.classList.add('in-play', 'touch-ui');
+  $('title')?.classList.add('hidden');
+  $('hud')?.classList.remove('hidden');
+  const s = $('stick');
+  const shown = s ? getComputedStyle(s).display !== 'none' : false;
+  return { shown, mount: !!$('mountBtn') };
+};
+window.__mshFrame = (eye, look, fov = 36, hideHud = true) => {
   shotLock = true;
   activeCine = null;
   state = 'explore';
   document.body.classList.add('in-play');
   $('title')?.classList.add('hidden');
-  $('hud')?.classList.add('hidden');
+  if (hideHud) $('hud')?.classList.add('hidden');
+  else $('hud')?.classList.remove('hidden');
   $('dialogue')?.classList.add('hidden');
   $('end')?.classList.add('hidden');
   camera.fov = fov;

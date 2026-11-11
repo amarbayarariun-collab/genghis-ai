@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
+import { mongolHat } from '../world-kit.js';
 
 export const USE_TEMUJIN_GLB = true;
 export const TEMUJIN_GLB_URL = './models/base_basic_shaded.glb';
@@ -150,7 +151,7 @@ function buildPlaceholder() {
   add(root, new THREE.CylinderGeometry(0.22, 0.28, 0.85, 8), C.deel, [0, 1.05, 0]);
   add(root, new THREE.TorusGeometry(0.2, 0.06, 5, 10), C.fur, [0, 1.4, 0], [Math.PI / 2, 0, 0]);
   add(root, new THREE.IcosahedronGeometry(0.13, 1), C.skin, [0, 1.55, 0]);
-  add(root, new THREE.CylinderGeometry(0.1, 0.16, 0.28, 8), C.hat, [0, 1.72, 0]);
+  root.add(mongolHat(1, '#5c3b24'));
   return {
     root,
     update(dt, t, sp) {

@@ -30,22 +30,104 @@ export function skyDome({ top, mid, horizon, bottom }, radius = 300) {
   return new THREE.Mesh(new THREE.SphereGeometry(Math.min(radius, 150), 28, 18), mat);
 }
 
-export function person({ deel = '#8a1a22', hat = '#3a2818', fur = '#e2d0b0', skin = '#c48a5e', tall = 1 } = {}) {
+/** Fur malgai: wide band, round crown, ear flaps. Not a tall red cone. */
+export function mongolHat(tall = 1, hideColor = '#5c3b24') {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * tall, 0.28 * tall, 0.85 * tall, 8), flat(deel));
-  body.position.y = 0.7 * tall;
-  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13 * tall, 1), flat(skin));
+  g.name = 'mongol-hat';
+  const fur = flat('#f4ecdf');
+  const hide = flat(hideColor);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.155 * tall, 0.175 * tall, 0.07 * tall, 12), fur);
+  band.position.y = 1.38 * tall;
+  const crown = new THREE.Mesh(
+    new THREE.SphereGeometry(0.12 * tall, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55),
+    hide
+  );
+  crown.position.y = 1.4 * tall;
+  const flapGeo = new THREE.BoxGeometry(0.05 * tall, 0.14 * tall, 0.09 * tall);
+  const flapL = new THREE.Mesh(flapGeo, fur);
+  flapL.position.set(-0.145 * tall, 1.3 * tall, 0);
+  const flapR = new THREE.Mesh(flapGeo, fur);
+  flapR.position.set(0.145 * tall, 1.3 * tall, 0);
+  const top = new THREE.Mesh(new THREE.SphereGeometry(0.028 * tall, 8, 6), hide);
+  top.position.y = 1.52 * tall;
+  g.add(band, crown, flapL, flapR, top);
+  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  return g;
+}
+
+function pivot(parent, x, y, z) {
+  const p = new THREE.Group();
+  p.position.set(x, y, z);
+  parent.add(p);
+  return p;
+}
+
+export function person({ deel = '#8a1a22', hat = '#5c3b24', fur = '#e2d0b0', skin = '#c48a5e', tall = 1 } = {}) {
+  const g = new THREE.Group();
+  const t = tall;
+  const deelMat = flat(deel);
+  const skinMat = flat(skin);
+  const bootMat = flat('#3a2416');
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * t, 0.24 * t, 0.5 * t, 8), deelMat);
+  body.position.y = 1.05 * t;
+  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.12 * t, 1), skinMat);
   head.name = 'head';
-  head.position.y = 1.25 * tall;
-  g.userData.tall = tall;
-  const h = new THREE.Mesh(new THREE.CylinderGeometry(0.1 * tall, 0.16 * tall, 0.28 * tall, 8), flat(hat));
-  h.position.y = 1.45 * tall;
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.2 * tall, 0.06 * tall, 5, 10), flat(fur));
+  head.position.y = 1.4 * t;
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.17 * t, 0.045 * t, 5, 10), flat(fur));
   collar.rotation.x = Math.PI / 2;
-  collar.position.y = 1.05 * tall;
-  g.add(body, head, h, collar);
+  collar.position.y = 1.24 * t;
+  g.add(body, head, mongolHat(t, hat), collar);
+
+  const leg = (z) => {
+    const hip = pivot(g, 0.02 * t, 0.82 * t, z * t);
+    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.065 * t, 0.055 * t, 0.36 * t, 6), deelMat);
+    thigh.position.y = -0.18 * t;
+    const knee = pivot(hip, 0, -0.36 * t, 0);
+    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * t, 0.045 * t, 0.32 * t, 6), bootMat);
+    shin.position.y = -0.16 * t;
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.08 * t, 0.045 * t, 0.16 * t), bootMat);
+    foot.name = 'foot';
+    foot.position.set(0.04 * t, -0.34 * t, 0);
+    knee.add(shin, foot);
+    hip.add(thigh);
+    return { hip, knee, foot };
+  };
+  const arm = (z) => {
+    const shoulder = pivot(g, 0.02 * t, 1.22 * t, z * t);
+    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.042 * t, 0.036 * t, 0.26 * t, 5), deelMat);
+    upper.position.y = -0.13 * t;
+    const elbow = pivot(shoulder, 0, -0.26 * t, 0);
+    const fore = new THREE.Mesh(new THREE.CylinderGeometry(0.034 * t, 0.03 * t, 0.24 * t, 5), skinMat);
+    fore.position.y = -0.12 * t;
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.035 * t, 6, 5), skinMat);
+    hand.name = 'hand';
+    hand.position.y = -0.26 * t;
+    elbow.add(fore, hand);
+    shoulder.add(upper);
+    return { shoulder, elbow, hand };
+  };
+  g.userData.limbs = { legL: leg(-0.32), legR: leg(0.32), armL: arm(-0.28), armR: arm(0.28) };
+  g.userData.tall = t;
+  g.userData.hipY = 0.82 * t;
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return g;
+}
+
+/** Knees bent, feet toward the stirrups, hands forward to the reins. Mesh pivots only. */
+export function poseRide(rider) {
+  const L = rider?.userData?.limbs;
+  if (!L) return;
+  L.legL.hip.rotation.z = 1.35;
+  L.legR.hip.rotation.z = 1.35;
+  L.legL.knee.rotation.z = -1.7;
+  L.legR.knee.rotation.z = -1.7;
+  L.legL.foot.rotation.z = 0.35;
+  L.legR.foot.rotation.z = 0.35;
+  L.armL.shoulder.rotation.z = 1.45;
+  L.armR.shoulder.rotation.z = 1.45;
+  L.armL.elbow.rotation.z = -0.85;
+  L.armR.elbow.rotation.z = -0.85;
+  rider.userData.mounted = true;
 }
 
 export function makeGer(s = 1, doorColor = '#9a2a28') {
@@ -82,16 +164,33 @@ export function horse(color = '#5a4030') {
   head.position.set(1.15, 1.85, 0);
   const mane = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.95, 0.4), dark);
   mane.position.set(0.55, 1.55, 0);
-  [[-0.55, -0.55], [-0.55, 0.55], [0.55, -0.55], [0.55, 0.55]].forEach(([x, z]) => {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.95, 0.18), m);
-    leg.position.set(x * 0.7, 0.48, z * 0.35);
-    g.add(leg);
+  const legPivots = [];
+  [[-0.55, -0.22, 'hip-back'], [-0.55, 0.22, 'hip-back'], [0.55, -0.22, 'hip-front'], [0.55, 0.22, 'hip-front']].forEach(([x, z, side]) => {
+    const hip = new THREE.Group();
+    hip.name = side;
+    hip.position.set(x * 0.85, 0.95, z);
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.9, 0.16), m);
+    leg.position.y = -0.45;
+    hip.add(leg);
+    g.add(hip);
+    legPivots.push(hip);
   });
+  const stirrupL = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.012, 6, 10), dark);
+  stirrupL.name = 'stirrup';
+  stirrupL.position.set(0.24, 1.04, 0.32);
+  stirrupL.rotation.y = Math.PI / 2;
+  const stirrupR = stirrupL.clone();
+  stirrupR.position.z = -0.32;
+  const reins = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.62, 4), dark);
+  reins.name = 'reins';
+  reins.position.set(0.37, 1.62, 0);
+  reins.rotation.x = Math.PI / 2;
   // Saddle sits on the barrel, behind the neck. The head is at x=1.15.
   const saddle = new THREE.Group();
   saddle.name = 'saddle-anchor';
   saddle.position.set(-0.05, 1.48, 0);
-  g.add(body, neck, head, mane, saddle);
+  g.add(body, neck, head, mane, saddle, stirrupL, stirrupR, reins);
+  g.userData.legs = legPivots;
   g.userData.saddle = saddle;
   g.userData.head = head;
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
@@ -103,10 +202,10 @@ export function seatRider(mount, rider) {
   const saddle = mount?.userData?.saddle;
   if (!saddle || !rider) return null;
   saddle.add(rider);
-  const tall = rider.userData.tall || 1;
-  rider.position.set(0, -0.62 * tall, 0);
+  const hip = rider.userData.hipY || 0.82 * (rider.userData.tall || 1);
+  rider.position.set(0, -hip, 0);
   rider.rotation.set(0, 0, 0);
-  rider.userData.mounted = true;
+  poseRide(rider);
   return saddle;
 }
 

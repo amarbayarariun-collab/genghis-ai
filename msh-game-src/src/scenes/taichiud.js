@@ -26,6 +26,9 @@ export function buildTaichiudCapture(scene) {
   const sun = new THREE.DirectionalLight('#ff8a3a', 0.85);
   sun.position.set(40, 8, -20);
   scene.add(sun);
+  const riderFill = new THREE.DirectionalLight('#ffe0c0', 1.05);
+  riderFill.position.set(-10, 16, 12);
+  scene.add(riderFill);
 
   const heightAt = (x, z) =>
     Math.sin(x * 0.03) * Math.cos(z * 0.028) * 2.2 + Math.sin(x * 0.08) * 0.6;

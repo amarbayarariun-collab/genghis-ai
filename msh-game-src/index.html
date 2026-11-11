@@ -39,6 +39,8 @@
     </div>
   </div>
 
+  <div id="end" class="overlay hidden" role="dialog" aria-label="Төгсгөл"></div>
+
   <!-- Chapter select (Sumiro-style cards) -->
   <div id="chapters" class="overlay hidden" role="dialog" aria-label="Бүлэг сонгох">
     <div class="chapters-panel">
@@ -71,6 +73,7 @@
   <!-- HUD -->
   <div id="hud" class="hidden" aria-live="polite">
     <div id="chapter">I бүлэг</div>
+    <div id="pace" class="hidden"></div>
     <div id="objective" class="hidden"></div>
     <div id="stealthHint" class="hidden">Сүүдэр · галаас хол</div>
     <div id="controls">
@@ -95,7 +98,9 @@
   <button id="fpsToggle" type="button" aria-pressed="false">FPS</button>
   <div id="perfHud" class="hidden" aria-hidden="true">-- fps</div>
   <div id="toast" class="hidden" role="status"></div>
+  <div id="stick" aria-hidden="true"><div id="stickKnob"></div></div>
   <div id="touchPad" class="touch-pad">
+    <button id="mountBtn" type="button">Морь</button>
     <button id="touchTalk" type="button">Ярих</button>
     <button id="touchBrace" type="button">Түлхэх</button>
   </div>

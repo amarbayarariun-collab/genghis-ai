@@ -1,22 +1,7 @@
 // Act III — Мэргид хямрал · эвсэл · анхны Чингис (narrative, no combat).
 import * as THREE from 'three';
 import { createTemujin } from '../characters/temujin.js';
-
-function person({ deel, hat, fur = '#cbb896', skin = '#c48a5e', tall = 1 }) {
-  const flat = (c) => new THREE.MeshLambertMaterial({ color: c, flatShading: true });
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * tall, 0.28 * tall, 0.85 * tall, 8), flat(deel));
-  body.position.y = 0.7 * tall;
-  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13 * tall, 1), flat(skin));
-  head.position.y = 1.25 * tall;
-  const h = new THREE.Mesh(new THREE.CylinderGeometry(0.1 * tall, 0.16 * tall, 0.28 * tall, 8), flat(hat));
-  h.position.y = 1.45 * tall;
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.2 * tall, 0.06 * tall, 5, 10), flat(fur));
-  collar.rotation.x = Math.PI / 2;
-  collar.position.y = 1.05 * tall;
-  g.add(body, head, h, collar);
-  return g;
-}
+import { person } from '../world-kit.js';
 
 function glowRing(color = '#e8c37a') {
   const ring = new THREE.Mesh(
