@@ -45,19 +45,28 @@ async function main() {
     "no grok-2-image"
   );
 
-  // No OpenAI image key → xAI only
+  // IMAGE_PROVIDER unset + xAI chat key → xAI primary (only)
   process.env.OPENAI_API_KEY = "xai-chat-key";
   assert(getOpenAIKeyForImages() === undefined, "xai key not OpenAI");
   let cfgs = listImageApiConfigs("auto");
-  assert(cfgs.length === 1 && cfgs[0].provider === "xai", "else xAI");
+  assert(cfgs.length === 1 && cfgs[0].provider === "xai", "default xAI primary");
+  assert(cfgs[0].imageModelCandidates[0] === "grok-imagine-image", "imagine model");
 
-  // OPENAI_IMAGE_API_KEY set → OpenAI primary, xAI fallback
+  // OPENAI_IMAGE_API_KEY set → xAI still primary; OpenAI opt-in fallback
   process.env.OPENAI_IMAGE_API_KEY = "sk-image-dedicated";
   cfgs = listImageApiConfigs("auto");
-  assert(cfgs.length === 2, "openai+xai");
-  assert(cfgs[0].provider === "openai" && cfgs[0].usingDedicatedImageKey, "openai primary");
-  assert(cfgs[0].quality === "low" && cfgs[0].size === "1024x1024", "cost defaults");
-  assert(cfgs[1].provider === "xai", "xai fallback");
+  assert(cfgs.length === 2, "xai+openai");
+  assert(cfgs[0].provider === "xai", "xai primary");
+  assert(cfgs[1].provider === "openai" && cfgs[1].usingDedicatedImageKey, "openai opt-in fallback");
+  assert(cfgs[1].quality === "low" && cfgs[1].size === "1024x1024", "cost defaults");
+
+  // Explicit IMAGE_PROVIDER=openai → OpenAI only
+  cfgs = listImageApiConfigs("openai");
+  assert(cfgs.length === 1 && cfgs[0].provider === "openai", "openai opt-in only");
+
+  // Explicit IMAGE_PROVIDER=xai → xAI only even with OpenAI key present
+  cfgs = listImageApiConfigs("xai");
+  assert(cfgs.length === 1 && cfgs[0].provider === "xai", "xai force");
 
   const chat = resolveApiConfig("xai-chat-key");
   assert(chat.isXai && chat.baseUrl === "https://api.x.ai/v1" && chat.model === "grok-4.7", "chat ok");
@@ -87,13 +96,13 @@ async function main() {
   );
 
   const log = await logImageGeneration({
-    provider: "openai",
-    model: "gpt-image-2.5-flare",
-    quality: "low",
-    size: "1024x1024",
-    usingDedicatedImageKey: true,
+    provider: "xai",
+    model: "grok-imagine-image",
+    quality: null,
+    size: null,
+    usingDedicatedImageKey: false,
   });
-  assert(log.estimatedCostUsd === 0.00588, "usage log");
+  assert(log.estimatedCostUsd === 0.02, "usage log");
 
   console.log("OK verify-image-config");
 }

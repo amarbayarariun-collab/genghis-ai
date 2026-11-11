@@ -71,7 +71,7 @@ export type ImageApiConfig = {
   size: string | null;
 };
 
-/** IMAGE_PROVIDER=auto|openai|xai (default auto = OpenAI primary, xAI fallback). */
+/** IMAGE_PROVIDER=auto|openai|xai (default auto = xAI primary; OpenAI opt-in). */
 export function resolveImageProviderPreference(
   raw = process.env.IMAGE_PROVIDER
 ): ImageProviderPreference {
@@ -218,10 +218,10 @@ function buildXaiImageConfig(): ImageApiConfig | null {
 
 /**
  * Ordered image backends to try.
- * - auto (default): OpenAI GPT Image PRIMARY when OPENAI_IMAGE_API_KEY is set
- *   (else a real OpenAI OPENAI_API_KEY); FALLBACK xAI grok-imagine-image when
- *   OpenAI key is missing, fails, or is out of credits
- * - openai: OpenAI keys only
+ * - auto (default when IMAGE_PROVIDER unset): xAI grok-imagine-image PRIMARY
+ *   via chat key (OPENAI_API_KEY / AP). OpenAI GPT Image is opt-in FALLBACK
+ *   only when OPENAI_IMAGE_API_KEY (or a real OpenAI OPENAI_API_KEY) is set.
+ * - openai: OpenAI keys only (explicit opt-in)
  * - xai: xAI chat key only
  */
 export function listImageApiConfigs(
@@ -238,15 +238,15 @@ export function listImageApiConfigs(
     return xai ? [xai] : [];
   }
 
-  // auto: OpenAI primary when image key (or real OpenAI chat key) present; else xAI
+  // auto: xAI primary; OpenAI only when opted in via OPENAI_IMAGE_API_KEY / real sk- key
   const configs: ImageApiConfig[] = [];
+  if (xai) configs.push(xai);
   if (dedicated) configs.push(dedicated);
   else if (sharedOpenAI) configs.push(sharedOpenAI);
-  if (xai) configs.push(xai);
   return configs;
 }
 
-/** Image generation: prefer dedicated OpenAI key; else shared chat key / xAI. */
+/** Image generation: prefer xAI Imagine; OpenAI only when opted in via env. */
 export function resolveImageApiConfig(): ImageApiConfig | null {
   return listImageApiConfigs()[0] ?? null;
 }
