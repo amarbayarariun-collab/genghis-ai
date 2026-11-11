@@ -1,20 +1,27 @@
 // Өэлүн эх — denser placeholder (art-ref 16 boqta). GLB swap via HOELUN_GLB_URL.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 
-export const HOELUN_GLB_URL = null;
+export const HOELUN_GLB_URL = './models/hoelun.glb';
 const TARGET_HEIGHT = 2.15;
 
-export function createHoelun() {
+export function createHoelun(opts = {}) {
+  const shadows = opts.shadows === true;
   const group = new THREE.Group();
   const placeholder = buildPlaceholder();
   group.add(placeholder.root);
   group.userData.update = placeholder.update;
 
   if (HOELUN_GLB_URL) {
-    new GLTFLoader().load(
+    const draco = new DRACOLoader();
+    draco.setDecoderPath('./draco/');
+    const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
+    loader.load(
       HOELUN_GLB_URL,
       (gltf) => {
+        draco.dispose();
         const model = gltf.scene;
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
@@ -22,20 +29,72 @@ export function createHoelun() {
         const box2 = new THREE.Box3().setFromObject(model);
         const c = box2.getCenter(new THREE.Vector3());
         model.position.set(-c.x, -box2.min.y, -c.z);
+        model.traverse((o) => {
+          if (!o.isMesh) return;
+          o.castShadow = shadows;
+          o.receiveShadow = shadows;
+          o.geometry?.computeBoundingSphere?.();
+          o.frustumCulled = true;
+        });
         group.remove(placeholder.root);
         group.add(model);
+        // hoelun.glb has no skeleton and no clips. Idle is a breath; facing is the group yaw.
+        const baseY = model.position.y;
+        // Close-up check: the sculpt's face is local +Z. Yaw 0 looks down the south path.
+        const homeYaw = 0;
+        group.rotation.y = homeYaw;
+        let skinned = false;
+        model.traverse((o) => {
+          if (o.isSkinnedMesh || o.isBone) skinned = true;
+        });
         let mixer = null;
-        if (gltf.animations.length) {
+        const clips = gltf.animations.length;
+        if (skinned && clips > 0) {
           mixer = new THREE.AnimationMixer(model);
           mixer.clipAction(gltf.animations[0]).play();
         }
+        group.userData.clipGate = {
+          applied: !!mixer,
+          skinned,
+          clips,
+          reason: mixer
+            ? 'Skeleton and a clip were on this mesh, so the first clip plays.'
+            : 'Hö\'elün\'s Draco mesh has no skeleton and no clips. A made-up rig would not match the robe, so the breath lean stays.',
+        };
         let last = null;
-        group.userData.update = (t) => {
-          if (mixer) { mixer.update(last === null ? 0 : t - last); last = t; }
+        group.userData.update = (t, lookAt, dt = 0.016) => {
+          if (mixer && last != null) mixer.update(Math.min(0.05, t - last));
+          last = t;
+          // Feet stay on the planted origin. Weight is a small lean, not a lift.
+          model.position.y = baseY;
+          model.rotation.y = 0;
+          model.rotation.x = Math.sin(t * 1.15) * (group.userData.talking ? 0.028 : 0.012);
+          model.rotation.z = Math.sin(t * 0.8) * 0.018;
+          const step = Math.min(1, dt * (group.userData.talking ? 5 : 2.4));
+          if (lookAt) {
+            const dx = lookAt.x - group.position.x;
+            const dz = lookAt.z - group.position.z;
+            const near = dx * dx + dz * dz < 64;
+            if (group.userData.talking || near) {
+              let want = Math.atan2(dx, dz);
+              let d = want - group.rotation.y;
+              while (d > Math.PI) d -= Math.PI * 2;
+              while (d < -Math.PI) d += Math.PI * 2;
+              group.rotation.y += d * step;
+              return;
+            }
+          }
+          let d = homeYaw + Math.sin(t * 0.45) * 0.08 - group.rotation.y;
+          while (d > Math.PI) d -= Math.PI * 2;
+          while (d < -Math.PI) d += Math.PI * 2;
+          group.rotation.y += d * Math.min(1, dt * 1.5);
         };
       },
       undefined,
-      (err) => console.warn('[hoelun] GLB failed:', err)
+      (err) => {
+        draco.dispose();
+        console.warn('[hoelun] GLB failed:', err);
+      }
     );
   }
   return group;

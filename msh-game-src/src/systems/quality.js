@@ -55,7 +55,7 @@ const PRESETS = {
   high: {
     id: 'high',
     label: 'Өндөр',
-    pixelRatioCap: 1.5,
+    pixelRatioCap: 1.25,
     shadows: true,
     shadowMap: 1024,
     shadowSoft: false, // PCF not soft — cheaper
@@ -91,7 +91,8 @@ export function pickTierFromAvgMs(avgMs) {
 
 export function applyRendererQuality(renderer, THREE, preset) {
   const dpr = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1;
-  const pr = Math.min(dpr, preset.pixelRatioCap);
+  // A 2x or 3x iPad must not fill that many pixels. Low can still step down below 1.
+  const pr = Math.min(dpr, preset.pixelRatioCap, 1.25);
   renderer.setPixelRatio(pr);
   renderer.shadowMap.enabled = !!preset.shadows;
   renderer.shadowMap.type = preset.shadowSoft

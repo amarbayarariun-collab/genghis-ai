@@ -7,8 +7,19 @@ html, body {
   font-family: "Noto Sans", "Segoe UI", system-ui, sans-serif;
   color: #f2ead8;
 }
-#game { display: block; width: 100vw; height: 100vh; cursor: grab; touch-action: none; }
-#game:active { cursor: grabbing; }
+/* The canvas covers the viewport. On iPad it must not take taps while a menu is up. */
+#game {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  touch-action: manipulation;
+}
+body.in-play #game { pointer-events: auto; touch-action: none; cursor: grab; }
+body.in-play #game:active { cursor: grabbing; }
 .hidden { display: none !important; }
 
 /* Full-screen warm grade: sepia tint + soft sun bloom haze (f03 look) */
@@ -18,10 +29,40 @@ html, body {
   pointer-events: none;
   z-index: 4;
   background:
-    radial-gradient(ellipse 50% 40% at 52% 30%, rgba(255, 228, 160, 0.22), transparent 60%),
-    radial-gradient(ellipse at center, transparent 55%, rgba(90, 50, 20, 0.1) 100%),
-    rgba(180, 125, 65, 0.08);
+    radial-gradient(ellipse 34% 26% at 84% 10%, rgba(255, 196, 110, 0.2), transparent 62%),
+    radial-gradient(ellipse at center, transparent 78%, rgba(72, 32, 10, 0.16) 100%);
   mix-blend-mode: soft-light;
+  transition: background 0.45s ease;
+}
+#warmGrade.grade-burkhan {
+  background:
+    radial-gradient(ellipse 62% 42% at 50% 18%, rgba(186, 206, 224, 0.28), transparent 66%),
+    radial-gradient(ellipse at center, transparent 46%, rgba(18, 32, 48, 0.28) 100%),
+    rgba(96, 124, 150, 0.1);
+}
+#warmGrade.grade-taichiud {
+  background:
+    radial-gradient(ellipse 42% 28% at 50% 82%, rgba(255, 112, 36, 0.32), transparent 60%),
+    radial-gradient(ellipse at center, transparent 40%, rgba(4, 8, 18, 0.5) 100%),
+    rgba(10, 16, 36, 0.24);
+  mix-blend-mode: multiply;
+}
+#warmGrade.grade-act2 {
+  background:
+    radial-gradient(ellipse 48% 34% at 28% 14%, rgba(255, 246, 220, 0.3), transparent 64%),
+    radial-gradient(ellipse at center, transparent 52%, rgba(36, 72, 48, 0.16) 100%),
+    rgba(150, 186, 168, 0.08);
+}
+#warmGrade.grade-act3 {
+  background:
+    radial-gradient(ellipse 34% 26% at 46% 74%, rgba(255, 84, 28, 0.26), transparent 58%),
+    radial-gradient(ellipse at center, transparent 38%, rgba(6, 4, 12, 0.55) 100%),
+    rgba(12, 10, 24, 0.3);
+  mix-blend-mode: multiply;
+}
+#warmGrade.arriving {
+  background: rgba(8, 6, 10, 0.72);
+  mix-blend-mode: normal;
 }
 #warmGrade.proof {
   background:
@@ -30,10 +71,25 @@ html, body {
     rgba(185, 128, 68, 0.1);
 }
 
+#fpsToggle {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 46;
+  min-width: 3.4rem;
+  min-height: 2.5rem;
+  padding: 6px 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+#fpsToggle[aria-pressed="true"] {
+  outline: 2px solid #e8c070;
+  background: rgba(120, 80, 30, 0.95);
+}
 #perfHud {
   position: fixed;
-  top: 10px;
-  right: 12px;
+  top: max(52px, calc(env(safe-area-inset-top) + 46px));
+  right: max(12px, env(safe-area-inset-right));
   z-index: 40;
   font: 600 12px/1.35 ui-monospace, Menlo, Consolas, monospace;
   color: #f2ead8;
@@ -57,6 +113,89 @@ html, body {
   outline: 2px solid #e8c070;
   background: rgba(120, 80, 30, 0.95);
 }
+#fxToggle {
+  margin: 0.2rem auto 0.4rem;
+}
+#fxToggle[aria-pressed="true"] {
+  outline: 2px solid #e8c070;
+  background: rgba(120, 80, 30, 0.95);
+}
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(72px, calc(env(safe-area-inset-bottom) + 64px));
+  transform: translateX(-50%);
+  z-index: 16;
+  max-width: min(92vw, 460px);
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(20, 12, 6, 0.82);
+  border: 1px solid rgba(232, 195, 122, 0.55);
+  color: #f3e2b8;
+  text-align: center;
+  pointer-events: none;
+}
+#pace {
+  position: absolute;
+  top: max(46px, calc(env(safe-area-inset-top) + 34px));
+  left: 14px;
+  font-size: 14px;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(201, 163, 90, 0.35);
+  color: #f3d7a0;
+}
+#stick {
+  display: none;
+  position: fixed;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(28px, env(safe-area-inset-bottom));
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 2px solid rgba(230, 195, 106, 0.75);
+  background: rgba(12, 9, 6, 0.38);
+  z-index: 18;
+  touch-action: none;
+}
+#stickKnob {
+  position: absolute;
+  left: 40px;
+  top: 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e6c36a;
+}
+body.in-play #stick,
+body.touch-ui.in-play #stick { pointer-events: auto; }
+@media (pointer: coarse) {
+  body.in-play #stick { display: block; }
+}
+body.touch-ui.in-play #stick { display: block; }
+#end.overlay { background: rgba(8, 6, 4, 0.78); }
+#end .end-card { transform: translateY(18px); }
+#end.settled .end-card {
+  transform: none;
+  transition: transform 0.72s cubic-bezier(0.16, 0.84, 0.24, 1);
+}
+.touch-pad { display: none; }
+@media (pointer: coarse) {
+  .touch-pad {
+    display: flex;
+    position: fixed;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(148px, calc(env(safe-area-inset-bottom) + 132px));
+    z-index: 18;
+    gap: 8px;
+  }
+  .touch-pad button {
+    min-width: 4.6rem;
+    min-height: 2.8rem;
+    font-size: 15px;
+  }
+}
 .pause-panel .hint { margin-top: 0.75rem; opacity: 0.75; font-size: 0.85rem; }
 
 .overlay {
@@ -67,6 +206,8 @@ html, body {
   align-items: center;
   justify-content: center;
   z-index: 20;
+  transform: translateZ(0);
+  touch-action: manipulation;
   text-align: center;
   padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
   background:
@@ -90,8 +231,176 @@ html, body {
 .title-art {
   min-height: 280px;
   background:
-    linear-gradient(90deg, rgba(18, 12, 8, 0.15), rgba(18, 12, 8, 0.55)),
-    url("./title-card.jpg") center / cover no-repeat;
+    linear-gradient(90deg, rgba(18, 12, 8, 0.05), rgba(18, 12, 8, 0.28)),
+    url("./title-card.jpg") 18% center / cover no-repeat;
+}
+
+/* Title screen: the painting is the frame. HTML sits where the painted letters were. */
+#title.overlay {
+  background: #070b12;
+  padding: 0;
+}
+#title .title-screen {
+  position: relative;
+  width: min(100%, calc(100vh * 1505 / 1045));
+  max-height: 100%;
+  display: block;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+  overflow: hidden;
+}
+#title .title-painting {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+}
+#title .title-screen .title-copy {
+  position: absolute;
+  z-index: 1;
+  left: 60%;
+  right: 4%;
+  top: 5.2%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6vh;
+  padding: 0;
+  background: none;
+  text-align: left;
+  pointer-events: none;
+  line-height: normal;
+}
+#title .title-screen .eyebrow {
+  text-transform: none;
+  letter-spacing: 0.22em;
+  font-size: clamp(11px, 1.25vw, 15px);
+  color: #e7c16a;
+}
+#title .title-screen h1 {
+  font-family: "Noto Serif", "Noto Sans", serif;
+  font-size: clamp(26px, 4.2vw, 56px);
+  line-height: 0.96;
+  color: #e8c36a;
+  letter-spacing: 0.01em;
+  text-shadow: 0 2px 0 rgba(42, 18, 6, 0.45);
+}
+#title .title-screen .body {
+  color: #f0e0c0;
+  font-size: clamp(11px, 1.15vw, 15px);
+  line-height: 1.4;
+  max-width: none;
+  margin-top: 0.4vh;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+}
+/* Buttons sit on the painted slots. Opaque, so the painted letters stay hidden. */
+#title .title-screen .title-actions {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: auto;
+}
+#title .title-screen .title-actions button {
+  position: absolute;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  font-size: clamp(13px, 1.45vw, 18px);
+  line-height: 1.15;
+  min-height: 44px;
+  white-space: normal;
+  text-align: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#title .title-screen #fastPlayBtn {
+  left: 62.4%;
+  width: 28.6%;
+  top: 41.2%;
+  height: 9.2%;
+  background: linear-gradient(#8d2432, #5c1219);
+  color: #f3d7a0;
+  border: 2px solid #e6c36a;
+  border-radius: 16px;
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px rgba(90, 20, 24, 0.65);
+}
+#title .title-screen #startBtn {
+  left: 64.6%;
+  width: 24.2%;
+  top: 50.6%;
+  height: 8.2%;
+}
+#title .title-screen #continueBtn {
+  left: 64.4%;
+  width: 26.6%;
+  top: 58.6%;
+  height: 8.4%;
+}
+#title .title-screen button.ghost {
+  background: #16110d;
+  color: #f3e6c8;
+  border: 2px solid #c6a15a;
+  border-radius: 12px;
+  font-weight: 600;
+}
+/* Keep the first phone tap. A hover change makes iOS treat it as a hover, not a press. */
+#title .title-screen #fastPlayBtn:hover {
+  background: linear-gradient(#8d2432, #5c1219);
+}
+#title .title-screen button.ghost:hover {
+  background: #16110d;
+}
+#title .title-tools {
+  position: absolute;
+  left: 62.2%;
+  width: 31.2%;
+  top: 70.2%;
+  height: 7.4%;
+  display: flex;
+  gap: 3.4%;
+  pointer-events: auto;
+}
+#title .title-screen .title-tools button {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: auto;
+  height: 100%;
+  flex: 1;
+  pointer-events: auto;
+  gap: 8px;
+}
+#title .title-tools .ico {
+  width: 22px;
+  height: 22px;
+  color: #e7c16a;
+  pointer-events: none;
+  flex: 0 0 auto;
+}
+#title .title-hints {
+  position: absolute;
+  z-index: 2;
+  left: 61.6%;
+  width: 35.5%;
+  top: 78.8%;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: #f3e6c8;
+  font-size: clamp(10px, 1.05vw, 13px);
+  line-height: 1.35;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+#title .title-hints li::before {
+  content: "◆ ";
+  color: #e7c16a;
 }
 
 .title-copy {
@@ -142,6 +451,7 @@ html, body {
 button {
   font: inherit;
   cursor: pointer;
+  touch-action: manipulation;
   border: 1px solid #c9a35a;
   background: rgba(60, 44, 22, 0.85);
   color: #f6e7c4;
@@ -156,6 +466,7 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+#fastPlayBtn,
 #startBtn {
   align-self: flex-start;
   min-width: 140px;
@@ -209,10 +520,38 @@ button:disabled {
   background: rgba(40, 28, 16, 0.75);
   border-radius: 8px;
   color: #f2ead8;
+  animation: card-settle 0.62s cubic-bezier(0.16, 0.84, 0.24, 1) both;
+}
+.chapter-card:nth-child(2) { animation-delay: 0.06s; }
+.chapter-card:nth-child(3) { animation-delay: 0.12s; }
+.chapter-card:nth-child(4) { animation-delay: 0.18s; }
+.chapter-card:nth-child(5) { animation-delay: 0.24s; }
+@keyframes card-settle {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+.chapter-card.locked { animation-name: card-settle-locked; }
+@keyframes card-settle-locked {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 0.45; transform: none; }
+}
+#chapters.settling { opacity: 0; }
+#chapters.settling.settled { opacity: 1; transition: opacity 0.45s ease; }
+#title.settling { opacity: 0; }
+#title.settling.settled { opacity: 1; transition: opacity 0.5s ease; }
+.end-card { transform: translateY(18px); }
+#title.settled .end-card {
+  transform: none;
+  transition: transform 0.72s cubic-bezier(0.16, 0.84, 0.24, 1);
 }
 .chapter-card .ch-title { font-weight: 700; color: #e8c37a; font-size: 15px; }
 .chapter-card .ch-blurb { font-size: 13px; opacity: 0.85; line-height: 1.4; }
 .chapter-card .ch-src { font-size: 11px; opacity: 0.6; letter-spacing: 0.04em; }
+.chapter-card.here {
+  border-color: #e8c37a;
+  box-shadow: inset 4px 0 0 #e8c37a;
+  background: rgba(72, 42, 16, 0.9);
+}
 .chapter-card.locked { opacity: 0.45; }
 .chapter-card.locked::after { content: ' · түгжээтэй'; font-size: 11px; opacity: 0.7; }
 
@@ -244,6 +583,60 @@ button:disabled {
   padding: 6px 12px;
   border-radius: 4px;
   border: 1px solid rgba(201, 163, 90, 0.25);
+}
+
+#coach {
+  position: absolute;
+  left: 50%;
+  bottom: max(92px, calc(env(safe-area-inset-bottom) + 78px));
+  transform: translateX(-50%);
+  z-index: 18;
+  max-width: min(92vw, 560px);
+  text-align: center;
+  font-size: 16px;
+  line-height: 1.35;
+  color: #1a120c;
+  background: rgba(243, 226, 184, 0.94);
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(92, 58, 34, 0.45);
+}
+#sfxMark {
+  position: absolute;
+  top: max(86px, calc(env(safe-area-inset-top) + 78px));
+  left: 14px;
+  z-index: 16;
+  font-size: 13px;
+  color: #f3e2b8;
+  background: rgba(20, 12, 6, 0.72);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+#fieldTasks {
+  position: absolute;
+  top: max(118px, calc(env(safe-area-inset-top) + 108px));
+  left: 14px;
+  max-width: min(86vw, 520px);
+  font-size: 14px;
+  line-height: 1.35;
+  color: #f3e2b8;
+  background: rgba(20, 12, 6, 0.72);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(232, 195, 122, 0.55);
+}
+#objective {
+  position: absolute;
+  top: max(48px, calc(env(safe-area-inset-top) + 36px));
+  left: 14px;
+  max-width: min(70vw, 420px);
+  font-size: 15px;
+  line-height: 1.35;
+  color: #f3e2b8;
+  background: rgba(20, 12, 6, 0.72);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(232, 195, 122, 0.55);
 }
 
 #controls {
@@ -293,10 +686,18 @@ button:disabled {
   text-align: center;
 }
 
+#muteBtn {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: 176px;
+  pointer-events: auto;
+  font-size: 13px;
+  padding: 7px 12px;
+}
 #sourceBtn {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
-  right: 14px;
+  right: 78px;
   pointer-events: auto;
   font-size: 13px;
   padding: 7px 12px;
@@ -371,19 +772,22 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
-  .title-card {
+  .title-card:not(.title-screen) {
     grid-template-columns: 1fr;
     max-height: min(92vh, 820px);
   }
   .title-art {
-    min-height: 150px;
-    max-height: 34vh;
+    min-height: 180px;
+    max-height: 38vh;
+    background-position: center 30%;
   }
-  .title-copy {
+  .title-card:not(.title-screen) .title-copy {
     text-align: center;
     align-items: center;
   }
-  #startBtn { align-self: center; }
+  #title .title-screen {
+    width: min(100%, calc(100dvh * 1505 / 1045));
+  }
   #controls .sep { display: none; }
   #dialogue {
     bottom: max(64px, calc(env(safe-area-inset-bottom) + 58px));

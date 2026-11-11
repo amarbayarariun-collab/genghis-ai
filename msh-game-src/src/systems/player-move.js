@@ -3,15 +3,17 @@
 import * as THREE from 'three';
 
 const SPEEDS = {
-  walk: 1.6,
-  jog: 3.5, // Sumiro jog — we use this as default explore pace
-  run: 4.6, // capped below Sumiro run for camp readability
+  walk: 2.5,
+  jog: 2.5,
+  run: 5.5,
+  trot: 7,
+  gallop: 13,
 };
 
 const TUNE = {
-  accel: 11,
+  accel: 14,
   deceler: 22,
-  grip: 18, // Sumiro ~26; slightly softer for steppe
+  grip: 22, // steppe grip: reaches the wish speed without a skate slide
   turnBlend: 14,
 };
 
@@ -47,7 +49,9 @@ export function createMover(player) {
     if (wishing) wish.normalize();
 
     const targetSpeed = wishing
-      ? (input.back ? SPEEDS.walk : SPEEDS.jog)
+      ? (input.mounted
+        ? (input.sprint ? SPEEDS.gallop : SPEEDS.trot)
+        : (input.back ? SPEEDS.walk * 0.75 : (input.sprint ? SPEEDS.run : SPEEDS.walk)))
       : 0;
 
     // Accelerate toward wish direction (Sumiro-like grip blend onto velocity)
@@ -80,7 +84,7 @@ export function createMover(player) {
     }
 
     // Cap
-    const cap = SPEEDS.run;
+    const cap = input.mounted ? SPEEDS.gallop : SPEEDS.run;
     const sp2 = Math.hypot(vel.x, vel.z);
     if (sp2 > cap) vel.multiplyScalar(cap / sp2);
 

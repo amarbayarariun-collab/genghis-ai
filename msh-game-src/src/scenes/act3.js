@@ -1,22 +1,7 @@
 // Act III — Мэргид хямрал · эвсэл · анхны Чингис (narrative, no combat).
 import * as THREE from 'three';
 import { createTemujin } from '../characters/temujin.js';
-
-function person({ deel, hat, fur = '#cbb896', skin = '#c48a5e', tall = 1 }) {
-  const flat = (c) => new THREE.MeshLambertMaterial({ color: c, flatShading: true });
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * tall, 0.28 * tall, 0.85 * tall, 8), flat(deel));
-  body.position.y = 0.7 * tall;
-  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13 * tall, 1), flat(skin));
-  head.position.y = 1.25 * tall;
-  const h = new THREE.Mesh(new THREE.CylinderGeometry(0.1 * tall, 0.16 * tall, 0.28 * tall, 8), flat(hat));
-  h.position.y = 1.45 * tall;
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.2 * tall, 0.06 * tall, 5, 10), flat(fur));
-  collar.rotation.x = Math.PI / 2;
-  collar.position.y = 1.05 * tall;
-  g.add(body, head, h, collar);
-  return g;
-}
+import { person } from '../world-kit.js';
 
 function glowRing(color = '#e8c37a') {
   const ring = new THREE.Mesh(
@@ -33,9 +18,9 @@ export function buildAct3World(scene) {
   const skyGeo = new THREE.SphereGeometry(300, 24, 16);
   const skyMat = new THREE.ShaderMaterial({
     uniforms: {
-      top: { value: new THREE.Color('#12182a') },
-      horizon: { value: new THREE.Color('#6a3a3a') },
-      bottom: { value: new THREE.Color('#2a1c18') },
+      top: { value: new THREE.Color('#070b18') },
+      horizon: { value: new THREE.Color('#7a2818') },
+      bottom: { value: new THREE.Color('#10080a') },
     },
     vertexShader: `varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
     fragmentShader: `
@@ -49,13 +34,13 @@ export function buildAct3World(scene) {
     depthWrite: false,
   });
   scene.add(new THREE.Mesh(skyGeo, skyMat));
-  scene.fog = new THREE.Fog('#2a1c22', 25, 120);
+  scene.fog = new THREE.Fog('#140c12', 16, 88);
 
-  scene.add(new THREE.HemisphereLight('#8a6a70', '#101018', 0.55));
-  const moon = new THREE.DirectionalLight('#a0b0d0', 0.7);
-  moon.position.set(-30, 40, 20);
+  scene.add(new THREE.HemisphereLight('#4a5a78', '#10080c', 0.38));
+  const moon = new THREE.DirectionalLight('#b7c6e8', 0.82);
+  moon.position.set(-30, 46, 16);
   scene.add(moon);
-  const fireLite = new THREE.PointLight('#ff6a30', 2.2, 18);
+  const fireLite = new THREE.PointLight('#ff6a28', 2.7, 16);
   fireLite.position.set(1, 1.2, 1);
   scene.add(fireLite);
 

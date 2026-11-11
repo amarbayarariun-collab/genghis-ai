@@ -1,9 +1,10 @@
-// МСХ · Тэмүжин v1 — Sumiro-style chapters + Taichiud + GLB Temüjin.
+// Монголын Нууц Товчоо · Тэмүжин v1 — Sumiro-style chapters + Taichiud + GLB Temüjin.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { buildWorld } from './world.js';
 import { buildBurkhanWorld } from './scenes/burkhan.js';
 import { buildAct2World } from './scenes/act2.js';
+import { buildHorsesWorld } from './scenes/horses.js';
 import { buildAct3World } from './scenes/act3.js';
 import {
   buildTaichiudCapture,
@@ -24,19 +25,31 @@ import { createDustSteps, createStrideTrigger } from './systems/harvest/fx-dust-
 import { createSteppeMotes } from './systems/harvest/fx-steppe-motes.js';
 import { createBirds } from './systems/harvest/fx-birds.js';
 import { createSteppeAudio } from './systems/harvest/ambient-audio.js';
+import { createTheme } from './systems/theme.js';
+import { createSfx } from './systems/audio.js';
+import { createCoach } from './systems/coach.js';
+import { createFieldTasks } from './systems/field-tasks.js';
 import { createLocomotionFSM } from './systems/harvest/anim-state-machine.js';
 import { createAdaptiveQuality } from './systems/harvest/lod-instancing.js';
 import { qualityPreset, pickTierFromAvgMs, applyRendererQuality, QUALITY_TIERS } from './systems/quality.js';
 import { loadSave, writeSave, unlockNext } from './save.js';
+import { createInkGrade } from './systems/sumiro/ink-grade.js';
+import { createMistField } from './systems/sumiro/mist-field.js';
+import { createFootStains } from './systems/sumiro/foot-stains.js';
+import { createEncounter } from './systems/sumiro/encounter.js';
+import { createCrows } from './systems/sumiro/crows.js';
+import { horse, person, seatRider } from './world-kit.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
 const renderer = new THREE.WebGLRenderer({
   canvas,
   antialias: false, // cheaper; CSS warmGrade softens edges
-  powerPreference: 'high-performance',
+  // iPad Safari runs much slower with high-performance, and sometimes refuses the context.
+  powerPreference: 'default',
   stencil: false,
   depth: true,
+  failIfMajorPerformanceCaveat: false,
 });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.info.autoReset = true;
@@ -59,17 +72,19 @@ const camera = new THREE.PerspectiveCamera(62, 1, 0.12, 420);
 
 // ---- Quality / adaptive ----
 let save = loadSave();
-let qualityId = save.quality || 'med'; // null in save → start med, auto-probe first 2s
-let quality = qualityPreset(qualityId);
-let qualityManual = !!save.quality;
+// Other players boot on the fast path: low tier, no shadows, from the first frame.
+// A saved higher tier must not turn shadows on before the scene is playable.
+let qualityId = 'low';
+let quality = qualityPreset('low');
+let qualityManual = false;
 let probeAcc = 0;
 let probeFrames = 0;
-let probeDone = qualityManual;
+let probeDone = true;
 let adapt = null;
 const stepDir = new THREE.Vector3();
 const ndc = new THREE.Vector2();
 let showPerf = false;
-let fpsEma = 60;
+let fpsEma = 0;
 let fpsFrames = 0;
 let fpsWindowT = 0;
 
@@ -83,7 +98,8 @@ function updatePerfHud(force) {
   el.classList.remove('hidden');
   if (!force && fpsFrames < 8) return;
   const info = renderer.info;
-  el.textContent = `${fpsEma.toFixed(0)} fps · ${quality.label} · draw ${info.render.calls} · tri ${info.render.triangles} · pr ${renderer.getPixelRatio().toFixed(2)}`;
+  const fpsText = fpsEma > 0 ? `${Math.round(fpsEma)} fps` : '-- fps';
+  el.textContent = `${fpsText} · ${quality.label} · draw ${info.render.calls} · tri ${info.render.triangles} · pr ${renderer.getPixelRatio().toFixed(2)}`;
 }
 
 function setQuality(id, { manual = false, reloadScene = true } = {}) {
@@ -97,11 +113,11 @@ function setQuality(id, { manual = false, reloadScene = true } = {}) {
   applyRendererQuality(renderer, THREE, quality);
   ensureEnvMap(id !== 'low');
   adapt = createAdaptiveQuality(renderer, {
-    targetMs: id === 'low' ? 33 : id === 'high' ? 16.7 : 20,
-    min: id === 'low' ? 0.75 : 0.85,
+    targetMs: id === 'low' ? 33 : id === 'high' ? 16.7 : 22,
+    min: id === 'low' ? 0.5 : 0.75,
     max: quality.pixelRatioCap,
-    every: 2,
-    steps: id === 'low' ? [0.75, 1] : id === 'med' ? [0.85, 1, 1.25] : [1, 1.25, 1.5],
+    every: id === 'low' ? 0.7 : 2,
+    steps: id === 'low' ? [0.5, 0.75, 1] : id === 'med' ? [0.75, 1, 1.25] : [1, 1.25],
   });
   document.querySelectorAll('[data-quality]').forEach((b) => {
     b.classList.toggle('active', b.getAttribute('data-quality') === id);
@@ -117,6 +133,52 @@ function resize() {
   renderer.setSize(innerWidth, innerHeight, false);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
+}
+
+function paint(time = 0) {
+  if (fxOn && inkGrade) inkGrade.render(scene, camera, time);
+  else renderer.render(scene, camera);
+}
+
+function clearHeavyFx() {
+  inkGrade?.dispose?.();
+  inkGrade = null;
+  mistField?.dispose?.();
+  mistField = null;
+  crowFlock?.dispose?.();
+  crowFlock = null;
+  footStains?.dispose?.();
+  footStains = null;
+}
+
+function syncHeavyFx() {
+  if (!fxOn || !world) {
+    clearHeavyFx();
+    return;
+  }
+  if (!inkGrade) {
+    try { inkGrade = createInkGrade(renderer); }
+    catch (e) { console.warn('[ink grade]', e); inkGrade = null; }
+  }
+  if (!mistField && sceneId !== 'taichiud_ger') {
+    try { mistField = createMistField(scene); }
+    catch (e) { console.warn('[mist field]', e); mistField = null; }
+  }
+  if (!crowFlock && (sceneId === 'camp' || sceneId === 'burkhan')) {
+    try { crowFlock = createCrows(scene, camera); }
+    catch (e) { console.warn('[crows]', e); crowFlock = null; }
+  }
+  if (!footStains) {
+    try { footStains = createFootStains(scene, (x, z) => world.heightAt?.(x, z) ?? 0); }
+    catch (e) { console.warn('[stains]', e); footStains = null; }
+  }
+}
+
+function setFx(on) {
+  fxOn = !!on;
+  const btn = $('fxToggle');
+  if (btn) btn.setAttribute('aria-pressed', fxOn ? 'true' : 'false');
+  syncHeavyFx();
 }
 addEventListener('resize', resize);
 resize();
@@ -139,6 +201,12 @@ const player = { pos: new THREE.Vector3(0, 0, 10), yaw: 0.15, bob: 0 };
 const cam = createCameraRig(camera, { distance: 5.0, height: 1.55, minPitch: -0.35, maxPitch: 0.55 });
 const mover = createMover(player);
 const audio = createSteppeAudio({ volume: 0.75 });
+const theme = createTheme();
+const sfx = createSfx();
+const coach = createCoach($('coach'));
+let resumeAcc = 0;
+let hoofAcc = 0;
+let sfxTimer = 0;
 audio.attachUnlock?.();
 const simpleCine = createSimpleCine(camera, { duration: 2.8 });
 const pathCine = createPathCine(camera, ONON_INTRO);
@@ -152,20 +220,38 @@ let harvestMist = null;
 let motes = null;
 let birds = null;
 let dust = null;
+let fxOn = false;
+let inkGrade = null;
+let mistField = null;
+let crowFlock = null;
+let footStains = null;
+let encounter = null;
+let fLatch = false;
+let toastText = '';
+let horsesChimed = false;
+let promptText = '';
+let fTouch = false;
+let qTouch = false;
+let fieldTasks = null;
+const touchWish = { x: 0, y: 0 };
 const stride = createStrideTrigger({ strideLen: 0.72 });
 // Procedural Temüjin → animator:null FSM still fires synthetic footfalls for dust/audio
 const loco = createLocomotionFSM({
   animator: null,
   gaits: { idle: 'Idle', walk: 'Walk', jog: 'Run' },
   onStep: (_side, p) => {
+    const at = p?.isVector3 ? p : player.pos;
     stepDir.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
-    if (dust) dust.step(p, stepDir);
+    if (dust) dust.step(at, stepDir);
     audio.step?.(sceneId === 'burkhan' ? 'rock' : 'grass');
   },
 });
 let state = 'title'; // title | chapters | cine | explore | dialogue | end | pause
 /** When true, freeze camera at aerialView (proof / cinematic hold) — spring rig must not overwrite. */
 let aerialLocked = false;
+let shotLock = false;
+let mounted = false;
+let playerHorse = null;
 let flag = null;
 let talkTarget = null;
 let spottedCooldown = 0;
@@ -174,14 +260,17 @@ const PLAYER_RADIUS = 0.3;
 const CHAPTER_ORDER = CHAPTERS.map((c) => c.id);
 
 function resolveCollisions(p) {
-  for (const c of world?.colliders || []) {
-    const dx = p.x - c.x, dz = p.z - c.z;
-    const d = Math.hypot(dx, dz);
-    const min = c.r + PLAYER_RADIUS;
-    if (d < min && d > 1e-4) {
-      p.x += (dx / d) * (min - d);
-      p.z += (dz / d) * (min - d);
-    } else if (d < 1e-5) p.x += min;
+  const list = world?.colliders || [];
+  for (let pass = 0; pass < 2; pass++) {
+    for (const c of list) {
+      const dx = p.x - c.x, dz = p.z - c.z;
+      const d = Math.hypot(dx, dz);
+      const min = c.r + PLAYER_RADIUS;
+      if (d < min && d > 1e-4) {
+        p.x += (dx / d) * (min - d);
+        p.z += (dz / d) * (min - d);
+      } else if (d < 1e-5) p.x += min;
+    }
   }
 }
 
@@ -189,6 +278,7 @@ function buildScene(id) {
   const qOpts = { quality };
   if (id === 'burkhan') return buildBurkhanWorld(scene);
   if (id === 'act2') return buildAct2World(scene);
+  if (id === 'horses') return buildHorsesWorld(scene);
   if (id === 'act3') return buildAct3World(scene);
   if (id === 'taichiud_capture') return buildTaichiudCapture(scene);
   if (id === 'taichiud_escape') return buildTaichiudEscape(scene);
@@ -212,15 +302,49 @@ function npcsFromWorld(w, id) {
 }
 
 function audioModeFor(id) {
-  if (id === 'taichiud_escape' || id === 'taichiud_ger') return id === 'taichiud_ger' ? 'ger' : 'night';
-  if (id === 'taichiud_river' || id === 'burkhan') return 'dawn';
+  if (id === 'taichiud_ger') return 'ger';
+  if (id === 'taichiud_escape' || id === 'taichiud_capture' || id === 'taichiud_river' || id === 'act3') return 'night';
+  if (id === 'burkhan') return 'ridge';
   return 'day';
+}
+
+function sceneLook(id, x, z) {
+  const blend = (ax, az, near, far, nearD, farD, nearP, farP, nearH, farH) => {
+    const t = THREE.MathUtils.smoothstep(Math.hypot(x - ax, z - az), near, far);
+    return {
+      distance: nearD + t * (farD - nearD),
+      pitch: nearP + t * (farP - nearP),
+      height: nearH + t * (farH - nearH),
+    };
+  };
+  if (id === 'camp') return blend(0.2, -2, 6, 28, 3.6, 8.8, 0.18, 0.3, 1.32, 1.7);
+  if (id === 'burkhan') return blend(0, -10, 7, 26, 7.4, 12.4, 0.1, 0.2, 1.85, 2.25);
+  if (id === 'taichiud_capture') return blend(0, 2, 5, 18, 4.6, 7.4, 0.08, 0.16, 1.4, 1.55);
+  if (id === 'taichiud_escape') return blend(-1, 2, 4, 16, 4.1, 6.4, 0.06, 0.12, 1.28, 1.42);
+  if (id === 'taichiud_river') return blend(0, 0, 4, 18, 5.4, 9.0, 0.08, 0.16, 1.45, 1.7);
+  if (id === 'taichiud_ger') return { distance: 4.1, pitch: 0.07, height: 1.22 };
+  if (id === 'act2') return blend(0, 0, 8, 28, 5.6, 9.6, 0.12, 0.22, 1.6, 1.9);
+  if (id === 'horses') return blend(0, 4, 6, 24, 5.2, 9.2, 0.12, 0.22, 1.5, 1.85);
+  if (id === 'act3') return blend(0, 0, 5, 18, 4.3, 6.6, 0.08, 0.14, 1.35, 1.5);
+  return { distance: 5, pitch: 0.22, height: 1.55 };
+}
+
+function applyGrade(id) {
+  const grade = $('warmGrade');
+  if (!grade) return;
+  grade.classList.remove('grade-camp', 'grade-burkhan', 'grade-taichiud', 'grade-act2', 'grade-act3');
+  const name = id === 'burkhan' ? 'grade-burkhan'
+    : id.startsWith('taichiud') ? 'grade-taichiud'
+    : id === 'act2' || id === 'horses' ? 'grade-act2'
+    : id === 'act3' ? 'grade-act3'
+    : 'grade-camp';
+  grade.classList.add(name);
 }
 
 function afterCine(id, dialogueNode) {
   if (dialogueNode) startDialogue(dialogueNode);
   else if (id === 'burkhan') startDialogue('burkhan_start');
-  else if (id === 'act2') state = 'explore';
+  else if (id === 'act2' || id === 'horses') state = 'explore';
   else if (id === 'act3') startDialogue('mergen_start');
   else if (id === 'taichiud_capture') startDialogue('taichiud_capture');
   else if (id === 'taichiud_escape') state = 'explore';
@@ -238,15 +362,56 @@ function disposeHarvestFx() {
   birds = null;
   if (dust?.points) scene.remove(dust.points);
   dust = null;
+  encounter?.dispose?.();
+  encounter = null;
+  clearHeavyFx();
 }
 
-function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
+function settlePlayCamera(pos, yaw) {
+  const look = sceneLook(sceneId, pos.x, pos.z);
+  cam.view.pitch = look.pitch;
+  cam.view.distance = look.distance;
+  cam.view.height = look.height;
+  cam.snapTo(pos, yaw, look.pitch);
+  cam.update(1 / 30, pos, { frame: look });
+  return {
+    eye: camera.position.clone(),
+    lookAt: new THREE.Vector3(pos.x, pos.y + 1.35, pos.z),
+  };
+}
+
+function clearMount() {
+  mounted = false;
+  if (playerHorse) {
+    scene.remove(playerHorse);
+    playerHorse.traverse?.((c) => {
+      c.geometry?.dispose?.();
+      const mats = Array.isArray(c.material) ? c.material : c.material ? [c.material] : [];
+      mats.forEach((m) => m.dispose?.());
+    });
+    playerHorse = null;
+  }
+  if (world?.temujin) world.temujin.visible = true;
+  const pace = $('pace');
+  if (pace) {
+    pace.textContent = '';
+    pace.classList.add('hidden');
+  }
+}
+
+function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false, resume = null } = {}) {
+  fieldTasks?.dispose();
+  fieldTasks = null;
+  horsesChimed = false;
+  clearMount();
+  $('end')?.classList.add('hidden');
   disposeHarvestFx();
   clearScene();
   activeCine = null;
   aerialLocked = false;
   sceneId = id;
   world = buildScene(id);
+  if (id === 'camp') fieldTasks = createFieldTasks(scene, world.heightAt);
   chapterId = world.chapterId || CHAPTERS.find((c) => c.scene === id)?.id || id;
   NPCS = npcsFromWorld(world, id);
   $('chapter').textContent = world.chapterLabel || 'Бүлэг';
@@ -257,6 +422,10 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
   player.pos.set(sp.x, sp.y, sp.z);
   // Face camp / sun (north-ish) for f03 rider framing
   player.yaw = id === 'camp' ? 0.05 : 0.15;
+  if (resume && resume.scene === id) {
+    player.pos.set(resume.x, sp.y, resume.z);
+    player.yaw = resume.yaw || player.yaw;
+  }
   mover.reset();
 
   // ---- Harvest FX (gated by quality tier) ----
@@ -279,20 +448,23 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
       const base = id === 'camp' ? quality.motes : Math.max(12, (quality.motes * 0.6) | 0);
       motes = createSteppeMotes(base);
       scene.add(motes.group);
-      motes.setWind?.(0.35, 0.12);
+      motes.setWind?.(id === 'burkhan' ? 1.2 : 0.35, id === 'burkhan' ? 0.46 : 0.12);
     } catch (e) {
       console.warn('[harvest motes]', e);
       motes = null;
     }
   }
-  if (quality.birds && (id === 'camp' || id === 'burkhan')) {
+  if (id === 'camp' || (quality.birds && id === 'burkhan')) {
     try {
       birds = createBirds(scene, {
-        count: quality.birdCount || (id === 'camp' ? 4 : 3),
-        center: id === 'camp' ? [6, 0, -14] : [0, 8, -20],
-        radius: id === 'camp' ? 20 : 28,
-        height: id === 'camp' ? 22 : 34,
-        perches: id === 'camp' ? [[4.2, 5.3, -8.5]] : [[0, 14, -30]],
+        count: id === 'camp' ? (quality.birds ? 4 : 2) : (quality.birdCount || 3),
+        center: id === 'camp' ? [1, 3, 8] : [0, 8, -20],
+        radius: id === 'camp' ? 16 : 28,
+        height: id === 'camp' ? (quality.birds ? 9 : 16) : 34,
+        span: id === 'camp' ? (quality.birds ? 2.2 : 1.35) : 2,
+        color: id === 'camp' ? '#1a120c' : undefined,
+        speed: id === 'camp' ? 6 : 7,
+        perches: id === 'burkhan' ? [[0, 14, -30]] : [],
       });
     } catch (e) {
       console.warn('[harvest birds]', e);
@@ -311,15 +483,70 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
 
   audio.setChapter?.(id === 'taichiud_capture' || id === 'taichiud_escape' || id === 'taichiud_river' || id === 'taichiud_ger' ? 'camp' : id);
   audio.setMode?.(audioModeFor(id));
+  audio.setWind?.(id === 'burkhan' ? 1.45 : 1);
+  applyGrade(id);
+  if (id === 'camp') {
+    try { encounter = createEncounter(scene, world); }
+    catch (e) { console.warn('[encounter]', e); encounter = null; }
+  }
+  if (fxOn) syncHeavyFx();
 
   const groundY = world.heightAt(sp.x, sp.z);
-  cam.view.pitch = 0.22;
-  cam.view.distance = id === 'camp' ? 6.2 : 5.0;
+  const look = sceneLook(id, sp.x, sp.z);
+  cam.view.pitch = look.pitch;
+  cam.view.distance = look.distance;
+  cam.view.height = look.height;
   camera.far = quality.camFar || 420;
   camera.updateProjectionMatrix();
-  cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, 0.22);
+  cam.snapTo(new THREE.Vector3(sp.x, groundY, sp.z), player.yaw, look.pitch);
 
-  if (cinematic) {
+  if (arrive && id === 'camp' && world.aerialView) {
+    state = 'cine';
+    $('hud').classList.remove('hidden');
+    $('dialogue').classList.add('hidden');
+    // Wide shot still starts in the air. Control begins on the path, close to the nearest ger.
+    const standZ = 5.2;
+    const standY = world.heightAt(sp.x, standZ);
+    player.pos.set(sp.x, standY, standZ);
+    player.yaw = 0.04;
+    if (world.temujin) world.temujin.position.set(sp.x, standY, standZ);
+    const play = settlePlayCamera(player.pos, player.yaw);
+    const aerial = world.aerialView;
+    pathCine.setPath({
+      positions: [
+        [aerial.eye.x, aerial.eye.y, aerial.eye.z],
+        [(aerial.eye.x + play.eye.x) * 0.5, aerial.eye.y * 0.42 + 5, (aerial.eye.z + play.eye.z) * 0.5],
+        [play.eye.x, play.eye.y, play.eye.z],
+      ],
+      targets: [
+        [aerial.look.x, aerial.look.y, aerial.look.z],
+        [sp.x, standY + 1.5, standZ - 6],
+        [play.lookAt.x, play.lookAt.y, play.lookAt.z],
+      ],
+      duration: 2.4,
+      fov: 50,
+      closed: false,
+      entry: 0.35,
+    });
+    camera.position.copy(aerial.eye);
+    camera.lookAt(aerial.look);
+    camera.fov = 48;
+    camera.updateProjectionMatrix();
+    pathCine.start({
+      from: aerial.eye,
+      lookingAt: aerial.look,
+      onDone: () => {
+        camera.fov = 62;
+        camera.updateProjectionMatrix();
+        player.pos.set(sp.x, standY, standZ);
+        player.yaw = 0.04;
+        settlePlayCamera(player.pos, player.yaw);
+        activeCine = null;
+        state = 'explore';
+      },
+    });
+    activeCine = pathCine;
+  } else if (cinematic) {
     state = 'cine';
     $('hud').classList.remove('hidden');
     $('dialogue').classList.add('hidden');
@@ -389,7 +616,7 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
       activeCine = {
         get active() { return simpleCine.active; },
         update: (dt) => simpleCine.update(dt),
-        skip: () => { /* simple has no skip */ },
+        skip: () => simpleCine.skip?.(),
       };
     }
   } else {
@@ -403,12 +630,19 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
 // Initial camp preload behind title
 loadScene('camp', { cinematic: false });
 state = 'title';
+$('end')?.classList.add('hidden');
 $('hud').classList.add('hidden');
 
 addEventListener('keydown', (e) => {
+  if (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Space') {
+    e.preventDefault();
+  }
   keys[e.code] = true;
+  if (e.code === 'KeyF' && !e.repeat) fTouch = true;
+  if (e.code === 'KeyQ' && !e.repeat) qTouch = true;
   if (e.code === 'F3') {
     showPerf = !showPerf;
+    $('fpsToggle')?.setAttribute('aria-pressed', showPerf ? 'true' : 'false');
     updatePerfHud(true);
     e.preventDefault();
   }
@@ -421,9 +655,34 @@ addEventListener('keydown', (e) => {
     activeCine.skip();
   }
   if (e.code === 'KeyE' && state === 'explore') {
+    finishCoach(coach.note('talk'));
     const n = nearest();
     if (n) talk(n);
   }
+  if (e.code === 'KeyF' && !e.repeat && state === 'explore') setMounted(!mounted);
+  if (e.code === 'KeyM' && !e.repeat && state === 'explore') setMounted(!mounted);
+});
+$('fxToggle')?.addEventListener('click', () => setFx(!fxOn));
+$('fpsToggle')?.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  showPerf = !showPerf;
+  $('fpsToggle').setAttribute('aria-pressed', showPerf ? 'true' : 'false');
+  updatePerfHud(true);
+});
+$('touchTalk')?.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  if (state !== 'explore') return;
+  finishCoach(coach.note('talk'));
+  const n = nearest();
+  if (n) talk(n);
+});
+$('touchBrace')?.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  fTouch = true;
+});
+$('bowBtn')?.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  qTouch = true;
 });
 
 function openPause() {
@@ -455,11 +714,104 @@ let dragging = false, lx = 0, ly = 0;
 canvas.addEventListener('pointerdown', (e) => { dragging = true; lx = e.clientX; ly = e.clientY; });
 addEventListener('pointerup', () => { dragging = false; });
 addEventListener('pointermove', (e) => {
+  if (e.pointerType === 'touch') return;
   if (!dragging || state !== 'explore') return;
   cam.lookDelta(e.clientX - lx, e.clientY - ly);
   player.yaw = cam.yaw;
   lx = e.clientX; ly = e.clientY;
 });
+
+const touchPoints = new Map();
+canvas.addEventListener('touchstart', (e) => {
+  for (const t of e.changedTouches) {
+    const role = t.clientX < innerWidth * 0.46 ? 'move' : 'look';
+    touchPoints.set(t.identifier, { role, x0: t.clientX, y0: t.clientY, x: t.clientX, y: t.clientY });
+  }
+}, { passive: true });
+canvas.addEventListener('touchmove', (e) => {
+  if (state !== 'explore') return;
+  for (const t of e.changedTouches) {
+    const k = touchPoints.get(t.identifier);
+    if (!k) continue;
+    if (k.role === 'look') {
+      cam.lookDelta((t.clientX - k.x) * 1.4, (t.clientY - k.y) * 1.4);
+      player.yaw = cam.yaw;
+    }
+    k.x = t.clientX;
+    k.y = t.clientY;
+    if (k.role === 'move') {
+      touchWish.x = Math.max(-1, Math.min(1, (k.x - k.x0) / 72));
+      touchWish.y = Math.max(-1, Math.min(1, -(k.y - k.y0) / 72));
+    }
+  }
+}, { passive: true });
+const endTouch = (e) => {
+  for (const t of e.changedTouches) {
+    const k = touchPoints.get(t.identifier);
+    if (k?.role === 'move') touchWish.x = touchWish.y = 0;
+    touchPoints.delete(t.identifier);
+  }
+};
+canvas.addEventListener('touchend', endTouch);
+canvas.addEventListener('touchcancel', endTouch);
+
+const stick = $('stick');
+const stickKnob = $('stickKnob');
+if (stick && stickKnob) {
+  const moveStick = (clientX, clientY) => {
+    const r = stick.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    let dx = clientX - cx;
+    let dy = clientY - cy;
+    const max = r.width * 0.36;
+    const len = Math.hypot(dx, dy) || 1;
+    const clamped = Math.min(len, max);
+    dx = (dx / len) * clamped;
+    dy = (dy / len) * clamped;
+    stickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+    touchWish.x = dx / max;
+    touchWish.y = -dy / max;
+  };
+  const resetStick = () => {
+    stickKnob.style.transform = '';
+    touchWish.x = 0;
+    touchWish.y = 0;
+  };
+  stick.addEventListener('pointerdown', (e) => {
+    if (!document.body.classList.contains('in-play')) return;
+    stick.setPointerCapture?.(e.pointerId);
+    moveStick(e.clientX, e.clientY);
+    e.stopPropagation();
+  });
+  stick.addEventListener('pointermove', (e) => {
+    if (!stick.hasPointerCapture?.(e.pointerId)) return;
+    moveStick(e.clientX, e.clientY);
+  });
+  stick.addEventListener('pointerup', resetStick);
+  stick.addEventListener('pointercancel', resetStick);
+}
+
+function setMounted(on) {
+  if (!world?.temujin) return;
+  if (state !== 'explore' && state !== 'dialogue') return;
+  if (!!on === mounted) return;
+  if (!on) {
+    clearMount();
+    return;
+  }
+  const h = horse('#6b4228');
+  const y = world.heightAt?.(player.pos.x, player.pos.z) ?? 0;
+  h.position.set(player.pos.x, y, player.pos.z);
+  h.rotation.y = world.temujin.rotation.y;
+  seatRider(h, person({ deel: '#9a1e24', fur: '#e8d4b0', hat: '#5c3b24' }));
+  scene.add(h);
+  playerHorse = h;
+  mounted = true;
+  world.temujin.visible = false;
+  finishCoach(coach.note('mount'));
+  persistResume();
+}
 
 const ray = new THREE.Raycaster();
 canvas.addEventListener('click', (e) => {
@@ -471,7 +823,12 @@ canvas.addEventListener('click', (e) => {
   }
 });
 
-const dist = (o) => Math.hypot(player.pos.x - o.position.x, player.pos.z - o.position.z);
+const _worldPt = new THREE.Vector3();
+const dist = (o) => {
+  if (!o) return Infinity;
+  o.getWorldPosition(_worldPt);
+  return Math.hypot(player.pos.x - _worldPt.x, player.pos.z - _worldPt.z);
+};
 function nearest(r = 3.5) {
   return NPCS.find((n) => n.obj && dist(n.obj) < r) || null;
 }
@@ -480,6 +837,27 @@ function nearSet(r = 4.2) {
 }
 function talk(n) {
   talkTarget = n.obj;
+  if (sceneId === 'horses') {
+    const text = world?.blurb?.() || '';
+    toastText = text;
+    const toast = $('toast');
+    if (toast) {
+      toast.textContent = text;
+      toast.classList.remove('hidden');
+    }
+    return;
+  }
+  if (sceneId === 'camp' && n.obj === world?.hoelun) {
+    const f = campFlags();
+    if (!f.metHoelun) return startDialogue('start');
+    if (!f.chirhaSeen) return startDialogue('camp_wait');
+    if (!campTaskDone()) return startDialogue('ask');
+    return startDialogue('after');
+  }
+  if (sceneId === 'camp' && n.obj === world?.chirha) {
+    save = writeSave({ flags: { ...campFlags(), chirhaSeen: true } });
+    updateObjective();
+  }
   startDialogue(n.node);
 }
 
@@ -494,21 +872,82 @@ function renderSource() {
   $('source').innerHTML = `${c.text}<span class="ref">— ${c.ref}</span>`;
 }
 
+function finishCoach(done) {
+  if (!done) return;
+  save = writeSave({ tutorialDone: true });
+}
+
+function flashSfx(name) {
+  if (!name || theme.muted) return;
+  const el = $('sfxMark');
+  if (!el) return;
+  el.textContent = name;
+  el.classList.remove('hidden');
+  clearTimeout(sfxTimer);
+  sfxTimer = setTimeout(() => el.classList.add('hidden'), 6000);
+}
+
+function persistResume() {
+  if (!sceneId || state === 'title') return;
+  save = writeSave({
+    lastChapter: chapterId,
+    resume: {
+      scene: sceneId,
+      x: Math.round(player.pos.x * 10) / 10,
+      z: Math.round(player.pos.z * 10) / 10,
+      yaw: Math.round(player.yaw * 100) / 100,
+      mounted,
+    },
+  });
+}
+
+function continueFromTitle() {
+  const end = $('end');
+  if (end) {
+    end.classList.add('hidden');
+    end.innerHTML = '';
+  }
+  save = loadSave();
+  try { audio.unlock(); sfx.unlock(); theme.start(); } catch (err) { console.warn('[audio]', err); }
+  $('title')?.classList.add('hidden');
+  $('hud')?.classList.remove('hidden');
+  document.body.classList.add('in-play');
+  const resume = save.resume;
+  const ch = CHAPTERS.find((c) => c.id === save.lastChapter) || CHAPTERS[0];
+  const sceneName = resume?.scene || ch.scene;
+  loadScene(sceneName, { cinematic: false, dialogueNode: null, arrive: false, resume });
+  if (resume?.mounted) setMounted(true);
+  state = 'explore';
+  if ($('end') && !$('end').classList.contains('hidden')) {
+    $('end').classList.add('hidden');
+    $('end').innerHTML = '';
+  }
+}
+
 function showTitle() {
   state = 'title';
   $('hud').classList.add('hidden');
   $('dialogue').classList.add('hidden');
   $('chapters').classList.add('hidden');
-  $('title').classList.remove('hidden');
+  $('chapters').classList.remove('settling', 'settled');
+  const end = $('end');
+  if (end) {
+    end.classList.add('hidden');
+    end.innerHTML = '';
+  }
+  const title = $('title');
+  title.classList.remove('hidden', 'settling', 'settled', 'fade-out');
   refreshContinue();
 }
 
 function refreshContinue() {
   const btn = $('continueBtn');
+  btn.classList.remove('hidden');
   if (save.lastChapter) {
-    btn.classList.remove('hidden');
     btn.textContent = `Үргэлжлүүлэх · ${CHAPTERS.find((c) => c.id === save.lastChapter)?.title || ''}`;
-  } else btn.classList.add('hidden');
+  } else {
+    btn.textContent = 'Үргэлжлүүлэх';
+  }
 }
 refreshContinue();
 
@@ -517,25 +956,28 @@ function renderChapterSelect() {
   list.innerHTML = '';
   save = loadSave();
   for (const ch of CHAPTERS) {
-    const unlocked = save.unlocked.includes(ch.id) || ch.id === 'camp';
+    const unlocked = save.unlocked.includes(ch.id) || ch.id === 'camp' || ch.id === 'horses';
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'chapter-card' + (unlocked ? '' : ' locked');
+    const here = save.lastChapter === ch.id;
+    b.className = 'chapter-card' + (unlocked ? '' : ' locked') + (here ? ' here' : '');
     b.disabled = !unlocked;
     b.innerHTML = `<span class="ch-title">${ch.title}</span><span class="ch-blurb">${ch.blurb}</span><span class="ch-src">${ch.source}</span>`;
     b.onclick = () => {
       $('chapters').classList.add('hidden');
       $('title').classList.add('hidden');
-      audio.unlock();
+      try { audio.unlock(); sfx.unlock(); theme.start(); } catch (err) { console.warn('[audio]', err); }
       loadScene(ch.scene, { cinematic: true });
     };
     list.append(b);
   }
 }
 
-$('startBtn').onclick = () => {
-  audio.unlock();
-  writeSave({ unlocked: ['camp'], lastChapter: 'camp', flags: {} });
+function beginCamp({ cinematic, dialogueNode, arrive = false }) {
+  // Audio must not be able to cancel the tap. iPad Safari throws from resume().
+  try { audio.unlock(); sfx.unlock(); theme.start(); }
+  catch (err) { console.warn('[audio]', err); }
+  writeSave({ unlocked: ['camp'], lastChapter: 'camp', flags: {}, quality: qualityId, resume: null });
   save = loadSave();
   const title = $('title');
   title.classList.add('fade-out');
@@ -543,53 +985,144 @@ $('startBtn').onclick = () => {
     title.classList.add('hidden');
     title.classList.remove('fade-out');
     $('hud').classList.remove('hidden');
-    $('chapter').textContent = '0 бүлэг · Удиртгал';
-    loadScene('camp', { cinematic: true, dialogueNode: 'intro0' });
-  }, 400);
-};
-$('continueBtn').onclick = () => {
-  audio.unlock();
+    $('chapter').textContent = dialogueNode ? '0 бүлэг · Удиртгал' : 'I бүлэг · Өнчин өдрүүд';
+    loadScene('camp', { cinematic, dialogueNode, arrive });
+  }, 200);
+}
+function bindTap(el, fn) {
+  if (!el) return;
+  let last = 0;
+  const run = () => {
+    const now = performance.now();
+    if (now - last < 450) return;
+    last = now;
+    fn();
+  };
+  // pointerdown so a phone tap starts the game even when pointerup never arrives.
+  el.addEventListener('pointerdown', (ev) => {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    ev.stopPropagation();
+    run();
+  });
+  el.addEventListener('pointerup', (ev) => {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    ev.stopPropagation();
+    run();
+  });
+  el.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    run();
+  });
+}
+// iPad Chrome can deliver the touch to the canvas even when a button is painted on top.
+addEventListener('touchend', (ev) => {
+  if (document.body.classList.contains('in-play')) return;
+  const t = ev.changedTouches?.[0];
+  if (!t) return;
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  const btn = el?.closest?.('button');
+  if (!btn || btn.disabled || btn.contains(ev.target)) return;
+  btn.dispatchEvent(new Event('pointerup', { bubbles: true }));
+}, { passive: true });
+bindTap($('mountBtn'), () => setMounted(!mounted));
+const muteBtn = $('muteBtn');
+if (muteBtn) {
+  muteBtn.textContent = theme.muted ? 'Дуу хаагдсан' : 'Дуу';
+  muteBtn.setAttribute('aria-pressed', theme.muted ? 'true' : 'false');
+  bindTap(muteBtn, () => {
+    const muted = theme.toggleMute();
+    muteBtn.textContent = muted ? 'Дуу хаагдсан' : 'Дуу';
+    muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
+  });
+}
+bindTap($('fastPlayBtn'), () => {
+  setQuality('low', { manual: true, reloadScene: false });
+  beginCamp({ cinematic: false, dialogueNode: null, arrive: true });
+});
+bindTap($('startBtn'), () => beginCamp({ cinematic: true, dialogueNode: 'intro0' }));
+bindTap($('continueBtn'), () => continueFromTitle());
+bindTap($('chaptersBtn'), () => {
   $('title').classList.add('hidden');
-  const ch = CHAPTERS.find((c) => c.id === save.lastChapter) || CHAPTERS[0];
-  loadScene(ch.scene, { cinematic: true });
-};
-$('chaptersBtn').onclick = () => {
-  $('title').classList.add('hidden');
-  $('chapters').classList.remove('hidden');
+  const panel = $('chapters');
+  panel.classList.remove('hidden', 'settled');
+  panel.classList.add('settling');
   renderChapterSelect();
+  requestAnimationFrame(() => panel.classList.add('settled'));
   state = 'chapters';
-};
-$('chaptersBack').onclick = () => showTitle();
-$('creditsBtn').onclick = () => {
+});
+bindTap($('chaptersBack'), () => showTitle());
+bindTap($('creditsBtn'), () => {
+  $('title').classList.add('hidden');
   endCard({
     eyebrow: 'Зохиогчид',
-    title: 'МСХ · Тэмүжин',
+    title: 'Монголын Нууц Товчоо · Тэмүжин',
     body: CREDITS.replace(/\n/g, '<br>'),
     button: 'Нүүр рүү',
     onNext: () => showTitle(),
     memory: '',
   });
-};
+});
 $('sourceBtn').onclick = () => {
   renderSource();
   $('source').classList.toggle('hidden');
 };
 
+function campFlags() {
+  return loadSave().flags || {};
+}
+
+function campTaskDone() {
+  const f = campFlags();
+  return !!(f.chirhaSeen && f.metHoelun && (f.food || f.family || f.oath));
+}
+
+function updateObjective() {
+  const el = $('objective');
+  if (!el) return;
+  if (sceneId !== 'camp' || state === 'title' || state === 'end') {
+    el.classList.add('hidden');
+    return;
+  }
+  const f = campFlags();
+  let text = 'Өэлүн эх дээр очиж E дар';
+  if (f.metHoelun && !f.chirhaSeen) text = 'Чирха өвгөнийг олж E дар';
+  else if (f.chirhaSeen && !campTaskDone()) text = 'Өэлүн эх дээр буцаж очоод E дар';
+  else if (campTaskDone()) text = 'Бүлэг дууслаа';
+  el.textContent = text;
+  el.classList.remove('hidden');
+}
+
+function releasePlay() {
+  state = 'explore';
+  talkTarget = null;
+  theme.duck(false);
+  const el = document.activeElement;
+  if (el && el !== document.body && el !== canvas) el.blur();
+  canvas.focus({ preventScroll: true });
+  updateObjective();
+}
+
 function startDialogue(id) {
   state = 'dialogue';
+  promptText = '';
   $('prompt').classList.add('hidden');
   $('dialogue').classList.remove('hidden');
   audio.duck?.(0.4, 0.5);
+  theme.duck(true);
   birds?.startle?.();
   show(id);
 }
 
 function show(id) {
-  if (id === 'intro_done') {
+  if (id === 'intro_done' || id === 'camp_go') {
     $('dialogue').classList.add('hidden');
+    if (id === 'camp_go') {
+      const flags = { ...campFlags(), metHoelun: true };
+      save = writeSave({ flags });
+    }
     $('chapter').textContent = world.chapterLabel || 'I бүлэг · Өнчин өдрүүд';
     audio.duck?.(1, 0.8);
-    state = 'explore';
+    releasePlay();
     return;
   }
   if (id === 'taichiud_to_escape') {
@@ -607,7 +1140,14 @@ function show(id) {
     loadScene('taichiud_ger', { cinematic: true });
     return;
   }
-  if (id === 'end') return endCampSlice();
+  if (id === 'end') {
+    if (sceneId === 'camp' && !campTaskDone()) {
+      $('dialogue').classList.remove('hidden');
+      if (state === 'explore') state = 'dialogue';
+      return show(campFlags().chirhaSeen ? 'ask' : 'camp_wait');
+    }
+    return endCampSlice();
+  }
   if (id === 'burkhan_end') return endBurkhanSlice();
   if (id === 'taichiud_end') return endTaichiudSlice();
   if (id === 'act2_end') return endAct2Slice();
@@ -615,7 +1155,7 @@ function show(id) {
   if (id === 'close') {
     $('dialogue').classList.add('hidden');
     audio.duck?.(1, 0.8);
-    state = 'explore';
+    releasePlay();
     return;
   }
   const node = STORY[id];
@@ -653,11 +1193,26 @@ function btn(label, fn) {
   return b;
 }
 
+function presentChapter(card) {
+  audio.duck?.(0.35, 0.5);
+  theme.duck(true);
+  $('warmGrade')?.classList.add('arriving');
+  setTimeout(() => {
+    $('warmGrade')?.classList.remove('arriving');
+    endCard(card);
+  }, 420);
+}
+
 function endCard({ eyebrow, title, body, button, onNext, memory }) {
+  const home = $('title');
+  // Never paint the end panel over the title screen, and never because of an old save.
+  if (state === 'title' && home && !home.classList.contains('hidden')) return;
   state = 'end';
   $('dialogue').classList.add('hidden');
   $('hud').classList.add('hidden');
-  const o = $('title');
+  home?.classList.add('hidden');
+  const o = $('end');
+  if (!o) return;
   const mem = memory !== undefined ? memory : (END_LINES[flag] || '');
   o.innerHTML = `
     <div class="title-card end-card">
@@ -670,13 +1225,15 @@ function endCard({ eyebrow, title, body, button, onNext, memory }) {
         <button id="nextBtn" type="button">${button}</button>
       </div>
     </div>`;
-  o.classList.remove('hidden');
+  o.classList.remove('hidden', 'settled');
+  o.classList.add('settling');
+  requestAnimationFrame(() => o.classList.add('settled'));
   $('nextBtn').onclick = onNext;
 }
 
 function endCampSlice() {
   save = unlockNext('camp', CHAPTER_ORDER);
-  endCard({
+  presentChapter({
     eyebrow: 'Бүлэг дууслаа',
     title: 'Өнчин өдрүүд',
     body: NEXT_TEASER,
@@ -686,7 +1243,7 @@ function endCampSlice() {
 }
 function endBurkhanSlice() {
   save = unlockNext('burkhan', CHAPTER_ORDER);
-  endCard({
+  presentChapter({
     eyebrow: 'Бүлэг дууслаа',
     title: 'Бурхан халдун',
     body: TAICHIUD_TEASER,
@@ -696,7 +1253,7 @@ function endBurkhanSlice() {
 }
 function endTaichiudSlice() {
   save = unlockNext('taichiud', CHAPTER_ORDER);
-  endCard({
+  presentChapter({
     eyebrow: 'Бүлэг дууслаа',
     title: 'Тайчууд · чөлөөлөлт',
     body: ACT2_TEASER,
@@ -706,7 +1263,7 @@ function endTaichiudSlice() {
 }
 function endAct2Slice() {
   save = unlockNext('act2', CHAPTER_ORDER);
-  endCard({
+  presentChapter({
     eyebrow: 'Бүлэг дууслаа',
     title: 'Боорчи · Бөртэ',
     body: ACT3_TEASER,
@@ -716,7 +1273,7 @@ function endAct2Slice() {
 }
 function endAct3Slice() {
   save = unlockNext('act3', CHAPTER_ORDER);
-  endCard({
+  presentChapter({
     eyebrow: 'Тоглоом дууслаа',
     title: 'Чингис',
     body: MVP_DONE,
@@ -745,14 +1302,16 @@ function checkStealth(dt) {
 }
 
 function tick() {
-  const dt = Math.min(clock.getDelta(), 0.05);
+  const frameDt = clock.getDelta();
+  const dt = Math.min(frameDt, 0.05);
   const t = clock.elapsedTime;
+  document.body.classList.toggle('in-play', state === 'explore' || state === 'cine');
 
-  // FPS + adaptive probe (single rAF loop only)
+  // The 50 ms cap is only for simulation. The meter counts real frames.
   fpsFrames++;
-  fpsWindowT += dt;
-  if (dt > 0) fpsEma = fpsEma * 0.9 + (1 / dt) * 0.1;
-  if (fpsWindowT >= 0.5) {
+  fpsWindowT += frameDt;
+  if (fpsWindowT >= 0.5 && fpsFrames > 0) {
+    fpsEma = fpsFrames / fpsWindowT;
     updatePerfHud(true);
     fpsWindowT = 0;
     fpsFrames = 0;
@@ -765,7 +1324,12 @@ function tick() {
       probeDone = true;
       if (!qualityManual) {
         const picked = pickTierFromAvgMs(avgMs);
-        if (picked !== qualityId) setQuality(picked, { manual: false, reloadScene: true });
+        if (picked !== qualityId) {
+          const start = world?.startPos;
+          const moved = !!(start && Math.hypot(player.pos.x - start.x, player.pos.z - start.z) > 1.2);
+          const busy = state === 'cine' || state === 'dialogue' || moved;
+          setQuality(picked, { manual: false, reloadScene: !busy });
+        }
       }
     }
   } else if (probeDone && adapt && state !== 'title' && state !== 'pause') {
@@ -775,7 +1339,7 @@ function tick() {
   if (state === 'title' || state === 'chapters' || state === 'pause' || state === 'end') {
     // Still render world under overlays when paused/explore-backed
     if (world && (state === 'pause' || state === 'end')) {
-      renderer.render(scene, camera);
+      paint(t);
     }
     requestAnimationFrame(tick);
     return;
@@ -783,11 +1347,23 @@ function tick() {
 
   if (state === 'cine') {
     activeCine?.update?.(dt);
+    if (world?.update) {
+      const gy = world.heightAt?.(player.pos.x, player.pos.z);
+      if (world.temujin && gy != null) {
+        player.pos.y = gy;
+        world.temujin.position.set(player.pos.x, gy, player.pos.z);
+      }
+      world.update(dt, t, null, player.pos, false);
+    }
     harvestMist?.update?.(dt, camera, renderer);
     motes?.update?.(dt, camera);
     birds?.update?.(dt, t, player.pos);
     dust?.update?.(dt, camera, renderer);
-    renderer.render(scene, camera);
+    if (fxOn) {
+      mistField?.update?.(t);
+      crowFlock?.update?.(dt, t, player.pos);
+    }
+    paint(t);
     requestAnimationFrame(tick);
     return;
   }
@@ -799,15 +1375,20 @@ function tick() {
   const { temujin, heightAt, update: updateWorld } = world;
 
   if (state === 'explore') {
+    if (keys.ArrowLeft) cam.yaw += dt * 1.8;
+    if (keys.ArrowRight) cam.yaw -= dt * 1.8;
     player.yaw = cam.yaw;
     const lim = sceneId === 'burkhan' ? 45 : sceneId.includes('ger') ? 8 : 50;
+    const sprint = !!(keys.ShiftLeft || keys.ShiftRight);
     const result = mover.step(
       dt,
       {
-        forward: !!(keys.KeyW || keys.ArrowUp),
-        back: !!(keys.KeyS || keys.ArrowDown),
-        left: !!(keys.KeyA || keys.ArrowLeft),
-        right: !!(keys.KeyD || keys.ArrowRight),
+        forward: !!(keys.KeyW || keys.ArrowUp) || touchWish.y > 0.28,
+        back: !!(keys.KeyS || keys.ArrowDown) || touchWish.y < -0.28,
+        left: !!keys.KeyA || touchWish.x < -0.28,
+        right: !!keys.KeyD || touchWish.x > 0.28,
+        sprint,
+        mounted,
       },
       resolveCollisions,
       { min: -lim, max: lim }
@@ -816,10 +1397,92 @@ function tick() {
     moveSpeed = result.speed || 0;
     player.bob += dt * (moving ? 8.5 : 1.6);
     checkStealth(dt);
+    if (!save.tutorialDone) {
+      coach.start();
+      if (moving) finishCoach(coach.note('move'));
+      if (mounted && sprint && moveSpeed > 6) finishCoach(coach.note('gallop'));
+      finishCoach(coach.update(dt));
+    } else coach.hide();
+    resumeAcc += dt;
+    if (resumeAcc > 2) {
+      resumeAcc = 0;
+      persistResume();
+    }
+
+    const fDown = !!(keys.KeyF || fTouch);
+    const fEdge = fDown && !fLatch;
+    fLatch = fDown;
+    fTouch = false;
+    const qEdge = !!(keys.KeyQ || qTouch);
+    keys.KeyQ = false;
+    qTouch = false;
+    if (qEdge) {
+      finishCoach(coach.note('shoot'));
+      if (!theme.muted) flashSfx(sfx.bow());
+    }
+    if (fieldTasks && sceneId === 'camp') {
+      const ft = fieldTasks.update(dt, player.pos, { mounted, yaw: player.yaw, shoot: qEdge });
+      const taskEl = $('fieldTasks');
+      if (taskEl && state === 'explore') {
+        taskEl.textContent = ft.line;
+        taskEl.classList.remove('hidden');
+      }
+      if (ft.just) {
+        toastText = ft.just;
+        const toast = $('toast');
+        if (toast) {
+          toast.textContent = ft.just;
+          toast.classList.remove('hidden');
+        }
+        if (!theme.muted) {
+          if (ft.just.includes('Они')) flashSfx(sfx.hit());
+          flashSfx(sfx.chime());
+        }
+      }
+    } else if (sceneId === 'horses' && world?.taskLine) {
+      const taskEl = $('fieldTasks');
+      const line = world.taskLine();
+      if (taskEl && state === 'explore') {
+        taskEl.textContent = line;
+        taskEl.classList.remove('hidden');
+      }
+      const status = world.herdStatus?.();
+      if (status?.done && !horsesChimed) {
+        horsesChimed = true;
+        toastText = line;
+        const toast = $('toast');
+        if (toast) {
+          toast.textContent = line;
+          toast.classList.remove('hidden');
+        }
+        if (!theme.muted) flashSfx(sfx.chime());
+      }
+    } else {
+      $('fieldTasks')?.classList.add('hidden');
+    }
+    const watchDx = player.pos.x - 9.2;
+    const watchDz = player.pos.z - 16.4;
+    const enc = (encounter && (fEdge || watchDx * watchDx + watchDz * watchDz < 196))
+      ? encounter.update(dt, player.pos, fEdge)
+      : null;
+    if (enc?.resolved) audio.cue?.('drumFar', -6, false);
+    if (encounter && (enc?.toast || '') !== toastText) {
+      toastText = enc?.toast || '';
+      const toast = $('toast');
+      if (toast) {
+        toast.textContent = toastText;
+        toast.classList.toggle('hidden', !toastText);
+      }
+    }
 
     const n = nearest();
-    $('prompt').classList.toggle('hidden', !n);
-    if (n) $('prompt').textContent = `[E] ${n.name}`;
+    const nextPrompt = n ? `[E] ${n.name}` : (enc?.prompt || '');
+    if (nextPrompt !== promptText) {
+      promptText = nextPrompt;
+      const prompt = $('prompt');
+      prompt.textContent = nextPrompt;
+      prompt.classList.toggle('hidden', !nextPrompt);
+    }
   } else {
     moving = false;
     moveSpeed = 0;
@@ -827,14 +1490,45 @@ function tick() {
 
   const groundY = heightAt(player.pos.x, player.pos.z);
   player.pos.y = groundY;
-  temujin.position.set(player.pos.x, groundY, player.pos.z);
-  temujin.rotation.y = cam.yaw + Math.PI;
+  if (!mounted) temujin.position.set(player.pos.x, groundY, player.pos.z);
+  {
+    const face = cam.yaw + Math.PI;
+    let dy = face - temujin.rotation.y;
+    while (dy > Math.PI) dy -= Math.PI * 2;
+    while (dy < -Math.PI) dy += Math.PI * 2;
+    temujin.rotation.y += dy * Math.min(1, dt * 8);
+  }
+  if (mounted && playerHorse && !shotLock) {
+    playerHorse.position.set(player.pos.x, groundY, player.pos.z);
+    playerHorse.rotation.y = temujin.rotation.y;
+    const gait = playerHorse.userData.step?.(dt, moveSpeed);
+    const gap = gait === 'gallop' ? 0.12 : gait === 'canter' ? 0.18 : gait === 'trot' ? 0.28 : gait === 'walk' ? 0.46 : 0;
+    if (gap && moving && !theme.muted) {
+      hoofAcc += dt;
+      if (hoofAcc >= gap) {
+        hoofAcc = 0;
+        flashSfx(sfx.hoof(gait));
+      }
+    } else hoofAcc = 0;
+  }
+  const pace = $('pace');
+  if (pace) {
+    const sprint = !!(keys.ShiftLeft || keys.ShiftRight);
+    const gaitName = {
+      idle: 'Зогсоо', walk: 'Алхаа', trot: 'Жороо', canter: 'Шогшоо', gallop: 'Давхилт',
+    }[playerHorse?.userData?.gait];
+    const label = mounted ? (gaitName || 'Жороо') : (sprint ? 'Гүйлт' : '');
+    pace.textContent = label;
+    pace.classList.toggle('hidden', !label || state !== 'explore');
+  }
+  if (world.hoelun) world.hoelun.userData.talking = state === 'dialogue' && talkTarget === world.hoelun;
   temujin.userData.setMoving?.(moving && state === 'explore');
   temujin.userData.setSpeed?.(moveSpeed);
 
   if (state === 'explore') {
     stride.update(player.pos, moving, (p, dir) => {
       dust?.step(p, dir);
+      if (fxOn) footStains?.stamp(p, player.yaw);
       audio.step?.(sceneId === 'burkhan' ? 'rock' : 'grass');
     });
     loco.update?.(dt, { speed: moveSpeed, yaw: temujin.rotation.y, talking: false });
@@ -848,21 +1542,40 @@ function tick() {
     player.yaw = faceYaw;
     cam.yaw = faceYaw;
   }
+  if (shotLock) {
+    paint(t);
+    requestAnimationFrame(tick);
+    return;
+  }
   if (aerialLocked && world?.aerialView) {
     camera.position.copy(world.aerialView.eye);
     camera.lookAt(world.aerialView.look);
     camera.fov = world.aerialView.fov ?? 45;
     camera.updateProjectionMatrix();
   } else if (state === 'explore' || state === 'dialogue') {
-    cam.update(dt, player.pos, { faceYaw, dialoguePull: faceYaw != null ? 3.2 : 0 });
+    const look = state === 'explore' ? sceneLook(sceneId, player.pos.x, player.pos.z) : null;
+    cam.update(dt, player.pos, {
+      faceYaw,
+      dialoguePull: faceYaw != null ? 3.2 : 0,
+      frame: look,
+      blockers: world.colliders,
+    });
   }
 
   harvestMist?.update?.(dt, camera, renderer);
   motes?.update?.(dt, camera);
   birds?.update?.(dt, t, player.pos);
   dust?.update?.(dt, camera, renderer);
-  updateWorld?.(dt, t, state === 'explore' ? nearSet() : null, temujin.position, moving && state === 'explore');
-  renderer.render(scene, camera);
+  if (fxOn) {
+    mistField?.update?.(t);
+    crowFlock?.update?.(dt, t, player.pos);
+    footStains?.update?.(dt);
+    if (crowFlock && t > 0 && Math.floor(t) % 9 === 0 && Math.floor(t - dt) % 9 !== 0) {
+      audio.cue?.('eagleCry', -10, true);
+    }
+  }
+  updateWorld?.(dt, t, state === 'explore' ? nearSet() : null, player.pos, moving && state === 'explore');
+  paint(t);
   requestAnimationFrame(tick);
 }
 tick();
@@ -871,11 +1584,17 @@ window.__mshLoadScene = (id) => loadScene(id, { cinematic: false });
 window.__mshShow = show;
 window.__mshStartDialogue = startDialogue;
 window.__mshSetQuality = (id) => setQuality(id, { manual: true, reloadScene: true });
+window.__mshFx = (on) => { setFx(!!on); return fxOn; };
+window.__mshClipGate = () => ({
+  temujin: world?.temujin?.userData?.clipGate || null,
+  hoelun: world?.hoelun?.userData?.clipGate || null,
+});
 window.__mshPerf = () => {
   renderer.render(scene, camera);
   return {
     fps: fpsEma,
     tier: qualityId,
+    shadows: renderer.shadowMap.enabled,
     label: quality.label,
     pixelRatio: renderer.getPixelRatio(),
     calls: renderer.info.render.calls,
@@ -884,6 +1603,43 @@ window.__mshPerf = () => {
     geometries: renderer.info.memory.geometries,
     textures: renderer.info.memory.textures,
   };
+};
+window.__mshPlayer = () => ({
+  x: player.pos.x, y: player.pos.y, z: player.pos.z, yaw: player.yaw, scene: sceneId, state,
+  distance: cam.view.distance, pitch: cam.view.pitch,
+  camY: camera.position.y, camZ: camera.position.z,
+});
+window.__mshMotion = () => ({
+  hoelunYaw: world?.hoelun?.rotation?.y ?? null,
+  temujinYaw: world?.temujin?.rotation?.y ?? null,
+  temujinPitch: world?.temujin?.children?.[0]?.rotation?.x ?? world?.temujin?.rotation?.x ?? null,
+  temujinRoll: world?.temujin?.children?.[0]?.rotation?.z ?? null,
+  temujinBob: world?.temujin?.children?.[0]?.position?.y ?? null,
+  objective: document.getElementById('objective')?.textContent || '',
+  objectiveHidden: document.getElementById('objective')?.classList.contains('hidden') ?? true,
+  flags: loadSave().flags || {},
+  birds: (birds?.birds || []).map((b) => ({
+    mode: b.mode,
+    x: b.root.position.x,
+    y: b.root.position.y,
+    z: b.root.position.z,
+    wing: b.wings?.[1]?.inner?.rotation?.z ?? null,
+  })),
+});
+window.__mshTeleport = (x, z, yaw) => {
+  const y = world?.heightAt?.(x, z) ?? 0;
+  player.pos.set(x, y, z);
+  if (typeof yaw === 'number') {
+    player.yaw = yaw;
+    cam.view.yaw = yaw;
+  }
+  cam.snapTo(player.pos, player.yaw, cam.view.pitch);
+  return window.__mshPlayer();
+};
+window.__mshPixelRatio = (v) => {
+  renderer.setPixelRatio(v);
+  resize();
+  return renderer.getPixelRatio();
 };
 window.__mshShowPerf = (v) => { showPerf = v !== false; updatePerfHud(true); };
 window.__mshUnlockAll = () => {
@@ -922,3 +1678,137 @@ window.__mshAerial = (opts = {}) => {
   };
 };
 window.__mshUnlockAerial = () => { aerialLocked = false; };
+window.__mshTryEnd = () => {
+  endCard({ eyebrow: 'Нотолгоо', title: 'Төгсгөл', body: '', button: 'Хаах', onNext: () => showTitle() });
+  return {
+    state,
+    titleHidden: $('title').classList.contains('hidden'),
+    endHidden: $('end')?.classList.contains('hidden'),
+    fastPlay: !!$('fastPlayBtn'),
+    heading: $('titleHeading')?.innerText || '',
+  };
+};
+window.__mshMount = (on = true, sprint = false) => {
+  if (state === 'title' || state === 'cine') {
+    state = 'explore';
+    document.body.classList.add('in-play');
+    $('title')?.classList.add('hidden');
+    $('hud')?.classList.remove('hidden');
+  }
+  keys.ShiftLeft = !!sprint;
+  setMounted(!!on);
+  const paceEl = $('pace');
+  if (paceEl && mounted) {
+    paceEl.textContent = sprint ? 'Давхилт' : 'Жороо';
+    paceEl.classList.remove('hidden');
+  }
+  if (playerHorse) {
+    playerHorse.rotation.y = 0;
+    const p = playerHorse.position;
+    window.__mshFrame(
+      [p.x + 0.15, p.y + 1.45, p.z + 3.15],
+      [p.x + 0.35, p.y + 1.4, p.z],
+      42,
+      true
+    );
+  }
+  return { mounted, pace: $('pace')?.textContent || '', sprint: !!keys.ShiftLeft };
+};
+window.__mshPlay = () => { shotLock = false; state = 'explore'; return true; };
+window.__mshCoach = () => ({ text: coach.text, step: coach.step, active: coach.active });
+window.__mshSfx = () => sfx.last;
+window.__mshPos = () => ({ x: Math.round(player.pos.x * 10) / 10, z: Math.round(player.pos.z * 10) / 10, state });
+window.__mshSave = () => loadSave();
+window.__mshContinue = () => { continueFromTitle(); return { state, endHidden: $('end')?.classList.contains('hidden'), titleHidden: $('title')?.classList.contains('hidden'), x: player.pos.x, z: player.pos.z }; };
+window.__mshField = () => fieldTasks?.status() || null;
+window.__mshHerd = () => world?.herdStatus?.() || null;
+window.__mshAim = () => {
+  if (!fieldTasks) return null;
+  const spot = fieldTasks.status().spots.shoot;
+  const yaw = fieldTasks.aimYaw(new THREE.Vector3(player.pos.x, player.pos.y, player.pos.z));
+  player.yaw = yaw;
+  cam.view.yaw = yaw;
+  qTouch = true;
+  return { yaw, spot };
+};
+window.__mshTheme = () => ({
+  muted: theme.muted,
+  missing: theme.missing,
+  playing: theme.playing,
+  volume: Math.round(theme.volume * 100) / 100,
+  loop: theme.loop,
+});
+window.__mshGait = (speed = 13) => {
+  if (state === 'title' || state === 'cine') {
+    state = 'explore';
+    document.body.classList.add('in-play');
+    $('title')?.classList.add('hidden');
+    $('hud')?.classList.remove('hidden');
+  }
+  if (!mounted) setMounted(true);
+  if (!playerHorse?.userData?.step) return null;
+  playerHorse.rotation.y = 0;
+  playerHorse.userData.phase = 0;
+  const gait = playerHorse.userData.step(0.08, speed);
+  const names = { walk: 'Алхаа', trot: 'Жороо', canter: 'Шогшоо', gallop: 'Давхилт', idle: 'Зогсоо' };
+  const paceEl = $('pace');
+  if (paceEl) {
+    paceEl.textContent = names[gait] || '';
+    paceEl.classList.remove('hidden');
+  }
+  const p = playerHorse.position;
+  window.__mshFrame(
+    [p.x + 0.1, p.y + 1.2, p.z + 5.4],
+    [p.x + 0.1, p.y + 0.85, p.z],
+    36,
+    false
+  );
+  return { gait, pace: paceEl?.textContent || '', missing: theme.missing };
+};
+window.__mshStick = () => {
+  state = 'explore';
+  document.body.classList.add('in-play', 'touch-ui');
+  $('title')?.classList.add('hidden');
+  $('hud')?.classList.remove('hidden');
+  const s = $('stick');
+  const shown = s ? getComputedStyle(s).display !== 'none' : false;
+  return { shown, mount: !!$('mountBtn') };
+};
+window.__mshFrame = (eye, look, fov = 36, hideHud = true) => {
+  shotLock = true;
+  activeCine = null;
+  state = 'explore';
+  document.body.classList.add('in-play');
+  $('title')?.classList.add('hidden');
+  if (hideHud) $('hud')?.classList.add('hidden');
+  else $('hud')?.classList.remove('hidden');
+  $('dialogue')?.classList.add('hidden');
+  $('end')?.classList.add('hidden');
+  camera.fov = fov;
+  camera.position.set(eye[0], eye[1], eye[2]);
+  camera.lookAt(look[0], look[1], look[2]);
+  camera.updateProjectionMatrix();
+  return true;
+};
+window.__mshFrameHorse = () => {
+  let saddle = null;
+  scene.traverse((o) => { if (!saddle && o.name === 'saddle-anchor') saddle = o; });
+  if (!saddle) return null;
+  const p = new THREE.Vector3();
+  const head = new THREE.Vector3();
+  saddle.getWorldPosition(p);
+  const horseHead = saddle.parent?.userData?.head;
+  horseHead?.getWorldPosition(head);
+  const riderHead = new THREE.Vector3();
+  saddle.getObjectByName('head')?.getWorldPosition(riderHead);
+  window.__mshFrame(
+    [p.x + 5.2, p.y + 1.7, p.z + 0.15],
+    [p.x, p.y + 0.7, p.z - 0.5],
+    34
+  );
+  return {
+    saddle: [p.x, p.y, p.z],
+    horseHead: horseHead ? [head.x, head.y, head.z] : null,
+    riderHead: [riderHead.x, riderHead.y, riderHead.z],
+  };
+};

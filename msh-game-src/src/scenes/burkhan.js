@@ -7,9 +7,9 @@ export function buildBurkhanWorld(scene) {
   const skyGeo = new THREE.SphereGeometry(300, 24, 16);
   const skyMat = new THREE.ShaderMaterial({
     uniforms: {
-      top: { value: new THREE.Color('#2a3550') },
-      horizon: { value: new THREE.Color('#c47a55') },
-      bottom: { value: new THREE.Color('#5a4a3a') },
+      top: { value: new THREE.Color('#1c2a40') },
+      horizon: { value: new THREE.Color('#b7c6d4') },
+      bottom: { value: new THREE.Color('#3e4a52') },
     },
     vertexShader: `varying vec3 vPos; void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
     fragmentShader: `
@@ -23,13 +23,15 @@ export function buildBurkhanWorld(scene) {
     depthWrite: false,
   });
   scene.add(new THREE.Mesh(skyGeo, skyMat));
-  scene.fog = new THREE.Fog('#8a6a58', 18, 110);
+  scene.fog = new THREE.Fog('#9aafc0', 28, 140);
 
-  scene.add(new THREE.HemisphereLight('#ffc9a0', '#2a2430', 0.7));
-  const sun = new THREE.DirectionalLight('#ff9a60', 1.6);
-  sun.position.set(-40, 30, 20);
+  scene.add(new THREE.HemisphereLight('#d5e2ee', '#2c3430', 0.62));
+  const sun = new THREE.DirectionalLight('#d7e2ee', 1.25);
+  sun.position.set(-18, 52, 12);
   scene.add(sun);
-  scene.add(new THREE.DirectionalLight('#6a7aaa', 0.45));
+  const fill = new THREE.DirectionalLight('#8aa4c4', 0.72);
+  fill.position.set(30, 18, -24);
+  scene.add(fill);
 
   const heightAt = (x, z) => {
     const ridge = Math.exp(-((x) * (x)) / 180) * 8;
@@ -109,7 +111,7 @@ export function buildBurkhanWorld(scene) {
     arr[i * 3 + 2] = (Math.random() - 0.5) * 60;
   }
   mistGeo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-  scene.add(new THREE.Points(mistGeo, new THREE.PointsMaterial({ color: '#d8cfc4', size: 0.35, transparent: true, opacity: 0.35, depthWrite: false })));
+  scene.add(new THREE.Points(mistGeo, new THREE.PointsMaterial({ color: '#d5e0ea', size: 0.42, transparent: true, opacity: 0.42, depthWrite: false })));
 
   const temujin = createTemujin();
   temujin.position.set(0, heightAt(0, 8), 8);
@@ -126,10 +128,22 @@ export function buildBurkhanWorld(scene) {
   function update(dt, t, nearSet, playerPos, playerMoving) {
     temujin.userData.setMoving(!!playerMoving);
     temujin.userData.update(dt, t);
-    chase.intensity = 0.5 + Math.sin(t * 2) * 0.25;
+    chase.intensity = 0.35 + Math.sin(t * 2) * 0.18;
     glow.material.opacity = THREE.MathUtils.lerp(glow.material.opacity, nearSet?.has(thicket) ? 0.85 : 0, 0.15);
     glow.rotation.z += dt * 0.5;
-    ribbon.rotation.z = Math.sin(t * 2) * 0.2;
+    ribbon.rotation.z = Math.sin(t * 3.2) * 0.58;
+    ribbon.rotation.y = Math.sin(t * 1.6) * 0.28;
+    thicket.children.forEach((bush, i) => {
+      bush.rotation.z = Math.sin(t * 1.8 + i) * 0.09;
+      bush.rotation.x = Math.cos(t * 1.35 + i * 0.6) * 0.07;
+    });
+    const mist = mistGeo.attributes.position;
+    for (let i = 0; i < mist.count; i++) {
+      let x = mist.getX(i) + dt * (2.4 + (i % 5) * 0.35);
+      if (x > 34) x = -34;
+      mist.setX(i, x);
+    }
+    mist.needsUpdate = true;
   }
 
   return {

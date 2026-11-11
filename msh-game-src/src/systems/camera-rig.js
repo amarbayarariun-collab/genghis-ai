@@ -17,6 +17,32 @@ function springStep(state, target, omega, dt) {
   return state.x;
 }
 
+function pullInside(pos, look, blockers) {
+  const dx = pos.x - look.x;
+  const dz = pos.z - look.z;
+  const dist = Math.hypot(dx, dz);
+  if (dist < 0.35) return;
+  const ux = dx / dist;
+  const uz = dz / dist;
+  let limit = dist;
+  for (const c of blockers) {
+    const along = (c.x - look.x) * ux + (c.z - look.z) * uz;
+    if (along <= 0.3 || along >= limit) continue;
+    const nearestX = look.x + ux * along;
+    const nearestZ = look.z + uz * along;
+    const rad = (c.r || 0.4) + 0.35;
+    const off = Math.hypot(c.x - nearestX, c.z - nearestZ);
+    if (off >= rad) continue;
+    const back = Math.sqrt(Math.max(0, rad * rad - off * off));
+    limit = Math.min(limit, along - back - 0.05);
+  }
+  const kept = Math.max(1.2, limit);
+  if (kept < dist - 0.02) {
+    pos.x = look.x + ux * kept;
+    pos.z = look.z + uz * kept;
+  }
+}
+
 function wrapPi(a) {
   while (a > Math.PI) a -= Math.PI * 2;
   while (a < -Math.PI) a += Math.PI * 2;
@@ -54,7 +80,9 @@ export function createCameraRig(camera, opts = {}) {
   const lookAt = new THREE.Vector3();
   const offset = new THREE.Vector3();
 
+  let lookedAt = 0;
   function lookDelta(dx, dy) {
+    lookedAt = performance.now();
     view.yaw -= dx * 0.0025 * lookSens; // Walden mouse scale
     view.pitch = THREE.MathUtils.clamp(
       view.pitch + dy * 0.002 * lookSens,
@@ -77,10 +105,21 @@ export function createCameraRig(camera, opts = {}) {
   /**
    * @param {number} dt
    * @param {THREE.Vector3} focus feet / body focus
-   * @param {{ faceYaw?: number, dialoguePull?: number }} [extra]
+   * @param {{ faceYaw?: number, dialoguePull?: number, frame?: { distance: number, pitch?: number, height?: number } }} [extra]
    */
   function update(dt, focus, extra = {}) {
     dt = Math.min(dt, 0.05);
+
+    if (extra.frame) {
+      view.distance += (extra.frame.distance - view.distance) * Math.min(1, dt * 1.3);
+      if (extra.frame.height != null) {
+        view.height += (extra.frame.height - view.height) * Math.min(1, dt * 1.1);
+      }
+      const quiet = performance.now() - lookedAt > 700;
+      if (quiet && extra.frame.pitch != null) {
+        view.pitch += (extra.frame.pitch - view.pitch) * Math.min(1, dt * 0.7);
+      }
+    }
 
     if (extra.faceYaw != null && extra.dialoguePull) {
       let dy = wrapPi(extra.faceYaw - view.yaw);
@@ -107,13 +146,14 @@ export function createCameraRig(camera, opts = {}) {
     offset.set(Math.sin(yaw) * cp, Math.sin(pitch) + height * 0.15, Math.cos(yaw) * cp);
     camera.position.set(
       xS.x + offset.x * dist,
-      yS.x + offset.y * dist * 0.55 + height,
+      yS.x + offset.y * dist * 0.55 + view.height,
       zS.x + offset.z * dist
     );
     // Never sink under terrain soft floor
     camera.position.y = Math.max(camera.position.y, focus.y + 0.9);
 
     lookAt.set(xS.x, yS.x + 0.08, zS.x);
+    if (extra.blockers?.length) pullInside(camera.position, lookAt, extra.blockers);
     camera.lookAt(lookAt);
 
     return { yaw, pitch };
