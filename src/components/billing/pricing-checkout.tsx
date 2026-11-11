@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { SiteLegalLinks } from "@/components/legal/site-legal-links";
 import { Button } from "@/components/ui/button";
 import { FREE_PLAN, PAID_PLAN } from "@/lib/plans";
 
@@ -314,6 +315,10 @@ export function PricingCheckout() {
             </div>
           ) : null}
         </section>
+
+        <footer className="border-t border-ink/10 pt-6">
+          <SiteLegalLinks />
+        </footer>
       </div>
     </main>
   );
