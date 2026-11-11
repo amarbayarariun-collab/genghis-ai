@@ -31,12 +31,12 @@ OPENAI_API_KEY=sk-...   # or AP= for xAI (xai-… keys auto-route to api.x.ai)
 
 # optional: separate OpenAI key for image generation while chat stays on xAI
 # OPENAI_IMAGE_API_KEY=sk-...
-# OPENAI_IMAGE_MODEL=dall-e-3
+# OPENAI_IMAGE_MODEL=gpt-image-2.5-flare
 ```
 
 Restart the dev server. The chat route (`/api/chat`) streams from the OpenAI-compatible endpoint when `OPENAI_API_KEY` (or `AP`) is set; without it, Genghis AI answers in **демо горим** with streamed mock replies.
 
-`/api/image` uses `OPENAI_IMAGE_API_KEY` when set (always `https://api.openai.com/v1`, models `OPENAI_IMAGE_MODEL` → `dall-e-3` → `gpt-image-1`). Otherwise it falls back to the shared chat key / xAI image models.
+`/api/image` uses `OPENAI_IMAGE_API_KEY` when set (always `https://api.openai.com/v1`, models `OPENAI_IMAGE_MODEL` → `gpt-image-2.5-flare` → `gpt-image-2` → `gpt-image-1.5` → `gpt-image-1-mini`; retired `dall-e-3` / `gpt-image-1` are skipped). Otherwise it falls back to the shared chat key / xAI image models.
 
 Any OpenAI-compatible base URL works via `OPENAI_BASE_URL` (e.g. Azure OpenAI proxy, Groq, local gateways).
 

@@ -90,7 +90,7 @@ export async function POST(request: Request) {
 
     const error = !usingDedicatedImageKey
       ? "Зураг үүсгэж чадсангүй. OPENAI_IMAGE_API_KEY Vercel дээр тохируулаагүй (эсвэл Redeploy хийгээгүй) байна. Env нэрийг яг OPENAI_IMAGE_API_KEY гэж тавиад Production Redeploy хийнэ үү."
-      : "Зураг үүсгэж чадсангүй. OpenAI image model эрх/billing эсвэл загварын нэр буруу байна. Vercel дээр OPENAI_IMAGE_MODEL=dall-e-3 тавиад Redeploy хийнэ үү.";
+      : "Зураг үүсгэж чадсангүй. OpenAI image model эрх/billing эсвэл загварын нэр буруу байна. dall-e-3 болон gpt-image-1 retired. Vercel дээр OPENAI_IMAGE_MODEL=gpt-image-2.5-flare (эсвэл хуучин dall-e-3-ийг авч хаяад) тавиад credits шалгаад Production Redeploy хийнэ үү.";
 
     return Response.json(
       {

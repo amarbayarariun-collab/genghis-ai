@@ -8,12 +8,30 @@ export function getImageApiKey(): string | undefined {
 
 const OPENAI_IMAGE_BASE_URL = "https://api.openai.com/v1";
 
-function openaiImageModelCandidates(): string[] {
+/** Retired OpenAI Images models — skip even if OPENAI_IMAGE_MODEL still names them. */
+const RETIRED_OPENAI_IMAGE_MODELS = new Set([
+  "dall-e-2",
+  "dall-e-3",
+  "gpt-image-1",
+]);
+
+/** Current OpenAI Images defaults (cheapest everyday first). */
+const DEFAULT_OPENAI_IMAGE_MODELS = [
+  "gpt-image-2.5-flare",
+  "gpt-image-2",
+  "gpt-image-1.5",
+  "gpt-image-1-mini",
+] as const;
+
+export function openaiImageModelCandidates(
+  preferredModel = process.env.OPENAI_IMAGE_MODEL
+): string[] {
+  const preferred = preferredModel?.trim();
   return Array.from(
     new Set(
-      [process.env.OPENAI_IMAGE_MODEL, "dall-e-3", "gpt-image-1"].filter(
-        Boolean
-      ) as string[]
+      [preferred, ...DEFAULT_OPENAI_IMAGE_MODELS]
+        .filter((model): model is string => Boolean(model))
+        .filter((model) => !RETIRED_OPENAI_IMAGE_MODELS.has(model))
     )
   );
 }
@@ -32,9 +50,6 @@ export function resolveApiConfig(apiKey: string): {
   // Strongest public xAI chat model (GPT-5.2-class target quality).
   const model =
     process.env.OPENAI_MODEL || (isXai ? "grok-4.7" : "gpt-4o");
-  const imageModel =
-    process.env.OPENAI_IMAGE_MODEL ||
-    (isXai ? "grok-2-image-1212" : "dall-e-3");
   const imageModelCandidates = isXai
     ? Array.from(
         new Set(
@@ -46,6 +61,9 @@ export function resolveApiConfig(apiKey: string): {
         )
       )
     : openaiImageModelCandidates();
+  const imageModel =
+    imageModelCandidates[0] ||
+    (isXai ? "grok-2-image-1212" : DEFAULT_OPENAI_IMAGE_MODELS[0]);
   return { baseUrl, model, imageModel, imageModelCandidates, isXai };
 }
 
@@ -86,5 +104,5 @@ export function sanitizeApiError(detail: string): string {
     .replace(/xai-[A-Za-z0-9_-]+/g, "xai-<redacted>")
     .replace(/sk-[A-Za-z0-9_-]+/g, "sk-<redacted>")
     .replace(/Bearer\s+\S+/gi, "Bearer <redacted>")
-    .slice(0, 240);
+    .slice(0, 480);
 }
