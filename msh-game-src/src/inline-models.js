@@ -2,18 +2,12 @@
 // chunks (one lazy chunk per model) and GLTFLoader.load is redirected to them.
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-const CHUNKS = {
-  'camp-world': () => import('./inline/camp-world.js'),
-  hoelun: () => import('./inline/hoelun.js'),
-  base_basic_shaded: () => import('./inline/base_basic_shaded.js'),
-  chirha: () => import('./inline/chirha.js'),
-  horse_hi: () => import('./inline/horse_hi.js'),
-  horse_lo: () => import('./inline/horse_lo.js'),
-  fig_tem_npc: () => import('./inline/fig_tem_npc.js'),
-  fig_tem_crowd: () => import('./inline/fig_tem_crowd.js'),
-  fig_eld_npc: () => import('./inline/fig_eld_npc.js'),
-  fig_eld_crowd: () => import('./inline/fig_eld_crowd.js'),
-};
+const GLOB = import.meta.glob('./inline/*.js');
+const CHUNKS = {};
+for (const [path, loader] of Object.entries(GLOB)) {
+  const name = path.replace('./inline/', '').replace('.js', '');
+  CHUNKS[name] = loader;
+}
 
 function b64ToBuffer(b64) {
   const bin = atob(b64);
