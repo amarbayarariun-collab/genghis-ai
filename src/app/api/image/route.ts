@@ -2,10 +2,14 @@ import {
   resolveImageApiConfig,
   sanitizeApiError,
 } from "@/lib/api-config";
-import { trackSignedInMessage } from "@/lib/usage/track";
+import { isLocale, type Locale } from "@/lib/locale";
+import {
+  assertCanGenerateImage,
+  trackImageForUser,
+} from "@/lib/usage/quotas";
 
 export async function POST(request: Request) {
-  let body: { prompt?: string };
+  let body: { prompt?: string; locale?: Locale };
   try {
     body = await request.json();
   } catch {
@@ -20,7 +24,19 @@ export async function POST(request: Request) {
     );
   }
 
-  await trackSignedInMessage();
+  const locale: Locale = isLocale(body.locale) ? body.locale : "mn";
+  const quota = await assertCanGenerateImage();
+  if (!quota.ok) {
+    return Response.json(
+      {
+        error: locale === "en" ? quota.block.errorEn : quota.block.error,
+        code: quota.block.code,
+        usage: quota.block.usage,
+        upgradePath: quota.block.upgradePath,
+      },
+      { status: quota.block.status }
+    );
+  }
 
   const config = resolveImageApiConfig();
   if (!config) {
@@ -88,7 +104,14 @@ export async function POST(request: Request) {
         continue;
       }
 
-      return Response.json({ ok: true, imageUrl, model });
+      await trackImageForUser(quota.subject.user.id);
+
+      return Response.json({
+        ok: true,
+        imageUrl,
+        model,
+        usage: quota.subject.usage,
+      });
     }
 
     const error = !usingDedicatedImageKey
