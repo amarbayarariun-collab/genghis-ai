@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>МСХ · Тэмүжин</title>
+  <title>Монголын Нууц Товчоо · Тэмүжин</title>
+  <link rel="icon" href="./favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -17,8 +18,8 @@
   <!-- Title -->
   <div id="vignette" aria-hidden="true"></div>
   <button id="muteBtn" type="button" aria-label="Дуу хаах/нээх" title="Дуу">🔊</button>
-  <video id="titleVideo" class="hidden" src="./intro.mp4" muted loop playsinline autoplay preload="auto"></video>
-  <div id="introCine" class="hidden"><video id="introVideo" src="./intro.mp4" muted playsinline preload="auto"></video><div class="intro-cap"><p class="eyebrow">Нууц Товчоо · §72</p><p>Есүхэй баатар нас барсны дараа Тайчууд Өэлүн эхийг хүүхдүүдтэй нь Онон мөрний хөвөөнд орхин нүүжээ.</p><p class="skip">Space · алгасах</p></div></div>
+  <video id="titleVideo" class="hidden" muted loop playsinline preload="none"></video>
+  <div id="introCine" class="hidden"><video id="introVideo" muted playsinline preload="none"></video><div class="intro-cap"><p class="eyebrow">Нууц Товчоо · §72</p><p>Есүхэй баатар нас барсны дараа Тайчууд Өэлүн эхийг хүүхдүүдтэй нь Онон мөрний хөвөөнд орхин нүүжээ.</p><p class="skip">Space · алгасах</p></div></div>
   <div id="title" class="overlay" role="dialog" aria-labelledby="titleHeading">
     <div id="titleArt" aria-label="Монголын Нууц Товчоо">
       <button class="hot" id="hotQuick" style="left:63.2%;top:42.9%;width:25.9%;height:5.8%" aria-label="Хурдан тоглох"></button>
@@ -33,10 +34,11 @@
       <div class="title-art" aria-hidden="true"></div>
       <div class="title-copy">
         <p class="eyebrow">Playable Legacy · v1.0</p>
-        <h1 id="titleHeading">Монголын Нууц Товчоо</h1>
-        <p class="sub">МСХ · Тэмүжин</p>
-        <p class="body">Удиртгал → Өнчин → Бурхан → Тайчууд → Боорчи · Бөртэ → Мэргид · Чингис.</p>
+        <h1 id="titleHeading">Монголын Нууц Товчоо · Тэмүжин</h1>
+        <p class="sub">Удиртгал → Өнчин → Бурхан → Тайчууд → Боорчи · Бөртэ → Мэргид · Чингис</p>
+        <p class="body">Чи Тэмүжин болж, Нууц товчооны эхний бүлгүүдийг туулна.</p>
         <div class="title-actions">
+          <button id="quickBtn" type="button">Хурдан тоглох</button>
           <button id="startBtn" type="button">Шинээр эхлэх</button>
           <button id="continueBtn" type="button" class="ghost hidden">Үргэлжлүүлэх</button>
           <button id="chaptersBtn" type="button" class="ghost">Бүлгүүд</button>
@@ -104,6 +106,12 @@
     <div id="speaker"></div>
     <div id="text"></div>
     <div id="choices"></div>
+  </div>
+
+  <div id="stick" aria-hidden="true"><div id="stickKnob"></div></div>
+  <div id="touchPad" class="touch-pad">
+    <button id="mountBtn" type="button">Морь</button>
+    <button id="touchTalk" type="button">Ярих</button>
   </div>
 
   <script type="module" src="./src/main.js"></script>

@@ -1,6 +1,6 @@
 import './error-overlay.js';
 import './inline-models.js';
-// МСХ · Тэмүжин v1 — Sumiro-style chapters + Taichiud + GLB Temüjin.
+// Монголын Нууц Товчоо · Тэмүжин v1 — Sumiro-style chapters + Taichiud + GLB Temüjin.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { buildWorld } from './world.js';
@@ -114,6 +114,7 @@ function resize() {
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
+addEventListener('orientationchange', () => resize());
 resize();
 
 function clearScene() {
@@ -145,7 +146,7 @@ const audio = createSteppeAudio({ volume: 0.75, music: false });
 // ---------------------------------------------------------------------------
 const theme = new Audio('./theme.mp3');
 theme.loop = true;
-theme.preload = 'auto';
+theme.preload = 'none';
 const THEME_VOL = 0.26; // namuuhan
 let themeDuckK = 1;
 let themeMuted = localStorage.getItem('msh-mute') === '1';
@@ -196,6 +197,15 @@ const simpleCine = createSimpleCine(camera, { duration: 2.8 });
 const pathCine = createPathCine(camera, ONON_INTRO);
 let activeCine = null; // { update, active, skip? }
 const keys = {};
+const touchWish = { x: 0, y: 0 };
+if (matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0) {
+  document.body.classList.add('touch-ui');
+  const hint = document.querySelector('#title .hint');
+  if (hint) hint.textContent = 'Зүүн жолоо · баруун тал эргэх · Ярих · Морь';
+}
+function setInPlay(on) {
+  document.body.classList.toggle('in-play', !!on);
+}
 let world = null;
 let sceneId = 'camp';
 let chapterId = 'camp';
@@ -475,8 +485,8 @@ function loadScene(id, { cinematic = true, dialogueNode = null } = {}) {
   writeSave({ lastChapter: chapterId });
 }
 
-// Initial camp preload behind title
-loadScene('camp', { cinematic: false });
+// The camp stays unloaded until the player leaves the title, so a phone
+// does not pull the GLBs before the first paint.
 state = 'title';
 $('hud').classList.add('hidden');
 
@@ -543,13 +553,102 @@ document.querySelectorAll('[data-quality]').forEach((b) => {
 addEventListener('keyup', (e) => { keys[e.code] = false; });
 
 let dragging = false, lx = 0, ly = 0;
-canvas.addEventListener('pointerdown', (e) => { dragging = true; lx = e.clientX; ly = e.clientY; });
-addEventListener('pointerup', () => { dragging = false; });
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'touch') return;
+  dragging = true; lx = e.clientX; ly = e.clientY;
+});
+addEventListener('pointerup', (e) => { if (e.pointerType !== 'touch') dragging = false; });
 addEventListener('pointermove', (e) => {
+  if (e.pointerType === 'touch') return;
   if (!dragging || state !== 'explore') return;
   cam.lookDelta(e.clientX - lx, e.clientY - ly);
   player.yaw = cam.yaw;
   lx = e.clientX; ly = e.clientY;
+});
+
+const touchPoints = new Map();
+canvas.addEventListener('touchstart', (e) => {
+  for (const t of e.changedTouches) {
+    const role = t.clientX < innerWidth * 0.46 ? 'move' : 'look';
+    touchPoints.set(t.identifier, { role, x0: t.clientX, y0: t.clientY, x: t.clientX, y: t.clientY });
+  }
+}, { passive: true });
+canvas.addEventListener('touchmove', (e) => {
+  if (state !== 'explore') return;
+  for (const t of e.changedTouches) {
+    const k = touchPoints.get(t.identifier);
+    if (!k) continue;
+    if (k.role === 'look') {
+      cam.lookDelta((t.clientX - k.x) * 1.4, (t.clientY - k.y) * 1.4);
+      player.yaw = cam.yaw;
+    }
+    k.x = t.clientX;
+    k.y = t.clientY;
+    if (k.role === 'move') {
+      touchWish.x = Math.max(-1, Math.min(1, (k.x - k.x0) / 72));
+      touchWish.y = Math.max(-1, Math.min(1, -(k.y - k.y0) / 72));
+    }
+  }
+}, { passive: true });
+const endTouch = (e) => {
+  for (const t of e.changedTouches) {
+    const k = touchPoints.get(t.identifier);
+    if (k?.role === 'move') touchWish.x = touchWish.y = 0;
+    touchPoints.delete(t.identifier);
+  }
+};
+canvas.addEventListener('touchend', endTouch);
+canvas.addEventListener('touchcancel', endTouch);
+
+const stick = $('stick');
+const stickKnob = $('stickKnob');
+if (stick && stickKnob) {
+  const moveStick = (clientX, clientY) => {
+    const r = stick.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    let dx = clientX - cx;
+    let dy = clientY - cy;
+    const max = r.width * 0.36;
+    const len = Math.hypot(dx, dy) || 1;
+    const clamped = Math.min(len, max);
+    dx = (dx / len) * clamped;
+    dy = (dy / len) * clamped;
+    stickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+    touchWish.x = dx / max;
+    touchWish.y = -dy / max;
+  };
+  const resetStick = () => {
+    stickKnob.style.transform = '';
+    touchWish.x = 0;
+    touchWish.y = 0;
+  };
+  stick.addEventListener('pointerdown', (e) => {
+    if (!document.body.classList.contains('in-play')) return;
+    stick.setPointerCapture?.(e.pointerId);
+    moveStick(e.clientX, e.clientY);
+    e.stopPropagation();
+    e.preventDefault();
+  });
+  stick.addEventListener('pointermove', (e) => {
+    if (!stick.hasPointerCapture?.(e.pointerId)) return;
+    moveStick(e.clientX, e.clientY);
+  });
+  stick.addEventListener('pointerup', resetStick);
+  stick.addEventListener('pointercancel', resetStick);
+}
+$('touchTalk')?.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  if (state !== 'explore') return;
+  const u = nearUsable();
+  if (u) { u.use(); return; }
+  if (performPendingErrand()) return;
+  const n = nearest();
+  if (n) talk(n);
+});
+$('mountBtn')?.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  if (state === 'explore') toggleRide();
 });
 
 const ray = new THREE.Raycaster();
@@ -601,8 +700,10 @@ function setTitleVideo(on) {
   const v = document.getElementById('titleVideo');
   if (!v) return;
   v.classList.toggle('hidden', !on);
-  if (on) v.play().catch(() => {});
-  else v.pause();
+  if (on) {
+    if (!v.getAttribute('src')) v.src = './intro.mp4';
+    v.play().catch(() => {});
+  } else v.pause();
 }
 /** Opening film (the user's rendered flight over the Onon) before chapter I. */
 function playIntroFilm(done) {
@@ -622,6 +723,7 @@ function playIntroFilm(done) {
   const onKey = (e) => { if (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') { e.preventDefault(); end(); } };
   addEventListener('keydown', onKey);
   box.onclick = end;
+  if (!v.getAttribute('src')) v.src = './intro.mp4';
   v.onended = end;
   v.currentTime = 0;
   box.classList.remove('hidden');
@@ -630,6 +732,7 @@ function playIntroFilm(done) {
 }
 function showTitle() {
   state = 'title';
+  setInPlay(false);
   $('hud').classList.add('hidden');
   $('dialogue').classList.add('hidden');
   $('chapters').classList.add('hidden');
@@ -647,7 +750,7 @@ function refreshContinue() {
   } else btn.classList.add('hidden');
 }
 refreshContinue();
-setTitleVideo(true);
+requestAnimationFrame(() => setTitleVideo(true));
 
 function renderChapterSelect() {
   const list = $('chapterList');
@@ -663,6 +766,7 @@ function renderChapterSelect() {
     b.onclick = () => {
       $('chapters').classList.add('hidden');
       $('title').classList.add('hidden');
+      setInPlay(true);
       audio.unlock();
       loadScene(ch.scene, { cinematic: true });
     };
@@ -676,6 +780,7 @@ $('startBtn').onclick = () => {
   save = loadSave();
   const title = $('title');
   title.classList.add('fade-out');
+  setInPlay(true);
   setTimeout(() => {
     title.classList.add('hidden');
     title.classList.remove('fade-out');
@@ -697,9 +802,11 @@ hot('hotCont', () => {
   if (!$('continueBtn').classList.contains('hidden')) $('continueBtn').click();
   else $('chaptersBtn').click();
 });
-hot('hotQuick', () => {
+hot('hotQuick', () => $('quickBtn').click());
+$('quickBtn').onclick = () => {
   // Хурдан тоглох: бага чанар, киногүй, шууд тал руу
   audio.unlock();
+  setInPlay(true);
   setQuality('low', { manual: true, reloadScene: false });
   if (!save) { writeSave({ unlocked: ['camp'], lastChapter: 'camp', flags: {} }); save = loadSave(); }
   $('title').classList.add('hidden');
@@ -711,6 +818,7 @@ hot('hotQuick', () => {
 });
 $('continueBtn').onclick = () => {
   audio.unlock();
+  setInPlay(true);
   $('title').classList.add('hidden');
   setTitleVideo(false);
   const ch = CHAPTERS.find((c) => c.id === save.lastChapter) || CHAPTERS[0];
@@ -727,7 +835,7 @@ $('chaptersBack').onclick = () => showTitle();
 $('creditsBtn').onclick = () => {
   endCard({
     eyebrow: 'Зохиогчид',
-    title: 'МСХ · Тэмүжин',
+    title: 'Монголын Нууц Товчоо · Тэмүжин',
     body: CREDITS.replace(/\n/g, '<br>'),
     button: 'Нүүр рүү',
     onNext: () => showTitle(),
@@ -1109,10 +1217,10 @@ function tick() {
     const result = mover.step(
       dt,
       {
-        forward: !!(keys.KeyW || keys.ArrowUp),
-        back: !!(keys.KeyS || keys.ArrowDown),
-        left: !!keys.KeyA,
-        right: !!keys.KeyD,
+        forward: !!(keys.KeyW || keys.ArrowUp) || touchWish.y > 0.28,
+        back: !!(keys.KeyS || keys.ArrowDown) || touchWish.y < -0.28,
+        left: !!keys.KeyA || touchWish.x < -0.28,
+        right: !!keys.KeyD || touchWish.x > 0.28,
         speedMul: (riding ? 2.4 : 1) * (world.speedMul?.() ?? 1),
       },
       resolveCollisions,

@@ -491,3 +491,92 @@ button:disabled {
   color: #e8c37a; font-size: 18px; cursor: pointer; backdrop-filter: blur(4px); }
 #muteBtn:hover { background: rgba(32,26,20,0.75); }
 #endOverlay { z-index: 3; }
+
+#stick {
+  display: none;
+  position: fixed;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(28px, env(safe-area-inset-bottom));
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 2px solid rgba(230, 195, 106, 0.75);
+  background: rgba(12, 9, 6, 0.38);
+  z-index: 18;
+  touch-action: none;
+}
+#stickKnob {
+  position: absolute;
+  left: 40px;
+  top: 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e6c36a;
+}
+.touch-pad { display: none; }
+body.touch-ui.in-play #stick,
+body.touch-ui.in-play .touch-pad { pointer-events: auto; }
+body.touch-ui.in-play #stick { display: block; }
+body.touch-ui.in-play .touch-pad {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 18;
+  gap: 8px;
+}
+.touch-pad button {
+  min-width: 4.6rem;
+  min-height: 2.8rem;
+  font-size: 15px;
+}
+body.touch-ui.in-play #controls { display: none; }
+body.touch-ui.in-play #muteBtn {
+  top: max(12px, env(safe-area-inset-top));
+  bottom: auto;
+}
+body:has(#dialogue:not(.hidden)) #stick,
+body:has(#dialogue:not(.hidden)) #touchPad,
+body:has(#pause:not(.hidden)) #stick,
+body:has(#pause:not(.hidden)) #touchPad,
+body:has(#endOverlay:not(.hidden)) #stick,
+body:has(#endOverlay:not(.hidden)) #touchPad,
+body:has(#title:not(.hidden)) #stick,
+body:has(#title:not(.hidden)) #touchPad,
+body:has(#chapters:not(.hidden)) #stick,
+body:has(#chapters:not(.hidden)) #touchPad {
+  display: none !important;
+  pointer-events: none;
+}
+
+/* Phone and a short landscape: real buttons, not the painted 16px slots. iPad stays on the painting. */
+@media (max-width: 520px), (max-height: 500px) and (max-width: 900px) {
+  #titleArt { display: none; }
+  #title .title-card.hidden-card { display: grid; }
+  #title.overlay {
+    justify-content: flex-start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #title .title-card {
+    width: min(440px, 100%);
+    min-height: 0;
+    grid-template-columns: 1fr;
+  }
+  #title .title-art { display: none; }
+  #title .title-copy { background: rgba(14, 10, 8, 0.9); }
+  #title .title-actions { flex-direction: column; align-items: stretch; }
+  #title .title-actions button { min-height: 44px; }
+}
+@media (max-height: 500px) and (max-width: 900px) {
+  #title.overlay { padding-top: 8px; padding-bottom: 8px; }
+  #title .title-copy { gap: 6px; padding: 10px 12px; }
+  #title .title-copy h1 { font-size: 22px; }
+  #title .eyebrow, #title .body { display: none; }
+  #title .sub { font-size: 12px; }
+  #title .hint { font-size: 11px; }
+  #title .title-actions { flex-direction: row; flex-wrap: wrap; }
+  #title .title-actions button { flex: 1 1 42%; min-height: 40px; }
+}
