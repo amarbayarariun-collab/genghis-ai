@@ -103,3 +103,7 @@ Replace `[PLACEHOLDER · …]` on `/privacy` and `/terms` (company name, reg/Р�
 node scripts/verify-legal-launch.mjs
 npm run build
 ```
+
+---
+
+Also see **[LAUNCH_READINESS.md](./LAUNCH_READINESS.md)** (short owner env / QPay / OAuth / merge / deploy).

@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  STARTER_PROMPTS,
+  STARTER_PROMPT_SUBSET_SIZE,
   pickStarterPrompts,
   type StarterPrompt,
 } from "@/lib/starter-prompts";
@@ -11,13 +13,15 @@ type StarterPromptCardsProps = {
   onSelect: (prompt: string) => void;
   disabled?: boolean;
   className?: string;
-  /** Injected prompts for tests; defaults to a shuffled subset. */
+  /** Injected prompts for tests; defaults to a shuffled subset after mount. */
   prompts?: readonly StarterPrompt[];
 };
 
 /**
  * ChatGPT-style empty-chat starter cards.
  * Tap fills the composer only — never auto-sends.
+ *
+ * SSR uses a stable subset; shuffle runs after mount to avoid hydration mismatch.
  */
 export function StarterPromptCards({
   onSelect,
@@ -25,9 +29,19 @@ export function StarterPromptCards({
   className,
   prompts: promptsProp,
 }: StarterPromptCardsProps) {
-  const [prompts] = useState(
-    () => promptsProp ?? pickStarterPrompts()
+  const [prompts, setPrompts] = useState<readonly StarterPrompt[]>(
+    () =>
+      promptsProp ??
+      STARTER_PROMPTS.slice(0, STARTER_PROMPT_SUBSET_SIZE)
   );
+
+  useEffect(() => {
+    if (promptsProp) {
+      setPrompts(promptsProp);
+      return;
+    }
+    setPrompts(pickStarterPrompts());
+  }, [promptsProp]);
 
   if (prompts.length === 0) return null;
 
