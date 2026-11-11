@@ -5,6 +5,7 @@ import { Menu } from "lucide-react";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatSidebar } from "@/components/chat/chat-sidebar";
 import { HomeHero } from "@/components/chat/home-hero";
+import { LimitUpgradeDialog } from "@/components/chat/limit-upgrade-dialog";
 import { LocaleToggle } from "@/components/chat/locale-toggle";
 import { MessageList } from "@/components/chat/message-list";
 import { ThemeToggle } from "@/components/chat/theme-toggle";
@@ -70,6 +71,7 @@ export function ChatApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [limitPrompt, setLimitPrompt] = useState<string | null>(null);
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -162,6 +164,7 @@ export function ChatApp() {
       if (!current || current.id === BOOTSTRAP_SESSION_ID) return;
 
       setError(null);
+      setLimitPrompt(null);
       setInput("");
       setAttachments([]);
       setMode("chat");
@@ -256,9 +259,12 @@ export function ChatApp() {
           } | null;
           if (!response.ok || !data?.imageUrl) {
             const base = data?.error || t("imageFail");
-            throw new Error(
-              data?.upgradePath ? `${base} → ${data.upgradePath}` : base
-            );
+            if (data?.upgradePath) {
+              setLimitPrompt(base);
+              patchAssistant({ content: base });
+              return;
+            }
+            throw new Error(base);
           }
           patchAssistant({
             content: `${t("imageOk")}${data.model ? ` (${data.model})` : ""}.`,
@@ -326,9 +332,12 @@ export function ChatApp() {
           } | null;
           const base =
             data?.error || `${t("errorPrefix")} (${response.status})`;
-          throw new Error(
-            data?.upgradePath ? `${base} → ${data.upgradePath}` : base
-          );
+          if (data?.upgradePath) {
+            setLimitPrompt(base);
+            patchAssistant({ content: base });
+            return;
+          }
+          throw new Error(base);
         }
 
         if (!response.body) {
@@ -407,6 +416,11 @@ export function ChatApp() {
 
   return (
     <div className="flex h-dvh min-h-0 overflow-hidden bg-white dark:bg-zinc-950">
+      <LimitUpgradeDialog
+        open={Boolean(limitPrompt)}
+        message={limitPrompt || t("planLimitTitle")}
+        onClose={() => setLimitPrompt(null)}
+      />
       <ChatSidebar
         sessions={sessions}
         activeId={activeSession?.id ?? ""}
