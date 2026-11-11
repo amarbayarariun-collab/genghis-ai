@@ -234,6 +234,7 @@ const loco = createLocomotionFSM({
 let state = 'title'; // title | chapters | cine | explore | dialogue | end | pause
 /** When true, freeze camera at aerialView (proof / cinematic hold) — spring rig must not overwrite. */
 let aerialLocked = false;
+let shotLock = false;
 let flag = null;
 let talkTarget = null;
 let spottedCooldown = 0;
@@ -706,7 +707,12 @@ canvas.addEventListener('click', (e) => {
   }
 });
 
-const dist = (o) => Math.hypot(player.pos.x - o.position.x, player.pos.z - o.position.z);
+const _worldPt = new THREE.Vector3();
+const dist = (o) => {
+  if (!o) return Infinity;
+  o.getWorldPosition(_worldPt);
+  return Math.hypot(player.pos.x - _worldPt.x, player.pos.z - _worldPt.z);
+};
 function nearest(r = 3.5) {
   return NPCS.find((n) => n.obj && dist(n.obj) < r) || null;
 }
@@ -1254,6 +1260,11 @@ function tick() {
     player.yaw = faceYaw;
     cam.yaw = faceYaw;
   }
+  if (shotLock) {
+    paint(t);
+    requestAnimationFrame(tick);
+    return;
+  }
   if (aerialLocked && world?.aerialView) {
     camera.position.copy(world.aerialView.eye);
     camera.lookAt(world.aerialView.look);
@@ -1385,3 +1396,40 @@ window.__mshAerial = (opts = {}) => {
   };
 };
 window.__mshUnlockAerial = () => { aerialLocked = false; };
+window.__mshFrame = (eye, look, fov = 36) => {
+  shotLock = true;
+  activeCine = null;
+  state = 'explore';
+  document.body.classList.add('in-play');
+  $('title')?.classList.add('hidden');
+  $('hud')?.classList.add('hidden');
+  $('dialogue')?.classList.add('hidden');
+  $('end')?.classList.add('hidden');
+  camera.fov = fov;
+  camera.position.set(eye[0], eye[1], eye[2]);
+  camera.lookAt(look[0], look[1], look[2]);
+  camera.updateProjectionMatrix();
+  return true;
+};
+window.__mshFrameHorse = () => {
+  let saddle = null;
+  scene.traverse((o) => { if (!saddle && o.name === 'saddle-anchor') saddle = o; });
+  if (!saddle) return null;
+  const p = new THREE.Vector3();
+  const head = new THREE.Vector3();
+  saddle.getWorldPosition(p);
+  const horseHead = saddle.parent?.userData?.head;
+  horseHead?.getWorldPosition(head);
+  const riderHead = new THREE.Vector3();
+  saddle.getObjectByName('head')?.getWorldPosition(riderHead);
+  window.__mshFrame(
+    [p.x + 2.6, p.y + 0.9, p.z + 2.4],
+    [p.x, p.y + 0.35, p.z],
+    30
+  );
+  return {
+    saddle: [p.x, p.y, p.z],
+    horseHead: horseHead ? [head.x, head.y, head.z] : null,
+    riderHead: [riderHead.x, riderHead.y, riderHead.z],
+  };
+};

@@ -35,7 +35,9 @@ export function person({ deel = '#8a1a22', hat = '#3a2818', fur = '#e2d0b0', ski
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22 * tall, 0.28 * tall, 0.85 * tall, 8), flat(deel));
   body.position.y = 0.7 * tall;
   const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.13 * tall, 1), flat(skin));
+  head.name = 'head';
   head.position.y = 1.25 * tall;
+  g.userData.tall = tall;
   const h = new THREE.Mesh(new THREE.CylinderGeometry(0.1 * tall, 0.16 * tall, 0.28 * tall, 8), flat(hat));
   h.position.y = 1.45 * tall;
   const collar = new THREE.Mesh(new THREE.TorusGeometry(0.2 * tall, 0.06 * tall, 5, 10), flat(fur));
@@ -76,6 +78,7 @@ export function horse(color = '#5a4030') {
   const neck = new THREE.Mesh(new THREE.BoxGeometry(0.38, 1.05, 0.38), m);
   neck.position.set(0.7, 1.45, 0);
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.32, 0.32), m);
+  head.name = 'horse-head';
   head.position.set(1.15, 1.85, 0);
   const mane = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.95, 0.4), dark);
   mane.position.set(0.55, 1.55, 0);
@@ -84,9 +87,27 @@ export function horse(color = '#5a4030') {
     leg.position.set(x * 0.7, 0.48, z * 0.35);
     g.add(leg);
   });
-  g.add(body, neck, head, mane);
+  // Saddle sits on the barrel, behind the neck. The head is at x=1.15.
+  const saddle = new THREE.Group();
+  saddle.name = 'saddle-anchor';
+  saddle.position.set(-0.05, 1.48, 0);
+  g.add(body, neck, head, mane, saddle);
+  g.userData.saddle = saddle;
+  g.userData.head = head;
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return g;
+}
+
+/** Parent a soldier to the saddle anchor. Hips land on the barrel, not the head. */
+export function seatRider(mount, rider) {
+  const saddle = mount?.userData?.saddle;
+  if (!saddle || !rider) return null;
+  saddle.add(rider);
+  const tall = rider.userData.tall || 1;
+  rider.position.set(0, -0.62 * tall, 0);
+  rider.rotation.set(0, 0, 0);
+  rider.userData.mounted = true;
+  return saddle;
 }
 
 export function glowRing(color = '#e8c37a') {
