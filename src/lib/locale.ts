@@ -28,6 +28,9 @@ export function applyLocaleToDocument(locale: Locale) {
 export const UI = {
   mn: {
     tagline: "Монголоос дэлхийтэй холбогд",
+    valueProp:
+      "Монгол хэлээр асуу, сур, бич, бүтээ. Genghis AI таны өдөр тутмын AI туслах.",
+    tryExamples: "Жишээ асуултууд",
     newChat: "Шинэ чат",
     more: "Илүү их",
     recentChats: "Сүүлд чатласан",
@@ -111,11 +114,16 @@ export const UI = {
     authLogin: "Нэвтрэх",
     authLogout: "Гарах",
     authName: "Нэр (заавал биш)",
+    authEmail: "И-мэйл",
     authPassword: "Нууц үг (8+)",
     authFail: "Нэвтэрч чадсангүй.",
+    authGoogle: "Google-ээр нэвтрэх",
   },
   en: {
-    tagline: "From Mongolia to the world",
+    tagline: "Монголоос дэлхийтэй холбогд",
+    valueProp:
+      "Ask, learn, write, and create in Mongolian. Genghis AI is your everyday AI assistant.",
+    tryExamples: "Try an example",
     newChat: "New chat",
     more: "More",
     recentChats: "Recent chats",
@@ -199,15 +207,37 @@ export const UI = {
     authLogin: "Log in",
     authLogout: "Log out",
     authName: "Name (optional)",
+    authEmail: "Email",
     authPassword: "Password (8+)",
     authFail: "Could not sign in.",
+    authGoogle: "Continue with Google",
   },
 } as const;
 
 export type UiKey = keyof typeof UI.mn;
 
+/** First-run example prompts shown on the empty home hero. */
+export const EXAMPLE_PROMPTS: Record<Locale, readonly string[]> = {
+  mn: [
+    "Сайн уу, чи юу хийж чадах вэ?",
+    "Хуушуурын жор товчхон хэлж өгөөч",
+    "Энэ и-мэйлийг албан ёсны монголоор засаад өг",
+    "Python-оор энгийн тоолуур бичиж өгнө үү",
+  ],
+  en: [
+    "Hi, what can you help me with?",
+    "Give me a short khuushuur recipe",
+    "Rewrite this email in formal Mongolian",
+    "Write a simple counter in Python",
+  ],
+} as const;
+
 export function t(locale: Locale, key: UiKey): string {
   return UI[locale][key] ?? UI.mn[key];
+}
+
+export function examplePrompts(locale: Locale): readonly string[] {
+  return EXAMPLE_PROMPTS[locale] ?? EXAMPLE_PROMPTS.mn;
 }
 
 export function toolLabel(locale: Locale, mode: string): string {

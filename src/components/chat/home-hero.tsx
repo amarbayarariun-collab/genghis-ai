@@ -17,6 +17,7 @@ import { WallpaperPickerButton } from "@/components/chat/wallpaper-picker";
 import { useLocale } from "@/components/locale-provider";
 import { useWallpaper } from "@/hooks/use-wallpaper";
 import { greetingForNow } from "@/lib/greeting";
+import { examplePrompts } from "@/lib/locale";
 import type { ChatAttachment, ToolMode } from "@/lib/types";
 
 type HomeHeroProps = {
@@ -55,6 +56,7 @@ export function HomeHero({
     () => greetingForNow(new Date(), locale),
     [locale]
   );
+  const prompts = useMemo(() => examplePrompts(locale), [locale]);
 
   const quickPills = useMemo(
     () =>
@@ -121,22 +123,25 @@ export function HomeHero({
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center px-4 pt-10 pb-4 md:px-8 md:pt-6">
+        <div className="flex flex-1 flex-col items-center justify-center px-3 pt-14 pb-3 sm:px-4 sm:pt-10 sm:pb-4 md:px-8 md:pt-6">
           <div className="animate-fade-up mx-auto w-full max-w-3xl text-center">
-            <h1 className="text-5xl font-semibold tracking-tight text-white drop-shadow-sm sm:text-6xl md:text-7xl">
+            <h1 className="text-[2.45rem] font-semibold leading-tight tracking-tight text-white drop-shadow-sm sm:text-6xl md:text-7xl">
               {greeting || (
                 <span className="invisible" aria-hidden>
                   {t("greetingAfternoon")}
                 </span>
               )}
             </h1>
-            <p className="mt-3 text-sm text-white/75 sm:text-base">
+            <p className="mt-2 text-sm font-medium text-white/80 sm:mt-3 sm:text-base">
               {t("tagline")}
+            </p>
+            <p className="mx-auto mt-2 max-w-xl text-[13px] leading-relaxed text-white/65 sm:text-sm">
+              {t("valueProp")}
             </p>
           </div>
 
           <div
-            className="animate-fade-up mx-auto mt-8 w-full max-w-2xl"
+            className="animate-fade-up mx-auto mt-6 w-full max-w-2xl sm:mt-8"
             style={{ animationDelay: "80ms" }}
           >
             <ChatComposer
@@ -155,7 +160,31 @@ export function HomeHero({
           </div>
 
           <div
-            className="animate-fade-up mt-4 flex max-w-3xl flex-wrap items-center justify-center gap-2"
+            className="animate-fade-up mt-3 w-full max-w-2xl sm:mt-4"
+            style={{ animationDelay: "110ms" }}
+          >
+            <p className="mb-2 text-center text-[11px] tracking-wide text-white/55 uppercase sm:text-xs">
+              {t("tryExamples")}
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {prompts.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  disabled={disabled || isLoading}
+                  onClick={() =>
+                    onSubmit(prompt, { mode: "chat", attachments: [] })
+                  }
+                  className="max-w-full rounded-full border border-white/20 bg-ink/40 px-3 py-1.5 text-left text-[12px] leading-snug text-white/90 backdrop-blur-md transition hover:bg-ink/55 disabled:opacity-60 sm:text-[13px]"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div
+            className="animate-fade-up mt-3 flex max-w-3xl flex-wrap items-center justify-center gap-2 sm:mt-4"
             style={{ animationDelay: "140ms" }}
           >
             {quickPills.map((pill) => (
@@ -176,8 +205,8 @@ export function HomeHero({
           </div>
         </div>
 
-        <div className="relative z-10 px-4 pb-5 md:px-8 md:pb-7">
-          <div className="mx-auto grid w-full max-w-5xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="relative z-10 px-3 pb-4 sm:px-4 sm:pb-5 md:px-8 md:pb-7">
+          <div className="mx-auto grid w-full max-w-5xl grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
             {features.map((feature, i) => (
               <button
                 key={feature.title}
@@ -192,14 +221,14 @@ export function HomeHero({
                     onTool(feature.mode);
                   }
                 }}
-                className="animate-fade-up rounded-2xl border border-white/40 bg-cream/95 p-4 text-left shadow-[0_12px_40px_-24px_rgb(11_13_15/0.55)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-cream"
+                className="animate-fade-up rounded-2xl border border-white/40 bg-cream/95 p-3 text-left shadow-[0_12px_40px_-24px_rgb(11_13_15/0.55)] backdrop-blur-sm transition hover:-translate-y-0.5 hover:bg-cream sm:p-4"
                 style={{ animationDelay: `${180 + i * 40}ms` }}
               >
-                <feature.icon className="size-5 text-slate" />
-                <p className="mt-3 text-sm font-semibold text-ink">
+                <feature.icon className="size-4 text-slate sm:size-5" />
+                <p className="mt-2 text-[13px] font-semibold text-ink sm:mt-3 sm:text-sm">
                   {feature.title}
                 </p>
-                <p className="mt-1 text-xs leading-relaxed text-ink/55">
+                <p className="mt-1 text-[11px] leading-relaxed text-ink/55 sm:text-xs">
                   {feature.desc}
                 </p>
               </button>
