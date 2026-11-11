@@ -8,6 +8,7 @@ export function createTheme() {
   let ducked = false;
   let muted = false;
   let raf = 0;
+  let level = 0;
   try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch { /* private mode */ }
 
   function element() {
@@ -18,6 +19,7 @@ export function createTheme() {
     audio.volume = 0;
     audio.addEventListener('error', () => {
       failed = true;
+      level = 0;
       audio.volume = 0;
     });
     return audio;
@@ -27,16 +29,19 @@ export function createTheme() {
 
   function fade() {
     const node = element();
+    const from = level;
+    const startedAt = performance.now();
     cancelAnimationFrame(raf);
     const tick = () => {
       const goal = target();
-      const next = node.volume + Math.sign(goal - node.volume) * 0.03;
-      if (Math.abs(goal - node.volume) <= 0.03) {
+      const t = Math.min(1, (performance.now() - startedAt) / 800);
+      level = from + (goal - from) * t;
+      node.volume = level;
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else {
+        level = goal;
         node.volume = goal;
-        return;
       }
-      node.volume = Math.max(0, Math.min(1, next));
-      raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
   }
@@ -74,5 +79,8 @@ export function createTheme() {
     },
     get muted() { return muted; },
     get missing() { return failed; },
+    get playing() { return !!(audio && !audio.paused && !audio.ended && !failed); },
+    get volume() { return Math.round(level * 100) / 100; },
+    get loop() { return !!audio?.loop; },
   };
 }

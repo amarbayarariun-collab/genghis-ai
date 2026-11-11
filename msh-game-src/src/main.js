@@ -1559,6 +1559,13 @@ window.__mshMount = (on = true, sprint = false) => {
   }
   return { mounted, pace: $('pace')?.textContent || '', sprint: !!keys.ShiftLeft };
 };
+window.__mshTheme = () => ({
+  muted: theme.muted,
+  missing: theme.missing,
+  playing: theme.playing,
+  volume: Math.round(theme.volume * 100) / 100,
+  loop: theme.loop,
+});
 window.__mshGait = (speed = 13) => {
   if (state === 'title' || state === 'cine') {
     state = 'explore';
