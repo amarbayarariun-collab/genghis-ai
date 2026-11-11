@@ -1,0 +1,60 @@
+name: E2E smoke (mock)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: e2e-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Playwright launch smoke
+    # Pin 24.04: ubuntu-latest can be 26.04, which older Playwright can't install.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      # No live xAI / QPay / DB — mock paths only (no spend).
+      OPENAI_API_KEY: ""
+      AP: ""
+      CHAT_API_KEY: ""
+      OPENAI_IMAGE_API_KEY: ""
+      QPAY_CLIENT_ID: ""
+      QPAY_CLIENT_SECRET: ""
+      QPAY_INVOICE_CODE: ""
+      DATABASE_URL: ""
+      AUTH_SECRET: genghis-ci-auth-secret-not-for-prod
+      ADMIN_SECRET: genghis-ci-admin-secret-not-for-prod
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Unit smoke (image config / legal / translit / actions)
+        run: npm test
+
+      - name: Build (mock env)
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: E2E smoke (desktop + 360px)
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
