@@ -2,19 +2,9 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { buildWorld } from './world.js';
-import { buildBurkhanWorld } from './scenes/burkhan.js';
-import { buildAct2World } from './scenes/act2.js';
-import { buildHorsesWorld } from './scenes/horses.js';
-import { buildAct3World } from './scenes/act3.js';
-import {
-  buildTaichiudCapture,
-  buildTaichiudEscape,
-  buildTaichiudRiver,
-  buildTaichiudGer,
-} from './scenes/taichiud.js';
 import {
   STORY, SOURCES, END_LINES, CHAPTERS, CREDITS,
-  NEXT_TEASER, TAICHIUD_TEASER, ACT2_TEASER, ACT3_TEASER, MVP_DONE,
+  NEXT_TEASER, TAICHIUD_TEASER, ACT2_TEASER, ACT3_TEASER, JAMUKHA_TEASER, MVP_DONE,
 } from './story.js';
 import { createCameraRig } from './systems/camera-rig.js';
 import { createMover } from './systems/player-move.js';
@@ -39,6 +29,7 @@ import { createFootStains } from './systems/sumiro/foot-stains.js';
 import { createEncounter } from './systems/sumiro/encounter.js';
 import { createCrows } from './systems/sumiro/crows.js';
 import { horse, person, seatRider } from './world-kit.js';
+import { ridingTemujin } from './characters/temujin.js';
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('game');
@@ -231,6 +222,7 @@ let encounter = null;
 let fLatch = false;
 let toastText = '';
 let horsesChimed = false;
+const sceneMod = {};
 let promptText = '';
 let fTouch = false;
 let qTouch = false;
@@ -255,10 +247,12 @@ let shotLock = false;
 let mounted = false;
 let playerHorse = null;
 let flag = null;
+let chapterEndTimer = 0;
 let talkTarget = null;
 let spottedCooldown = 0;
 
 const PLAYER_RADIUS = 0.3;
+CHAPTERS.push({ id: 'jamukha', scene: 'jamukha', title: 'IV · Жамухатай зөрчил', blurb: 'Шөнийн салгалт · гурван айл', source: '§118' });
 const CHAPTER_ORDER = CHAPTERS.map((c) => c.id);
 
 function resolveCollisions(p) {
@@ -278,14 +272,15 @@ function resolveCollisions(p) {
 
 function buildScene(id) {
   const qOpts = { quality };
-  if (id === 'burkhan') return buildBurkhanWorld(scene);
-  if (id === 'act2') return buildAct2World(scene);
-  if (id === 'horses') return buildHorsesWorld(scene);
-  if (id === 'act3') return buildAct3World(scene);
-  if (id === 'taichiud_capture') return buildTaichiudCapture(scene);
-  if (id === 'taichiud_escape') return buildTaichiudEscape(scene);
-  if (id === 'taichiud_river') return buildTaichiudRiver(scene);
-  if (id === 'taichiud_ger') return buildTaichiudGer(scene);
+  if (id === 'burkhan') return sceneMod.burkhan(scene);
+  if (id === 'act2') return sceneMod.act2(scene);
+  if (id === 'horses') return sceneMod.horses(scene);
+  if (id === 'jamukha') return sceneMod.jamukha(scene);
+  if (id === 'act3') return sceneMod.act3(scene);
+  if (id === 'taichiud_capture') return sceneMod.taichiud.buildTaichiudCapture(scene);
+  if (id === 'taichiud_escape') return sceneMod.taichiud.buildTaichiudEscape(scene);
+  if (id === 'taichiud_river') return sceneMod.taichiud.buildTaichiudRiver(scene);
+  if (id === 'taichiud_ger') return sceneMod.taichiud.buildTaichiudGer(scene);
   return buildWorld(scene, qOpts);
 }
 
@@ -305,7 +300,7 @@ function npcsFromWorld(w, id) {
 
 function audioModeFor(id) {
   if (id === 'taichiud_ger') return 'ger';
-  if (id === 'taichiud_escape' || id === 'taichiud_capture' || id === 'taichiud_river' || id === 'act3') return 'night';
+  if (id === 'taichiud_escape' || id === 'taichiud_capture' || id === 'taichiud_river' || id === 'act3' || id === 'jamukha') return 'night';
   if (id === 'burkhan') return 'ridge';
   return 'day';
 }
@@ -326,7 +321,7 @@ function sceneLook(id, x, z) {
   if (id === 'taichiud_river') return blend(0, 0, 4, 18, 5.4, 9.0, 0.08, 0.16, 1.45, 1.7);
   if (id === 'taichiud_ger') return { distance: 4.1, pitch: 0.07, height: 1.22 };
   if (id === 'act2') return blend(0, 0, 8, 28, 5.6, 9.6, 0.12, 0.22, 1.6, 1.9);
-  if (id === 'horses') return blend(0, 4, 6, 24, 5.2, 9.2, 0.12, 0.22, 1.5, 1.85);
+  if (id === 'horses' || id === 'jamukha') return blend(0, 4, 6, 24, 5.2, 9.2, 0.12, 0.22, 1.5, 1.85);
   if (id === 'act3') return blend(0, 0, 5, 18, 4.3, 6.6, 0.08, 0.14, 1.35, 1.5);
   return { distance: 5, pitch: 0.22, height: 1.55 };
 }
@@ -338,7 +333,7 @@ function applyGrade(id) {
   const name = id === 'burkhan' ? 'grade-burkhan'
     : id.startsWith('taichiud') ? 'grade-taichiud'
     : id === 'act2' || id === 'horses' ? 'grade-act2'
-    : id === 'act3' ? 'grade-act3'
+    : id === 'act3' || id === 'jamukha' ? 'grade-act3'
     : 'grade-camp';
   grade.classList.add(name);
 }
@@ -346,7 +341,7 @@ function applyGrade(id) {
 function afterCine(id, dialogueNode) {
   if (dialogueNode) startDialogue(dialogueNode);
   else if (id === 'burkhan') startDialogue('burkhan_start');
-  else if (id === 'act2' || id === 'horses') state = 'explore';
+  else if (id === 'act2' || id === 'horses' || id === 'jamukha') state = 'explore';
   else if (id === 'act3') startDialogue('mergen_start');
   else if (id === 'taichiud_capture') startDialogue('taichiud_capture');
   else if (id === 'taichiud_escape') state = 'explore';
@@ -449,13 +444,46 @@ function playCampArrival() {
   activeCine = pathCine;
 }
 
-function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false, resume = null } = {}) {
+function loadScene(id, opts = {}) {
+  const arriveMod = (key, mod) => { sceneMod[key] = mod; loadScene(id, opts); };
+  if (id === 'burkhan' && !sceneMod.burkhan) {
+    import('./scenes/burkhan.js').then((m) => arriveMod('burkhan', m.buildBurkhanWorld), console.error);
+    return;
+  }
+  if (id === 'act2' && !sceneMod.act2) {
+    import('./scenes/act2.js').then((m) => arriveMod('act2', m.buildAct2World), console.error);
+    return;
+  }
+  if (id === 'horses' && !sceneMod.horses) {
+    import('./scenes/horses.js').then((m) => arriveMod('horses', m.buildHorsesWorld), console.error);
+    return;
+  }
+  if (id === 'jamukha' && !sceneMod.jamukha) {
+    import('./scenes/jamukha.js').then((m) => arriveMod('jamukha', m.buildJamukhaWorld), console.error);
+    return;
+  }
+  if (id === 'act3' && !sceneMod.act3) {
+    import('./scenes/act3.js').then((m) => arriveMod('act3', m.buildAct3World), console.error);
+    return;
+  }
+  if (id.startsWith('taichiud') && !sceneMod.taichiud) {
+    import('./scenes/taichiud.js').then((m) => arriveMod('taichiud', m), console.error);
+    return;
+  }
+  const { cinematic = true, dialogueNode = null, arrive = false, resume = null } = opts;
   primedCamp = false;
   campBootStarted = true;
+  clearTimeout(chapterEndTimer);
   fieldTasks?.dispose();
   fieldTasks = null;
   horsesChimed = false;
   clearMount();
+  toastText = '';
+  const toast = $('toast');
+  if (toast) {
+    toast.textContent = '';
+    toast.classList.add('hidden');
+  }
   $('end')?.classList.add('hidden');
   disposeHarvestFx();
   clearScene();
@@ -632,7 +660,8 @@ function loadScene(id, { cinematic = true, dialogueNode = null, arrive = false, 
     if (dialogueNode) startDialogue(dialogueNode);
   }
 
-  writeSave({ lastChapter: chapterId });
+  // The title preloads camp behind the painting. That must not replace a saved chapter.
+  if (opts.remember !== false) writeSave({ lastChapter: chapterId });
 }
 
 // Let the title paint before the camp file starts. The first fast start reuses it.
@@ -642,7 +671,7 @@ $('hud').classList.add('hidden');
 function bootCampAfterPaint() {
   if (campBootStarted) return;
   campBootStarted = true;
-  loadScene('camp', { cinematic: false });
+  loadScene('camp', { cinematic: false, remember: false });
   primedCamp = true;
   state = 'title';
   $('end')?.classList.add('hidden');
@@ -824,7 +853,10 @@ function setMounted(on) {
   const y = world.heightAt?.(player.pos.x, player.pos.z) ?? 0;
   h.position.set(player.pos.x, y, player.pos.z);
   h.rotation.y = world.temujin.rotation.y;
-  seatRider(h, person({ deel: '#9a1e24', fur: '#e8d4b0', hat: '#5c3b24' }));
+  const rider = ridingTemujin(world.temujin) || person({ deel: '#9a1e24', fur: '#e8d4b0', hat: '#5c3b24' });
+  seatRider(h, rider);
+  // seatRider clears rotation. The sculpt's face is +Z; the horse faces +X.
+  if (rider.userData.sculpt) rider.rotation.y = Math.PI / 2;
   scene.add(h);
   playerHorse = h;
   mounted = true;
@@ -850,14 +882,24 @@ const dist = (o) => {
   return Math.hypot(player.pos.x - _worldPt.x, player.pos.z - _worldPt.z);
 };
 function nearest(r = 3.5) {
-  return NPCS.find((n) => n.obj && dist(n.obj) < r) || null;
+  let best = null;
+  let bestD = r;
+  for (const n of NPCS) {
+    if (!n.obj) continue;
+    const d = dist(n.obj);
+    if (d < bestD) {
+      best = n;
+      bestD = d;
+    }
+  }
+  return best;
 }
 function nearSet(r = 4.2) {
   return new Set(NPCS.filter((n) => n.obj && dist(n.obj) < r).map((n) => n.obj));
 }
 function talk(n) {
   talkTarget = n.obj;
-  if (sceneId === 'horses') {
+  if (sceneId === 'horses' || sceneId === 'jamukha') {
     const text = world?.blurb?.() || '';
     toastText = text;
     const toast = $('toast');
@@ -976,7 +1018,7 @@ function renderChapterSelect() {
   list.innerHTML = '';
   save = loadSave();
   for (const ch of CHAPTERS) {
-    const unlocked = save.unlocked.includes(ch.id) || ch.id === 'camp' || ch.id === 'horses';
+    const unlocked = save.unlocked.includes(ch.id) || ch.id === 'camp' || ch.id === 'horses' || ch.id === 'jamukha';
     const b = document.createElement('button');
     b.type = 'button';
     const here = save.lastChapter === ch.id;
@@ -1226,7 +1268,8 @@ function presentChapter(card) {
   audio.duck?.(0.35, 0.5);
   theme.duck(true);
   $('warmGrade')?.classList.add('arriving');
-  setTimeout(() => {
+  clearTimeout(chapterEndTimer);
+  chapterEndTimer = setTimeout(() => {
     $('warmGrade')?.classList.remove('arriving');
     endCard(card);
   }, 420);
@@ -1295,6 +1338,16 @@ function endAct2Slice() {
   presentChapter({
     eyebrow: 'Бүлэг дууслаа',
     title: 'Боорчи · Бөртэ',
+    body: 'Дараа: Найман адуу — хулгайлагдсан адууг Боорчитой нэх (§90).',
+    button: 'Найман адуу →',
+    onNext: () => { $('title').classList.add('hidden'); loadScene('horses', { cinematic: true }); flag = null; },
+  });
+}
+function endHorsesSlice() {
+  save = unlockNext('horses', CHAPTER_ORDER);
+  presentChapter({
+    eyebrow: 'Бүлэг дууслаа',
+    title: 'Найман адуу',
     body: ACT3_TEASER,
     button: 'III бүлэг →',
     onNext: () => { $('title').classList.add('hidden'); loadScene('act3', { cinematic: true }); flag = null; },
@@ -1303,8 +1356,18 @@ function endAct2Slice() {
 function endAct3Slice() {
   save = unlockNext('act3', CHAPTER_ORDER);
   presentChapter({
+    eyebrow: 'Бүлэг дууслаа',
+    title: 'Мэргид · Чингис',
+    body: JAMUKHA_TEASER,
+    button: 'IV бүлэг →',
+    onNext: () => { $('title').classList.add('hidden'); loadScene('jamukha', { cinematic: true }); flag = null; },
+  });
+}
+function endJamukhaSlice() {
+  save = unlockNext('jamukha', CHAPTER_ORDER);
+  presentChapter({
     eyebrow: 'Тоглоом дууслаа',
-    title: 'Чингис',
+    title: 'Жамухатай зөрчил',
     body: MVP_DONE,
     button: 'Бүлгүүд · дахин',
     onNext: () => { showTitle(); $('chapters').classList.remove('hidden'); $('title').classList.add('hidden'); renderChapterSelect(); },
@@ -1469,14 +1532,14 @@ function tick() {
           flashSfx(sfx.chime());
         }
       }
-    } else if (sceneId === 'horses' && world?.taskLine) {
+    } else if ((sceneId === 'horses' || sceneId === 'jamukha') && world?.taskLine) {
       const taskEl = $('fieldTasks');
       const line = world.taskLine();
       if (taskEl && state === 'explore') {
         taskEl.textContent = line;
         taskEl.classList.remove('hidden');
       }
-      const status = world.herdStatus?.();
+      const status = world.herdStatus?.() || world.taskStatus?.();
       if (status?.done && !horsesChimed) {
         horsesChimed = true;
         toastText = line;
@@ -1486,6 +1549,8 @@ function tick() {
           toast.classList.remove('hidden');
         }
         if (!theme.muted) flashSfx(sfx.chime());
+        if (sceneId === 'horses') endHorsesSlice();
+        else if (sceneId === 'jamukha') endJamukhaSlice();
       }
     } else {
       $('fieldTasks')?.classList.add('hidden');

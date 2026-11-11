@@ -17,7 +17,7 @@
   <!-- Title -->
   <div id="title" class="overlay" role="dialog" aria-labelledby="titleHeading">
     <div class="title-card title-screen">
-      <img class="title-painting" src="./title-screen.webp" alt="" />
+      <div class="title-banner"><img class="title-painting" src="./title-screen.webp" alt="" /></div>
       <div class="title-copy">
         <p class="eyebrow">V1.0</p>
         <h1 id="titleHeading">Монголын<br>Нууц Товчоо</h1>
@@ -34,7 +34,8 @@
       </div>
       <ul class="title-hints">
         <li>Хурдан тоглох · бага чанар, сүүдэргүй, шууд хөдөлнө</li>
-        <li>WASD явах · чирээд харах · E ярилцах · галын гэрэлнээс хол (шөнө)</li>
+        <li class="hint-desk">WASD явах · чирээд харах · E ярилцах · галын гэрэлнээс хол (шөнө)</li>
+        <li class="hint-phone">Жолоогоор явах · чирээд харах · Ярих · галын гэрэлнээс хол (шөнө)</li>
       </ul>
     </div>
   </div>
@@ -97,8 +98,7 @@
       <span class="ctrl"><kbd>Esc</kbd> цэс</span>
     </div>
     <div id="prompt" class="hidden">[E] ярилцах</div>
-    <button id="muteBtn" type="button" aria-pressed="false">Дуу</button>
-    <button id="sourceBtn" type="button">📜 Эх сурвалж</button>
+    <div id="hudTools"><button id="muteBtn" type="button" aria-pressed="false">Дуу</button><button id="sourceBtn" type="button">📜 Эх сурвалж</button></div>
     <div id="source" class="hidden"></div>
   </div>
   <button id="fpsToggle" type="button" aria-pressed="false">FPS</button>

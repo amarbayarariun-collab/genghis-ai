@@ -267,6 +267,7 @@ body:has(#dialogue:not(.hidden)) #coach {
   background: none;
   overflow: hidden;
 }
+#title .title-banner { display: contents; }
 #title .title-painting {
   display: block;
   width: 100%;
@@ -325,14 +326,21 @@ body:has(#dialogue:not(.hidden)) #coach {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 10px;
-  font-size: clamp(13px, 1.45vw, 18px);
-  line-height: 1.15;
-  min-height: 44px;
+  padding: 0 6px;
+  font-size: clamp(11px, 1.45vw, 18px);
+  line-height: 1.1;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   white-space: normal;
   text-align: center;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+}
+#title .title-screen #fastPlayBtn,
+#title .title-screen #startBtn {
+  min-width: 0;
 }
 #title .title-screen #fastPlayBtn {
   left: 62.4%;
@@ -380,6 +388,7 @@ body:has(#dialogue:not(.hidden)) #coach {
   height: 7.4%;
   display: flex;
   gap: 3.4%;
+  overflow: hidden;
   pointer-events: auto;
 }
 #title .title-screen .title-tools button {
@@ -388,13 +397,16 @@ body:has(#dialogue:not(.hidden)) #coach {
   top: auto;
   width: auto;
   height: 100%;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 3px;
+  font-size: clamp(9px, 1.2vw, 16px);
   pointer-events: auto;
-  gap: 8px;
+  gap: 4px;
 }
 #title .title-tools .ico {
-  width: 22px;
-  height: 22px;
+  width: 1.05em;
+  height: 1.05em;
   color: #e7c16a;
   pointer-events: none;
   flex: 0 0 auto;
@@ -418,6 +430,7 @@ body:has(#dialogue:not(.hidden)) #coach {
   content: "◆ ";
   color: #e7c16a;
 }
+#title .hint-phone { display: none; }
 
 .title-copy {
   display: flex;
@@ -507,6 +520,14 @@ button:disabled {
   cursor: not-allowed;
 }
 
+#chapters.overlay {
+  justify-content: safe center;
+  overflow-y: auto;
+}
+body:has(#chapters:not(.hidden)) #fpsToggle {
+  visibility: hidden;
+  pointer-events: none;
+}
 .chapters-panel {
   width: min(880px, 100%);
   background: rgba(18, 12, 8, 0.92);
@@ -702,11 +723,17 @@ button:disabled {
   text-align: center;
 }
 
-#muteBtn {
+#hudTools {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
-  right: 176px;
+  right: 84px;
+  display: flex;
+  gap: 8px;
   pointer-events: auto;
+}
+#muteBtn,
+#sourceBtn {
+  position: static;
   font-size: 13px;
   padding: 7px 12px;
 }
@@ -714,14 +741,6 @@ button:disabled {
   background: #3a2418;
   color: #c4b39a;
   text-decoration: line-through;
-}
-#sourceBtn {
-  position: absolute;
-  top: max(12px, env(safe-area-inset-top));
-  right: 78px;
-  pointer-events: auto;
-  font-size: 13px;
-  padding: 7px 12px;
 }
 
 #source {
@@ -799,15 +818,16 @@ button:disabled {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  #muteBtn,
-  #sourceBtn {
-    top: max(50px, calc(env(safe-area-inset-top) + 44px));
+  #hudTools {
+    top: max(46px, calc(env(safe-area-inset-top) + 40px));
+    right: auto;
+    left: 14px;
   }
-  #muteBtn { right: auto; left: 14px; }
-  #sourceBtn { right: auto; left: 78px; }
-  #objective { top: max(140px, calc(env(safe-area-inset-top) + 128px)); }
+  #pace { top: max(92px, calc(env(safe-area-inset-top) + 84px)); }
+  #sfxMark { top: max(130px, calc(env(safe-area-inset-top) + 122px)); }
+  #objective { top: max(168px, calc(env(safe-area-inset-top) + 156px)); }
   #fieldTasks {
-    top: max(196px, calc(env(safe-area-inset-top) + 184px));
+    top: max(214px, calc(env(safe-area-inset-top) + 202px));
     max-width: 62vw;
   }
   #perfHud {
@@ -847,6 +867,101 @@ button:disabled {
 
 @media (pointer: coarse) {
   #controls { display: none; }
+}
+
+/* Phone, including a short landscape: the painting is a banner. iPad and desktop stay on the slots. */
+@media (max-width: 520px), (max-height: 500px) and (max-width: 900px) {
+  #title.overlay {
+    justify-content: flex-start;
+    overflow-y: auto;
+    padding: 10px 10px 16px;
+  }
+  #title .title-screen {
+    width: 100%;
+    max-height: none;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    overflow: visible;
+    background: #140e0a;
+    border: 1px solid rgba(201, 163, 90, 0.4);
+    border-radius: 12px;
+  }
+  #title .title-banner {
+    display: block;
+    height: 168px;
+    overflow: hidden;
+  }
+  #title .title-painting {
+    width: 210%;
+    max-width: none;
+    height: auto;
+    margin-top: -6%;
+  }
+  #title .title-screen .title-copy {
+    position: static;
+    left: auto;
+    right: auto;
+    top: auto;
+    padding: 12px 14px 0;
+    gap: 6px;
+  }
+  #title .title-screen h1 { font-size: 30px; line-height: 1.05; }
+  #title .title-screen .body { font-size: 13px; line-height: 1.45; }
+  #title .title-screen .title-actions {
+    position: static;
+    inset: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px 0;
+  }
+  #title .title-screen .title-actions button,
+  #title .title-screen #fastPlayBtn,
+  #title .title-screen #startBtn,
+  #title .title-screen #continueBtn {
+    position: static;
+    left: auto;
+    top: auto;
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 16px;
+  }
+  #title .title-tools {
+    position: static;
+    left: auto;
+    top: auto;
+    width: 100%;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow: visible;
+  }
+  #title .title-screen .title-tools button {
+    position: static;
+    width: 100%;
+    height: auto;
+    flex: none;
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 16px;
+  }
+  #title .title-hints {
+    position: static;
+    left: auto;
+    top: auto;
+    width: auto;
+    margin: 0;
+    padding: 10px 14px 14px;
+    font-size: 13px;
+    text-align: left;
+  }
+  #title .hint-desk { display: none; }
+  #title .hint-phone { display: list-item; }
 }
 
 
